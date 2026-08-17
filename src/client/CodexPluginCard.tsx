@@ -1,0 +1,843 @@
+/** Codex Plugin configuration card: ChatGPT login, usage, and an editable catalog. */
+
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import type { CSSProperties, ReactNode } from 'react'
+import type { SettingsScope } from '@deepseek-ai/dsh-client-runtime/client'
+import type { InjectFace, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
+import type {} from '@deepseek-ai/dsh-client-ui-settings-plugins/client'
+import { CODEX_OFFICIAL_MODELS } from '../catalog.ts'
+import type { CodexCatalogModel } from '../catalog.ts'
+import type {
+  CodexAccountStatus,
+  CodexSaveResult,
+  CodexSearchContextSize,
+  CodexSearchMode,
+  CodexSettingsView,
+  CodexUsage,
+} from '../client-contract.ts'
+import type { CodexSettingsKey } from './locales.ts'
+import { SortableList } from './SortableList.tsx'
+
+export type { CodexAccountStatus }
+
+export interface CodexPluginCardFace {
+  t: (key: CodexSettingsKey) => string
+  hooks: {
+    codexSettings: SettingsScope<CodexSettingsView>
+  }
+  readAuthStatus: (signal?: AbortSignal) => Promise<CodexAccountStatus>
+  startAuth: () => Promise<{ url: string }>
+  logout: () => Promise<void>
+  fetchModels: () => Promise<readonly CodexCatalogModel[]>
+  saveConfiguration: (settings: CodexSettingsView) => Promise<CodexSaveResult>
+  beginModelPicker: (initiallyPicked: ReadonlySet<string>, onAdopt: (models: readonly CodexCatalogModel[]) => void) => void
+  completeModelPicker: (candidates: readonly CodexCatalogModel[]) => void
+  failModelPicker: (message: string) => void
+  closeModelPicker: () => void
+}
+
+export type CodexPluginCardProps =
+  PropsRuntime<'settings.plugin.item'>
+  & InjectFace<CodexPluginCardFace>
+
+interface ModelDraft {
+  rowId: string
+  id: string
+  name?: string
+  thinking?: boolean
+  vision?: boolean
+  tools?: boolean
+  fast?: boolean
+}
+
+type CapabilityDraft = Pick<
+  CodexSettingsView,
+  'enableSearch' | 'enableImageTool' | 'searchModel' | 'searchMode' | 'searchContextSize' | 'searchMaxOutputTokens'
+>
+
+const cardStyle: CSSProperties = {
+  overflow: 'hidden',
+  fontFamily: 'var(--dsw-font-family)',
+  border: '1px solid var(--dsw-alias-border-l2)',
+  borderRadius: 10,
+  background: 'var(--dsw-alias-bg-module-platform)',
+}
+const headerStyle: CSSProperties = {
+  boxSizing: 'border-box',
+  width: '100%',
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'space-between',
+  gap: 16,
+  border: 0,
+  padding: '13px 14px',
+  background: 'transparent',
+  color: 'var(--dsw-alias-label-primary)',
+  font: 'inherit',
+  textAlign: 'left',
+  cursor: 'pointer',
+}
+const bodyStyle: CSSProperties = {
+  display: 'flex',
+  flexDirection: 'column',
+  gap: 18,
+  borderTop: '1px solid var(--dsw-alias-border-l2)',
+  padding: '16px 14px 18px',
+}
+const sectionStyle: CSSProperties = { display: 'flex', flexDirection: 'column', gap: 12 }
+const sectionTitleStyle: CSSProperties = {
+  margin: 0,
+  fontSize: 14,
+  lineHeight: '20px',
+  fontWeight: 600,
+  color: 'var(--dsw-alias-label-primary)',
+}
+const hintStyle: CSSProperties = { margin: 0, fontSize: 12, color: 'var(--dsw-alias-label-tertiary)' }
+const labelStyle: CSSProperties = { fontSize: 13, color: 'var(--dsw-alias-label-secondary)' }
+const statusStyle: CSSProperties = { margin: 0, fontSize: 13, color: 'var(--dsw-alias-label-secondary)' }
+const errorStyle: CSSProperties = { ...statusStyle, color: 'var(--dsw-alias-state-error-primary)' }
+const buttonStyle: CSSProperties = {
+  alignSelf: 'flex-start',
+  minHeight: 34,
+  border: '1px solid var(--dsw-alias-border-l2)',
+  borderRadius: 18,
+  padding: '6px 14px',
+  background: 'var(--dsw-alias-bg-layer-1)',
+  color: 'var(--dsw-alias-label-primary)',
+  font: 'inherit',
+  cursor: 'pointer',
+}
+const primaryButtonStyle: CSSProperties = {
+  ...buttonStyle,
+  borderColor: 'var(--dsw-alias-button-primary-fill)',
+  background: 'var(--dsw-alias-button-primary-fill)',
+  color: 'var(--dsw-alias-label-primary-foreground)',
+}
+const inputStyle: CSSProperties = {
+  boxSizing: 'border-box',
+  width: '100%',
+  minHeight: 36,
+  border: '1px solid var(--dsw-alias-border-l2)',
+  borderRadius: 8,
+  padding: '7px 10px',
+  background: 'var(--dsw-alias-bg-layer-1)',
+  color: 'var(--dsw-alias-label-primary)',
+  font: 'inherit',
+}
+const rowInputStyle: CSSProperties = { ...inputStyle, minHeight: 32, padding: '4px 10px' }
+const actionsStyle: CSSProperties = { display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 10 }
+const iconButtonStyle: CSSProperties = {
+  boxSizing: 'border-box',
+  width: 28,
+  height: 28,
+  display: 'inline-flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  flex: 'none',
+  border: 0,
+  borderRadius: 6,
+  padding: 0,
+  background: 'transparent',
+  color: 'var(--dsw-alias-label-tertiary)',
+  font: 'inherit',
+  cursor: 'pointer',
+}
+const disclosureStyle: CSSProperties = {
+  display: 'inline-flex',
+  alignItems: 'center',
+  gap: 8,
+  minWidth: 0,
+  border: 0,
+  padding: 0,
+  background: 'transparent',
+  color: 'var(--dsw-alias-label-primary)',
+  font: 'inherit',
+  textAlign: 'left',
+  cursor: 'pointer',
+}
+const modelContentStyle: CSSProperties = {
+  display: 'grid',
+  gridTemplateColumns: 'minmax(0, 1.4fr) minmax(0, 1fr) auto auto',
+  alignItems: 'center',
+  gap: 6,
+  padding: '6px 8px',
+}
+const modelDetailStyle: CSSProperties = {
+  display: 'flex',
+  alignItems: 'center',
+  flexWrap: 'wrap',
+  gap: 14,
+  borderTop: '1px solid var(--dsw-alias-border-l2)',
+  padding: '10px 4px 4px',
+}
+const checkboxStyle: CSSProperties = {
+  accentColor: 'var(--dsw-alias-brand-primary)',
+}
+const barTrackStyle: CSSProperties = {
+  boxSizing: 'border-box',
+  height: 8,
+  overflow: 'hidden',
+  borderRadius: 999,
+  background: 'color-mix(in srgb, var(--dsw-alias-label-primary) 14%, transparent)',
+}
+
+let nextModelRow = 0
+
+function newModelRowId(): string {
+  nextModelRow += 1
+  return 'codex-model-row-' + String(nextModelRow)
+}
+
+function modelDraftOf(model: CodexCatalogModel): ModelDraft {
+  return {
+    rowId: newModelRowId(),
+    id: model.id,
+    ...model.name === undefined ? {} : { name: model.name },
+    ...model.thinking === undefined ? {} : { thinking: model.thinking },
+    ...model.vision === undefined ? {} : { vision: model.vision },
+    ...model.tools === undefined ? {} : { tools: model.tools },
+    ...model.fast === undefined ? {} : { fast: model.fast },
+  }
+}
+
+function modelSettingsOf(draft: ModelDraft): CodexCatalogModel {
+  return {
+    id: draft.id.trim(),
+    ...draft.name === undefined || draft.name.trim().length === 0 ? {} : { name: draft.name.trim() },
+    ...draft.thinking === undefined ? {} : { thinking: draft.thinking },
+    ...draft.vision === undefined ? {} : { vision: draft.vision },
+    ...draft.tools === undefined ? {} : { tools: draft.tools },
+    ...draft.fast === undefined ? {} : { fast: draft.fast },
+  }
+}
+
+function capabilityOf(value: CodexSettingsView): CapabilityDraft {
+  return {
+    enableSearch: value.enableSearch,
+    enableImageTool: value.enableImageTool,
+    searchModel: value.searchModel,
+    searchMode: value.searchMode,
+    searchContextSize: value.searchContextSize,
+    searchMaxOutputTokens: value.searchMaxOutputTokens,
+  }
+}
+
+function sameDraft(left: readonly ModelDraft[], right: readonly ModelDraft[]): boolean {
+  return JSON.stringify(left.map(modelSettingsOf)) === JSON.stringify(right.map(modelSettingsOf))
+}
+
+function modelFailure(models: readonly ModelDraft[]): boolean {
+  const ids = new Set<string>()
+  for (const model of models) {
+    const id = model.id.trim()
+    if (id.length === 0 || ids.has(id)) return true
+    ids.add(id)
+  }
+  return false
+}
+
+function messageOf(error: unknown, fallback: string): string {
+  return error instanceof Error && error.message.length > 0 ? error.message : fallback
+}
+
+function formatPercent(percent: number): string {
+  return new Intl.NumberFormat(undefined, { maximumFractionDigits: 1 }).format(percent)
+}
+
+function interpolate(template: string, params: Record<string, unknown>): string {
+  return template.replace(/\{(\w+)\}/gu, (_match, key: string) => String(params[key] ?? ''))
+}
+
+function windowLabel(seconds: number, t: CodexPluginCardFace['t']): string {
+  if (seconds === 5 * 60 * 60) return t('fiveHourLimit')
+  if (seconds === 7 * 24 * 60 * 60) return t('weeklyLimit')
+  const hours = seconds / (60 * 60)
+  return Number.isInteger(hours) ? interpolate(t('hourLimit'), { count: hours }) : t('usageWindow')
+}
+
+function Capability({ label, checked, disabled, onChange }: {
+  label: string
+  checked: boolean
+  disabled: boolean
+  onChange: (checked: boolean) => void
+}): ReactNode {
+  return (
+    <label style={{ ...labelStyle, display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+      <input
+        type="checkbox"
+        style={checkboxStyle}
+        checked={checked}
+        disabled={disabled}
+        onChange={(event) => { onChange(event.target.checked) }}
+      />
+      {label}
+    </label>
+  )
+}
+
+function IconChevron({ open }: { open: boolean }): ReactNode {
+  return (
+    <svg
+      width="12" height="12" viewBox="0 0 16 16" fill="none" aria-hidden
+      style={{ flex: 'none', transform: open ? 'rotate(90deg)' : 'none', transition: 'transform 120ms ease' }}
+    >
+      <path d="M6 3.5L10.5 8L6 12.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  )
+}
+
+function IconTrash(): ReactNode {
+  return (
+    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden>
+      <path
+        d="M2.5 4h11M6.5 4V2.5h3V4M4 4l.7 9a1 1 0 001 .9h4.6a1 1 0 001-.9L12 4M6.5 6.8v4.4M9.5 6.8v4.4"
+        stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"
+      />
+    </svg>
+  )
+}
+
+function UsageLimits({ usage, quotaError, t }: {
+  usage: CodexUsage
+  quotaError?: string
+  t: CodexPluginCardFace['t']
+}): ReactNode {
+  if (quotaError !== undefined) return <p style={hintStyle}>{t('quotaUnavailable')}</p>
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+      {usage.rateLimits.map(limit => (
+        <div key={limit.id} style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {limit.windows.map(window => {
+            const remaining = Math.max(0, Math.min(100, window.remainingPercent))
+            const label = windowLabel(window.windowSeconds, t)
+            return (
+              <div key={label + String(window.windowSeconds)} style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10 }}>
+                  <span style={labelStyle}>{limit.name ?? label}</span>
+                  <span style={hintStyle}>{interpolate(t('percentRemaining'), { percent: formatPercent(remaining) })}</span>
+                </div>
+                <div style={barTrackStyle} role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(remaining)}>
+                  <span style={{ width: String(remaining) + '%', height: '100%', display: 'block', background: 'var(--dsw-alias-state-business-primary)' }} />
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      ))}
+      {usage.credits === undefined
+        ? null
+        : (
+          <p style={hintStyle}>
+            {usage.credits.unlimited
+              ? t('unlimited')
+              : usage.credits.balance === undefined
+                ? t('credits')
+                : interpolate(t('exactRemaining'), { remaining: usage.credits.balance, limit: usage.credits.balance })}
+          </p>
+        )}
+    </div>
+  )
+}
+
+export function CodexPluginCard(props: CodexPluginCardProps): ReactNode {
+  const { t, readAuthStatus, startAuth, logout, fetchModels } = props
+  const snapshot = props.useCodexSettings(value => value)
+  const [open, setOpen] = useState(false)
+  const initial = useMemo(
+    () => snapshot.value === undefined ? undefined : snapshot.value.models.map(modelDraftOf),
+    [snapshot.value],
+  )
+  const [source, setSource] = useState<ModelDraft[] | undefined>(initial)
+  const [draft, setDraft] = useState<ModelDraft[] | undefined>(initial)
+  const [capabilities, setCapabilities] = useState<CapabilityDraft | undefined>(
+    snapshot.value === undefined ? undefined : capabilityOf(snapshot.value),
+  )
+  const [sourceRevision, setSourceRevision] = useState<number | undefined>(snapshot.revision)
+  const [auth, setAuth] = useState<CodexAccountStatus>({ status: 'loading' })
+  const [catalogOpen, setCatalogOpen] = useState(false)
+  const [expandedModels, setExpandedModels] = useState<ReadonlySet<string>>(new Set())
+  const [busy, setBusy] = useState(false)
+  const [fetching, setFetching] = useState(false)
+  const [failure, setFailure] = useState<string | undefined>(undefined)
+  const [notice, setNotice] = useState<string | undefined>(undefined)
+  const mounted = useRef(true)
+  const title = t('title')
+  const signingIn = auth.status === 'signing-in'
+  const disabled = snapshot.status !== 'ready' || !snapshot.writable || busy
+  const dirtyModels = source !== undefined && draft !== undefined && !sameDraft(source, draft)
+  const dirtyCaps = snapshot.value !== undefined && capabilities !== undefined
+    && JSON.stringify(capabilityOf(snapshot.value)) !== JSON.stringify(capabilities)
+  const dirty = dirtyModels || dirtyCaps
+  const invalidModels = draft !== undefined && modelFailure(draft)
+  const invalidCaps = capabilities !== undefined && (
+    capabilities.searchModel.trim().length === 0
+    || !Number.isInteger(capabilities.searchMaxOutputTokens)
+    || capabilities.searchMaxOutputTokens < 1
+  )
+  const invalid = invalidModels || invalidCaps
+  const customModels = snapshot.user !== undefined && Object.prototype.hasOwnProperty.call(snapshot.user, 'models')
+
+  useEffect(() => {
+    mounted.current = true
+    return () => { mounted.current = false }
+  }, [])
+
+  useEffect(() => {
+    if (snapshot.status !== 'ready' || snapshot.value === undefined) return
+    if (snapshot.revision === sourceRevision) return
+    if (dirty) return
+    const next = snapshot.value.models.map(modelDraftOf)
+    setSource(next)
+    setDraft(next)
+    setCapabilities(capabilityOf(snapshot.value))
+    setSourceRevision(snapshot.revision)
+  }, [dirty, snapshot.revision, snapshot.status, snapshot.value, sourceRevision])
+
+  useEffect(() => () => { props.closeModelPicker() }, [props.closeModelPicker])
+
+  const refreshAuth = useCallback(async (signal?: AbortSignal): Promise<void> => {
+    try {
+      const next = await readAuthStatus(signal)
+      if (mounted.current && signal?.aborted !== true) setAuth(next)
+    } catch (error: unknown) {
+      if (mounted.current && signal?.aborted !== true) {
+        setAuth({ status: 'error', message: messageOf(error, t('statusFailed')) })
+      }
+    }
+  }, [readAuthStatus, t])
+
+  useEffect(() => {
+    if (!open) return
+    const controller = new AbortController()
+    void refreshAuth(controller.signal)
+    return () => { controller.abort() }
+  }, [open, refreshAuth])
+
+  useEffect(() => {
+    if (!open) return
+    const interval = auth.status === 'signing-in' ? 1000 : auth.status === 'signed-in' ? 60_000 : undefined
+    if (interval === undefined) return
+    const controller = new AbortController()
+    const timer = window.setInterval(() => { void refreshAuth(controller.signal) }, interval)
+    return () => {
+      window.clearInterval(timer)
+      controller.abort()
+    }
+  }, [open, auth.status, refreshAuth])
+
+  const patchDraft = (models: ModelDraft[]): void => {
+    setDraft(models)
+    setFailure(undefined)
+    setNotice(undefined)
+  }
+
+  const onSignIn = async (): Promise<void> => {
+    const popup = window.open('about:blank', '_blank')
+    if (popup === null) {
+      setAuth({ status: 'error', message: t('popupBlocked') })
+      return
+    }
+    popup.opener = null
+    setBusy(true)
+    setAuth({ status: 'signing-in' })
+    try {
+      const challenge = await startAuth()
+      if (!mounted.current) {
+        popup.close()
+        return
+      }
+      popup.location.replace(challenge.url)
+    } catch (error: unknown) {
+      popup.close()
+      if (mounted.current) setAuth({ status: 'error', message: messageOf(error, t('signInFailed')) })
+    } finally {
+      if (mounted.current) setBusy(false)
+    }
+  }
+
+  const onSignOut = async (): Promise<void> => {
+    setBusy(true)
+    try {
+      await logout()
+      if (mounted.current) setAuth({ status: 'signed-out' })
+    } catch (error: unknown) {
+      if (mounted.current) setAuth({ status: 'error', message: messageOf(error, t('signOutFailed')) })
+    } finally {
+      if (mounted.current) setBusy(false)
+    }
+  }
+
+  const chooseFromOfficial = async (): Promise<void> => {
+    if (draft === undefined) return
+    const currentModels = draft.map(modelSettingsOf)
+    const initiallyPicked = new Set(currentModels.map(model => model.id))
+    setFetching(true)
+    setFailure(undefined)
+    setNotice(undefined)
+    props.beginModelPicker(initiallyPicked, selected => {
+      setDraft((current) => {
+        if (current === undefined) return current
+        const currentById = new Map(current.map(model => [model.id.trim(), model]))
+        const next = new Map<string, ModelDraft>()
+        for (const candidate of selected) {
+          const existing = currentById.get(candidate.id)
+          const discovered = modelDraftOf(candidate)
+          next.set(candidate.id, existing === undefined
+            ? discovered
+            : { ...existing, ...discovered, rowId: existing.rowId })
+        }
+        return [...next.values()]
+      })
+      setCatalogOpen(true)
+      setFailure(undefined)
+      setNotice(undefined)
+    })
+    try {
+      const found = await fetchModels()
+      if (found.length === 0) {
+        const message = t('fetchEmpty')
+        props.failModelPicker(message)
+        setFailure(message)
+        return
+      }
+      const foundIds = new Set(found.map(model => model.id))
+      const currentOnly = currentModels.filter(model => !foundIds.has(model.id))
+      props.completeModelPicker([...found, ...currentOnly])
+    } catch (error: unknown) {
+      const message = messageOf(error, t('requestFailed'))
+      props.failModelPicker(message)
+      setFailure(message)
+    } finally {
+      setFetching(false)
+    }
+  }
+
+  const discard = (): void => {
+    if (source !== undefined) setDraft(source.map(model => ({ ...model })))
+    if (snapshot.value !== undefined) setCapabilities(capabilityOf(snapshot.value))
+    setFailure(undefined)
+    setNotice(undefined)
+  }
+
+  const save = async (): Promise<void> => {
+    if (draft === undefined || snapshot.value === undefined || capabilities === undefined || invalid) return
+    setBusy(true)
+    setFailure(undefined)
+    setNotice(undefined)
+    try {
+      const accepted = await props.saveConfiguration({
+        ...snapshot.value,
+        ...capabilities,
+        models: draft.map(modelSettingsOf),
+      })
+      const next = accepted.settings.models.map(modelDraftOf)
+      setSource(next)
+      setDraft(next)
+      setCapabilities(capabilityOf(accepted.settings))
+      setSourceRevision(accepted.revision)
+      setNotice(t('saved'))
+    } catch (error: unknown) {
+      setFailure(messageOf(error, t('requestFailed')))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const statusLabel = signingIn
+    ? t('signingIn')
+    : auth.status === 'signed-in'
+      ? t('signedIn')
+      : auth.status === 'reauth-required'
+        ? t('reauthRequired')
+        : auth.status === 'error'
+          ? auth.message
+          : auth.status === 'loading'
+            ? t('authLoading')
+            : t('signedOut')
+
+  if (snapshot.status === 'unavailable') {
+    return (
+      <li style={cardStyle}>
+        <button type="button" style={headerStyle} aria-expanded={open} onClick={() => { setOpen(!open) }}>
+          <span style={{ display: 'flex', minWidth: 0, flexDirection: 'column', gap: 3 }}>
+            <span style={{ fontSize: 14, lineHeight: '20px', fontWeight: 600 }}>{title}</span>
+            <span style={{ fontSize: 13, lineHeight: '18px', color: 'var(--dsw-alias-label-tertiary)' }}>{t('description')}</span>
+          </span>
+          <span aria-hidden="true" style={{ fontSize: 18, transform: open ? 'rotate(180deg)' : 'none' }}>⌄</span>
+        </button>
+        {open ? <div style={bodyStyle}><p style={statusStyle} role="status">{t('remoteAccess')}</p></div> : null}
+      </li>
+    )
+  }
+
+  if (snapshot.status !== 'ready' || draft === undefined || capabilities === undefined) {
+    return (
+      <li style={cardStyle}>
+        <button type="button" style={headerStyle} aria-expanded={open} onClick={() => { setOpen(!open) }}>
+          <span style={{ display: 'flex', minWidth: 0, flexDirection: 'column', gap: 3 }}>
+            <span style={{ fontSize: 14, lineHeight: '20px', fontWeight: 600 }}>{title}</span>
+            <span style={{ fontSize: 13, lineHeight: '18px', color: 'var(--dsw-alias-label-tertiary)' }}>{t('description')}</span>
+          </span>
+          <span aria-hidden="true" style={{ fontSize: 18 }}>⌄</span>
+        </button>
+        {open ? <div style={bodyStyle}><p style={statusStyle}>{t('loading')}</p></div> : null}
+      </li>
+    )
+  }
+
+  return (
+    <li style={cardStyle}>
+      <button type="button" style={headerStyle} aria-expanded={open} onClick={() => { setOpen(!open) }}>
+        <span style={{ display: 'flex', minWidth: 0, flexDirection: 'column', gap: 3 }}>
+          <span style={{ fontSize: 14, lineHeight: '20px', fontWeight: 600 }}>{title}</span>
+          <span style={{ fontSize: 13, lineHeight: '18px', color: 'var(--dsw-alias-label-tertiary)' }}>{t('description')}</span>
+        </span>
+        <span aria-hidden="true" style={{ fontSize: 18, transform: open ? 'rotate(180deg)' : 'none' }}>⌄</span>
+      </button>
+      {open
+        ? (
+          <div style={bodyStyle}>
+            <section style={sectionStyle}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+                <p style={statusStyle} role="status">{statusLabel}</p>
+                {auth.status === 'signed-in'
+                  ? <button type="button" style={buttonStyle} disabled={busy} onClick={() => { void onSignOut() }}>{t('signOut')}</button>
+                  : auth.status === 'loading' || auth.status === 'signing-in'
+                    ? null
+                    : <button type="button" style={primaryButtonStyle} disabled={busy} onClick={() => { void onSignIn() }}>
+                        {auth.status === 'error' || auth.status === 'reauth-required' ? t('signInAgain') : t('signIn')}
+                      </button>}
+              </div>
+              {auth.status === 'error' || auth.status === 'reauth-required'
+                ? <p style={errorStyle}>{auth.message}</p>
+                : null}
+              {auth.status === 'signed-in'
+                ? <UsageLimits usage={auth.usage} {...auth.quotaError === undefined ? {} : { quotaError: auth.quotaError }} t={t} />
+                : null}
+            </section>
+
+            <section style={sectionStyle} aria-label={t('models')}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+                <button
+                  type="button"
+                  style={disclosureStyle}
+                  aria-expanded={catalogOpen}
+                  aria-label={t('models')}
+                  onClick={() => { setCatalogOpen(!catalogOpen) }}
+                >
+                  <IconChevron open={catalogOpen} />
+                  <span style={sectionTitleStyle}>{t('models')}</span>
+                  <span style={hintStyle}>{customModels ? t('customized') : t('inherited')}</span>
+                </button>
+                <button type="button" style={buttonStyle} disabled={disabled || fetching} onClick={() => { void chooseFromOfficial() }}>
+                  {fetching ? t('fetchingModels') : t('fetchModels')}
+                </button>
+              </div>
+              {catalogOpen
+                ? (
+                  <>
+                    <SortableList
+                      items={draft}
+                      getId={item => item.rowId}
+                      disabled={disabled}
+                      dragLabel={(item, index) => {
+                        const label = item.id.trim().length > 0 ? item.id.trim() : String(index + 1)
+                        return t('dragModel') + ': ' + label
+                      }}
+                      onReorder={patchDraft}
+                      renderItem={(item, index) => {
+                        const expanded = expandedModels.has(item.rowId)
+                        const label = item.id.trim().length > 0 ? item.id.trim() : String(index + 1)
+                        return (
+                          <div data-model-row={label} style={modelContentStyle}>
+                            <input
+                              style={rowInputStyle}
+                              value={item.id}
+                              placeholder={t('modelId')}
+                              aria-label={t('modelId') + ' ' + String(index + 1)}
+                              disabled={disabled}
+                              onChange={(event) => {
+                                patchDraft(draft.map((model, at) => at === index ? { ...model, id: event.target.value } : model))
+                              }}
+                            />
+                            <input
+                              style={rowInputStyle}
+                              value={item.name ?? ''}
+                              placeholder={t('modelName')}
+                              aria-label={t('modelName') + ' ' + String(index + 1)}
+                              disabled={disabled}
+                              onChange={(event) => {
+                                const name = event.target.value
+                                patchDraft(draft.map((model, at) => {
+                                  if (at !== index) return model
+                                  const next = { ...model }
+                                  if (name.length === 0) delete next.name
+                                  else next.name = name
+                                  return next
+                                }))
+                              }}
+                            />
+                            <button
+                              type="button"
+                              style={iconButtonStyle}
+                              aria-label={t('modelDetails') + ': ' + label}
+                              aria-expanded={expanded}
+                              title={t('modelDetails')}
+                              onClick={() => {
+                                setExpandedModels((current) => {
+                                  const next = new Set(current)
+                                  if (!next.delete(item.rowId)) next.add(item.rowId)
+                                  return next
+                                })
+                              }}
+                            >
+                              <IconChevron open={expanded} />
+                            </button>
+                            <button
+                              type="button"
+                              style={iconButtonStyle}
+                              disabled={disabled}
+                              aria-label={t('remove') + ' ' + label}
+                              title={t('remove')}
+                              onClick={() => { patchDraft(draft.filter((_, at) => at !== index)) }}
+                            >
+                              <IconTrash />
+                            </button>
+                            {expanded
+                              ? (
+                                <div style={{ ...modelDetailStyle, gridColumn: '1 / -1' }}>
+                                  <Capability label={t('thinking')} checked={item.thinking === true} disabled={disabled} onChange={(checked) => {
+                                    patchDraft(draft.map((model, at) => at === index ? { ...model, thinking: checked } : model))
+                                  }} />
+                                  <Capability label={t('vision')} checked={item.vision === true} disabled={disabled} onChange={(checked) => {
+                                    patchDraft(draft.map((model, at) => at === index ? { ...model, vision: checked } : model))
+                                  }} />
+                                  <Capability label={t('tools')} checked={item.tools !== false} disabled={disabled} onChange={(checked) => {
+                                    patchDraft(draft.map((model, at) => at === index ? { ...model, tools: checked } : model))
+                                  }} />
+                                </div>
+                              )
+                              : null}
+                          </div>
+                        )
+                      }}
+                    />
+                    <button
+                      type="button"
+                      style={{ ...buttonStyle, alignSelf: 'flex-start' }}
+                      disabled={disabled}
+                      onClick={() => {
+                        const model = modelDraftOf({ id: '', name: '' })
+                        patchDraft([...draft, model])
+                        setExpandedModels(current => new Set(current).add(model.rowId))
+                      }}
+                    >
+                      {t('addModel')}
+                    </button>
+                  </>
+                )
+                : null}
+            </section>
+
+            <section style={sectionStyle}>
+              <h3 style={sectionTitleStyle}>{t('capabilities')}</h3>
+              <p style={hintStyle}>{t('capabilitiesIntro')}</p>
+              <Capability
+                label={t('enableSearch')}
+                checked={capabilities.enableSearch}
+                disabled={disabled}
+                onChange={(checked) => { setCapabilities({ ...capabilities, enableSearch: checked }); setNotice(undefined) }}
+              />
+              <p style={hintStyle}>{t('enableSearchHelp')}</p>
+              {capabilities.enableSearch
+                ? (
+                  <>
+                    <label style={labelStyle}>
+                      {t('searchModel')}
+                      <select
+                        style={inputStyle}
+                        value={capabilities.searchModel}
+                        disabled={disabled}
+                        onChange={(event) => { setCapabilities({ ...capabilities, searchModel: event.target.value }); setNotice(undefined) }}
+                      >
+                        {CODEX_OFFICIAL_MODELS.map(model => (
+                          <option key={model.id} value={model.id}>{model.name}</option>
+                        ))}
+                      </select>
+                    </label>
+                    <label style={labelStyle}>
+                      {t('searchMode')}
+                      <select
+                        style={inputStyle}
+                        value={capabilities.searchMode}
+                        disabled={disabled}
+                        onChange={(event) => {
+                          setCapabilities({ ...capabilities, searchMode: event.target.value as CodexSearchMode })
+                          setNotice(undefined)
+                        }}
+                      >
+                        <option value="cached">{t('modeCached')}</option>
+                        <option value="indexed">{t('modeIndexed')}</option>
+                        <option value="live">{t('modeLive')}</option>
+                      </select>
+                    </label>
+                    <label style={labelStyle}>
+                      {t('searchContextSize')}
+                      <select
+                        style={inputStyle}
+                        value={capabilities.searchContextSize}
+                        disabled={disabled}
+                        onChange={(event) => {
+                          setCapabilities({ ...capabilities, searchContextSize: event.target.value as CodexSearchContextSize })
+                          setNotice(undefined)
+                        }}
+                      >
+                        <option value="low">{t('contextLow')}</option>
+                        <option value="medium">{t('contextMedium')}</option>
+                        <option value="high">{t('contextHigh')}</option>
+                      </select>
+                    </label>
+                    <label style={labelStyle}>
+                      {t('searchMaxOutputTokens')}
+                      <input
+                        style={inputStyle}
+                        type="number"
+                        min={1}
+                        step={1}
+                        value={capabilities.searchMaxOutputTokens}
+                        disabled={disabled}
+                        onChange={(event) => {
+                          setCapabilities({ ...capabilities, searchMaxOutputTokens: Number(event.target.value) })
+                          setNotice(undefined)
+                        }}
+                      />
+                    </label>
+                  </>
+                )
+                : null}
+              <Capability
+                label={t('enableImageTool')}
+                checked={capabilities.enableImageTool}
+                disabled={disabled}
+                onChange={(checked) => { setCapabilities({ ...capabilities, enableImageTool: checked }); setNotice(undefined) }}
+              />
+              <p style={hintStyle}>{t('enableImageToolHelp')}</p>
+            </section>
+
+            {invalidModels ? <p style={errorStyle}>{t('invalidModel')}</p> : null}
+            {invalidCaps && capabilities.searchModel.trim().length === 0 ? <p style={errorStyle}>{t('invalidSearchModel')}</p> : null}
+            {invalidCaps && (capabilities.searchModel.trim().length > 0) ? <p style={errorStyle}>{t('invalidSearchTokens')}</p> : null}
+            {failure !== undefined ? <p style={errorStyle}>{failure}</p> : null}
+            {notice !== undefined ? <p style={hintStyle}>{notice}</p> : null}
+            <div style={actionsStyle}>
+              <button type="button" style={buttonStyle} disabled={disabled || !dirty} onClick={discard}>{t('discard')}</button>
+              <button type="button" style={primaryButtonStyle} disabled={disabled || !dirty || invalid} onClick={() => { void save() }}>
+                {busy ? t('saving') : t('save')}
+              </button>
+            </div>
+          </div>
+        )
+        : null}
+    </li>
+  )
+}

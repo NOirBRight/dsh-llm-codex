@@ -1,0 +1,9 @@
+# dsh-llm-codex bundle patch: register the Codex adapter as one new loader
+# row. Search and view_image stay off until the user enables them. This
+# patch never writes agent-default-model or web.searchProvider.
+- insert:
+    - id: llm-codex
+      name: 'dsh-llm-codex'
+      config:
+        enableSearch: false
+        enableImageTool: false

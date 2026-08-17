@@ -1,0 +1,416 @@
+/**
+ * Register the `codex` provider, ChatGPT OAuth, sortable catalog, and
+ * optional search / view_image capabilities.
+ * @module dsh-llm-codex
+ */
+
+import { randomUUID } from 'node:crypto'
+import type { Context, Fiber } from '@deepseek-ai/cordis'
+import z from '@deepseek-ai/schemastery'
+import type {} from '@deepseek-ai/dsh-client-connection'
+import type { ConnectionRpcHandler } from '@deepseek-ai/dsh-client-connection'
+import { resolveRetryPolicy, RetryPolicySchema } from '@deepseek-ai/dsh-llm'
+import type { RetryPolicyConfig } from '@deepseek-ai/dsh-llm'
+import { deepEqualJson, installSettingsSection, settingsNamespace } from '@deepseek-ai/dsh-settings'
+import type { SettingsPathOp } from '@deepseek-ai/dsh-settings'
+import { MAX_TIMER_DELAY_MS } from '@deepseek-ai/dsh-timeout'
+import type {} from '@deepseek-ai/dsh-attachment'
+import type {} from '@deepseek-ai/dsh-agent'
+import type {} from '@deepseek-ai/dsh-session'
+import type {} from '@deepseek-ai/dsh-web'
+import type {} from '@deepseek-ai/dsh-host-webserver'
+import type {} from '@deepseek-ai/dsh-tools'
+import type {} from '@deepseek-ai/dsh-fs'
+import { CodexAdapter, resolveCodexAccessToken } from './adapter.ts'
+import type { CodexConnectionOptions } from './adapter.ts'
+import { registerCodexAuthRoutes } from './auth-routes.ts'
+import { viewImageTool } from './view-image.ts'
+import { installCodexSearchEvent, installHostCodexSearchEvents, recordCodexSearchRequest } from './search-event.ts'
+import { CodexSearchProvider } from './search.ts'
+import { CodexCredentialStore } from './store.ts'
+import {
+  CODEX_CATALOG,
+  CODEX_DEFAULT_STREAM_IDLE_TIMEOUT_MS,
+  CODEX_PROVIDER,
+  CODEX_RPC_CHANNEL,
+  CODEX_SAVE_ENDPOINT,
+  CODEX_SETTINGS_NAMESPACE,
+  DEFAULT_CODEX_SEARCH_CONTEXT_SIZE,
+  DEFAULT_CODEX_SEARCH_MAX_OUTPUT_TOKENS,
+  DEFAULT_CODEX_SEARCH_MODE,
+  DEFAULT_CODEX_SEARCH_MODEL,
+  DEFAULT_CODEX_SETTINGS,
+  decodeCodexSaveRequest,
+  decodeCodexSettings,
+} from './client-contract.ts'
+import type { CodexCatalogModel, CodexSearchContextSize, CodexSearchMode } from './client-contract.ts'
+import { hydrateCatalogModel } from './catalog.ts'
+
+export { CodexAdapter, resolveCodexAccessToken } from './adapter.ts'
+export type { CodexAdapterOptions, CodexConnectionOptions } from './adapter.ts'
+export {
+  CODEX_CATALOG,
+  CODEX_DEFAULT_STREAM_IDLE_TIMEOUT_MS,
+  CODEX_PROVIDER,
+  CODEX_RPC_CHANNEL,
+  CODEX_SAVE_ENDPOINT,
+  CODEX_SETTINGS_NAMESPACE,
+  CODEX_AUTH_STATUS_PATH,
+  CODEX_AUTH_LOGIN_PATH,
+  CODEX_AUTH_LOGOUT_PATH,
+  DEFAULT_CODEX_SETTINGS,
+  DEFAULT_CODEX_SEARCH_CONTEXT_SIZE,
+  DEFAULT_CODEX_SEARCH_MAX_OUTPUT_TOKENS,
+  DEFAULT_CODEX_SEARCH_MODE,
+  DEFAULT_CODEX_SEARCH_MODEL,
+  decodeCodexSettings,
+  decodeCodexSaveRequest,
+  decodeCodexSaveResult,
+  decodeCodexCatalogModel,
+} from './client-contract.ts'
+export type {
+  CodexCatalogModel,
+  CodexSaveRequest,
+  CodexSaveResult,
+  CodexSearchContextSize,
+  CodexSearchMode,
+  CodexSettingsView,
+} from './client-contract.ts'
+export {
+  CODEX_FAST_SERVICE_TIER,
+  CODEX_FAST_SUFFIX,
+  CODEX_OFFICIAL_MODELS,
+  defaultDisplayedCatalog,
+  officialPickerCatalog,
+  resolveWireModel,
+  hydrateCatalogModel,
+} from './catalog.ts'
+export { applyCodexWirePayload, applyCodexCatalogWire } from './service-tier.ts'
+export {
+  CodexCredentialStore,
+  CODEX_AUTH_FILENAME,
+  OPENAI_CODEX_PROVIDER,
+  codexAuthPath,
+} from './store.ts'
+export { loginCodex, logoutCodex, codexAuthStatus } from './auth.ts'
+export type { CodexAuthStatus } from './auth.ts'
+export {
+  CODEX_USAGE_URL,
+  parseCodexUsage,
+  readCodexRateLimits,
+  CodexReauthRequiredError,
+  isCodexReauthRequiredError,
+} from './usage.ts'
+export type {
+  CodexCredits,
+  CodexIndividualLimit,
+  CodexRateLimit,
+  CodexRateLimitWindow,
+  CodexUsage,
+} from './usage.ts'
+export {
+  CodexSearchProvider,
+  CODEX_BASE_URL,
+  CODEX_SEARCH_PROVIDER,
+  CODEX_SEARCH_URL,
+  externalWebAccess,
+  mapCodexSearchResponse,
+} from './search.ts'
+export { VIEW_IMAGE_TOOL_NAME } from './view-image.ts'
+export { createCodexPiAiProfile, CODEX_CHAT_BASE_URL, codexResponsesApi } from './pi-ai-profile.ts'
+export { registerCodexAuthRoutes, trustedRequest, CodexWebAuth } from './auth-routes.ts'
+
+export const name = 'llm-codex'
+export const inject = ['llm']
+
+const NS = settingsNamespace(CODEX_SETTINGS_NAMESPACE)
+
+export interface Config {
+  streamIdleTimeoutMs?: number
+  models?: CodexCatalogModel[]
+  enableSearch?: boolean
+  enableImageTool?: boolean
+  searchModel?: string
+  searchMode?: CodexSearchMode
+  searchContextSize?: CodexSearchContextSize
+  searchMaxOutputTokens?: number
+  retryPolicy?: RetryPolicyConfig
+}
+
+const catalogModel = z.object({
+  id: z.string().required(),
+  name: z.string(),
+  description: z.string(),
+  contextWindow: z.number().step(1).min(1),
+  maxTokens: z.number().step(1).min(1),
+  vision: z.boolean(),
+  thinking: z.boolean(),
+  tools: z.boolean(),
+  fast: z.boolean(),
+})
+
+export const Config: z<Config> = z.object({
+  streamIdleTimeoutMs: z.number().min(Number.MIN_VALUE).max(MAX_TIMER_DELAY_MS).default(
+    CODEX_DEFAULT_STREAM_IDLE_TIMEOUT_MS,
+  ),
+  models: z.array(catalogModel),
+  enableSearch: z.boolean().default(false),
+  enableImageTool: z.boolean().default(false),
+  searchModel: z.string().default(DEFAULT_CODEX_SEARCH_MODEL),
+  searchMode: z.union(['cached', 'indexed', 'live'] as const).default(DEFAULT_CODEX_SEARCH_MODE),
+  searchContextSize: z.union(['low', 'medium', 'high'] as const).default(DEFAULT_CODEX_SEARCH_CONTEXT_SIZE),
+  searchMaxOutputTokens: z.number().step(1).min(1).default(DEFAULT_CODEX_SEARCH_MAX_OUTPUT_TOKENS),
+  retryPolicy: RetryPolicySchema,
+})
+
+function resolveModels(models: readonly CodexCatalogModel[] | undefined): CodexCatalogModel[] {
+  const seen = new Set<string>()
+  return (models ?? CODEX_CATALOG).map((model) => {
+    if (model.id.length === 0) throw new Error('llm-codex: catalog model ids must be non-empty')
+    if (model.name !== undefined && model.name.length === 0) {
+      throw new Error(`llm-codex: catalog model "${model.id}" has an empty name`)
+    }
+    if (seen.has(model.id)) throw new Error(`llm-codex: duplicate catalog model "${model.id}"`)
+    seen.add(model.id)
+    return hydrateCatalogModel(model)
+  })
+}
+
+export function resolveAdapterOptions(config: Config): CodexConnectionOptions {
+  const streamIdleTimeoutMs = config.streamIdleTimeoutMs ?? CODEX_DEFAULT_STREAM_IDLE_TIMEOUT_MS
+  if (!Number.isFinite(streamIdleTimeoutMs)
+    || streamIdleTimeoutMs <= 0
+    || streamIdleTimeoutMs > MAX_TIMER_DELAY_MS) {
+    throw new Error(
+      `llm-codex: streamIdleTimeoutMs must be a positive finite number no greater than ${MAX_TIMER_DELAY_MS}`,
+    )
+  }
+  return {
+    models: resolveModels(config.models),
+    streamIdleTimeoutMs,
+    retryPolicy: resolveRetryPolicy(config.retryPolicy, 'llm-codex: retryPolicy'),
+  }
+}
+
+function internalError(message: string) {
+  return {
+    ok: false as const,
+    error: {
+      code: 'internal' as const,
+      message,
+      details: {},
+    },
+  }
+}
+
+async function saveConfiguration(ctx: Context, payload: unknown) {
+  const request = decodeCodexSaveRequest(payload)
+  if (request === undefined) return internalError('invalid Codex settings request')
+  const settings = ctx.get('settings')
+  if (settings === undefined) return internalError('Codex settings are unavailable')
+  try {
+    const before = settings.describe().find(descriptor => descriptor.ns === NS)
+    if (before === undefined) return internalError('Codex settings are unavailable')
+    const current = decodeCodexSettings(before.value)
+    if (current === undefined) return internalError('Codex settings are invalid')
+    const ops: SettingsPathOp[] = []
+    if (!deepEqualJson(current.models, request.models)) {
+      ops.push({ op: 'set', path: ['models'], value: request.models })
+    }
+    if (current.enableSearch !== request.enableSearch) {
+      ops.push({ op: 'set', path: ['enableSearch'], value: request.enableSearch })
+    }
+    if (current.enableImageTool !== request.enableImageTool) {
+      ops.push({ op: 'set', path: ['enableImageTool'], value: request.enableImageTool })
+    }
+    if (current.searchModel !== request.searchModel) {
+      ops.push({ op: 'set', path: ['searchModel'], value: request.searchModel })
+    }
+    if (current.searchMode !== request.searchMode) {
+      ops.push({ op: 'set', path: ['searchMode'], value: request.searchMode })
+    }
+    if (current.searchContextSize !== request.searchContextSize) {
+      ops.push({ op: 'set', path: ['searchContextSize'], value: request.searchContextSize })
+    }
+    if (current.searchMaxOutputTokens !== request.searchMaxOutputTokens) {
+      ops.push({ op: 'set', path: ['searchMaxOutputTokens'], value: request.searchMaxOutputTokens })
+    }
+    if (ops.length > 0) await settings.mutate(NS, ops, request.expectedRevision)
+    const accepted = settings.describe().find(descriptor => descriptor.ns === NS)
+    const acceptedSettings = decodeCodexSettings(accepted?.value)
+    if (accepted === undefined || acceptedSettings === undefined) {
+      return internalError('Codex settings could not be reloaded')
+    }
+    return { ok: true as const, value: { settings: acceptedSettings, revision: accepted.revision } }
+  } catch (error: unknown) {
+    const message = error instanceof Error && error.message.length > 0
+      ? error.message
+      : 'Codex settings save failed'
+    return internalError(message)
+  }
+}
+
+export function createCodexRpcHandler(ctx: Context): ConnectionRpcHandler {
+  return async (endpoint, payload) => {
+    if (endpoint === CODEX_SAVE_ENDPOINT) return saveConfiguration(ctx, payload)
+    return internalError(`unknown Codex endpoint: ${endpoint}`)
+  }
+}
+
+export function apply(ctx: Context, config: Config): void {
+  installCodexSearchEvent()
+  void installHostCodexSearchEvents()
+  let current: () => Config = () => config
+  let lastRaw: Config | undefined
+  let lastGood: CodexConnectionOptions | undefined
+  const options = (): CodexConnectionOptions => {
+    const raw = current()
+    if (raw === lastRaw && lastGood !== undefined) return lastGood
+    try {
+      const next = resolveAdapterOptions(raw)
+      lastRaw = raw
+      lastGood = next
+      return next
+    } catch (error) {
+      if (lastGood === undefined) throw error
+      lastRaw = raw
+      ctx.logger.error('llm-codex: keeping the last good configuration after an invalid settings section')
+      ctx.logger.error(error)
+      return lastGood
+    }
+  }
+  options()
+
+  const credentials = new CodexCredentialStore()
+  const adapter = new CodexAdapter({
+    options,
+    resolveApiKey: () => resolveCodexAccessToken(credentials),
+    resolveAttachments: () => ctx.get('attachments'),
+  })
+  ctx.llm.registerConfigurableProviders([
+    { provider: CODEX_PROVIDER, displayName: 'Codex', settingsNs: NS, settingsPath: [] },
+  ])
+  const registration = ctx.llm.registerAdapter([CODEX_PROVIDER], adapter)
+  let registeredPolicy = options().retryPolicy
+  const ensureRegistrationFacts = (): void => {
+    lastRaw = undefined
+    const policy = options().retryPolicy
+    if (deepEqualJson(policy, registeredPolicy)) return
+    registration.replace([CODEX_PROVIDER])
+    registeredPolicy = policy
+  }
+
+  ctx.inject(['webServer'], webCtx => registerCodexAuthRoutes(webCtx, credentials))
+  ctx.inject(['connection'], (connectionCtx) => {
+    connectionCtx.connection.rpc.handle(
+      CODEX_RPC_CHANNEL,
+      createCodexRpcHandler(ctx),
+      { authority: 'loopback' },
+    )
+  })
+
+  let stopped = false
+  let searchFiber: Fiber | undefined
+  let searchRegistration: object | undefined
+  let searchTail = Promise.resolve()
+  let imageFiber: Fiber | undefined
+  let imageTail = Promise.resolve()
+
+  const resolvedSettings = (): ReturnType<typeof decodeCodexSettings> => {
+    return decodeCodexSettings({ ...DEFAULT_CODEX_SETTINGS, ...current() })
+  }
+
+  const reconcileSearch = async (): Promise<void> => {
+    if (stopped) return
+    const resolved = resolvedSettings()
+    if (resolved === undefined) return
+    const nextRegistration = resolved.enableSearch
+      ? {
+          model: resolved.searchModel,
+          mode: resolved.searchMode,
+          contextSize: resolved.searchContextSize,
+          maxOutputTokens: resolved.searchMaxOutputTokens,
+        }
+      : undefined
+    if (deepEqualJson(nextRegistration, searchRegistration)) return
+    const previous = searchFiber
+    searchFiber = undefined
+    searchRegistration = undefined
+    if (previous !== undefined) await previous.dispose()
+    if (stopped || nextRegistration === undefined) return
+    installCodexSearchEvent()
+    const fiber = ctx.inject(['web'], webCtx => webCtx.web.registerSearchProvider(new CodexSearchProvider({
+      credentials,
+      model: nextRegistration.model,
+      mode: nextRegistration.mode,
+      contextSize: nextRegistration.contextSize,
+      maxOutputTokens: nextRegistration.maxOutputTokens,
+      resolveRequestId: () => String(webCtx.get('agents')?.currentInitiator()?.session.id ?? randomUUID()),
+      recordRequest: request => { recordCodexSearchRequest(webCtx, request) },
+    })))
+    searchFiber = fiber
+    searchRegistration = nextRegistration
+    void Promise.resolve(fiber).catch((error: unknown) => {
+      if (searchFiber === fiber) {
+        searchFiber = undefined
+        searchRegistration = undefined
+      }
+      ctx.logger.error('dsh-llm-codex: optional search provider failed to activate')
+      ctx.logger.error(error)
+    })
+  }
+
+  const reconcileImageTool = async (): Promise<void> => {
+    if (stopped) return
+    const resolved = resolvedSettings()
+    const enabled = resolved?.enableImageTool === true
+    if (enabled === (imageFiber !== undefined)) return
+    const previous = imageFiber
+    imageFiber = undefined
+    if (previous !== undefined) await previous.dispose()
+    if (stopped || !enabled) return
+    const fiber = ctx.inject(
+      ['tools', 'fs', 'attachments'],
+      toolCtx => toolCtx.tools.register(viewImageTool(toolCtx)),
+    )
+    imageFiber = fiber
+    void Promise.resolve(fiber).catch((error: unknown) => {
+      if (imageFiber === fiber) imageFiber = undefined
+      ctx.logger.error('dsh-llm-codex: optional view_image tool failed to activate')
+      ctx.logger.error(error)
+    })
+  }
+
+  const scheduleCapabilities = (): void => {
+    ensureRegistrationFacts()
+    searchTail = searchTail.then(reconcileSearch, reconcileSearch).catch((error: unknown) => {
+      ctx.logger.error('dsh-llm-codex: could not apply the updated search configuration')
+      ctx.logger.error(error)
+    })
+    imageTail = imageTail.then(reconcileImageTool, reconcileImageTool).catch((error: unknown) => {
+      ctx.logger.error('dsh-llm-codex: could not apply the updated image-tool configuration')
+      ctx.logger.error(error)
+    })
+  }
+
+  ctx.effect(() => async () => {
+    stopped = true
+    await Promise.all([searchTail, imageTail])
+    const search = searchFiber
+    const image = imageFiber
+    searchFiber = undefined
+    imageFiber = undefined
+    await Promise.allSettled([
+      search?.dispose() ?? Promise.resolve(),
+      image?.dispose() ?? Promise.resolve(),
+    ])
+  }, 'dsh-llm-codex: optional capability lifecycle')
+
+  installSettingsSection(ctx, NS, Config, config, {
+    setSource: (source) => {
+      current = source as () => Config
+    },
+    onChange: scheduleCapabilities,
+  })
+  scheduleCapabilities()
+}

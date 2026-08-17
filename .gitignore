@@ -1,0 +1,8 @@
+lib/types/**/*.js
+lib/types/**/*.js.map
+lib/types/**/*.d.ts.map
+node_modules/
+*.tgz
+*.tsbuildinfo
+coverage/
+*.log
