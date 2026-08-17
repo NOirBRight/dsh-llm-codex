@@ -1,33 +1,48 @@
 /**
- * Official Codex catalog plus first-class Fast rows.
+ * Official Codex catalog plus first-class Fast and 1M rows.
  * Display ids are picker keys; wire ids are what ChatGPT receives.
  */
 /** One model in the plugin's displayed or official catalog. */
 export interface CodexCatalogModel {
-    /** Picker id; Fast rows use a `-fast` suffix. */
+    /** Picker id; Fast rows use `-fast`, 1M rows use `-1m`. */
     id: string;
     /** Selector label; omission uses {@link id}. */
     name?: string;
     /** Optional selector detail. */
     description?: string;
-    /** Known combined request and response context capacity. */
+    /** Combined request and response budget used by DSH compaction. */
     contextWindow?: number;
-    /** Per-request output cap for this model. */
+    /** Per-request output capability for pi-ai; not a request cap. */
     maxTokens?: number;
     /** Whether the model supports native thinking. */
     thinking?: boolean;
+    /** Chat-picker default when the conversation has not chosen a level. */
+    defaultEffort?: string;
     /** Whether the model accepts image input. */
     vision?: boolean;
-    /** Whether the model supports tool calls. */
+    /** Legacy capability flag. Ignored at runtime; still decoded. */
     tools?: boolean;
     /** First-class Fast row; chat sends `service_tier: "priority"`. */
     fast?: boolean;
 }
 /** Suffix that marks a first-class Fast picker row. */
 export declare const CODEX_FAST_SUFFIX = "-fast";
+/** Suffix that marks a first-class 1M context picker row. */
+export declare const CODEX_LARGE_CONTEXT_SUFFIX = "-1m";
 /** Official Fast service tier sent on the wire. */
 export declare const CODEX_FAST_SERVICE_TIER: "priority";
-/** One official Codex model as shipped by pi-ai. */
+/** Documented 1M context budget for official 5.6 large rows. */
+export declare const CODEX_LARGE_CONTEXT_WINDOW = 1000000;
+/** Parsed picker id after stripping official Fast / 1M suffixes. */
+export interface CodexPickerVariant {
+    /** Wire model id sent to ChatGPT. */
+    wireId: string;
+    /** Whether this row sends the Fast service tier. */
+    fast: boolean;
+    /** Whether this row uses the 1M context budget. */
+    largeContext: boolean;
+}
+/** One official Codex model as shipped by the plugin snapshot. */
 export interface CodexOfficialModel {
     id: string;
     name: string;
@@ -35,24 +50,39 @@ export interface CodexOfficialModel {
     thinking: true;
     tools: true;
     contextWindow: number;
+    maxContextWindow: number;
     maxTokens: number;
     fast: boolean;
+    largeContext: boolean;
     thinkingLevelMap: Readonly<Record<string, string>>;
 }
-/** Official pi-ai openai-codex models, in picker order. */
+/** Official Codex models, in picker order. 1M rows are opt-in for the 5.6 family. */
 export declare const CODEX_OFFICIAL_MODELS: readonly CodexOfficialModel[];
 /** Default conversation-picker rows: Sol / Terra / Luna x normal + Fast. */
 export declare const CODEX_DEFAULT_MODEL_IDS: readonly string[];
-/** Official catalog plus Fast rows where the model advertises a speed tier. */
+/** Stable order for the Default thinking dropdown. */
+export declare const CODEX_EFFORT_ORDER: readonly ["minimal", "low", "medium", "high", "xhigh", "max", "ultra"];
+/** Short labels for advertised Codex reasoning levels. */
+export declare const CODEX_EFFORT_LABELS: Readonly<Record<string, string>>;
+/**
+ * Split a picker id into the ChatGPT wire id plus Fast / 1M flags.
+ * Unknown ids keep historical `-fast` stripping and ignore `-1m`.
+ */
+export declare function parseCodexPickerId(id: string): CodexPickerVariant;
+/** Official catalog plus Fast and 1M rows where the model advertises them. */
 export declare function officialPickerCatalog(): CodexCatalogModel[];
 /** Frozen default displayed subset. */
 export declare function defaultDisplayedCatalog(): CodexCatalogModel[];
 /** Look up the official model that backs a picker id, if any. */
 export declare function officialModelFor(id: string): CodexOfficialModel | undefined;
-/** Default reasoning effort for a displayed row. Fast rows share their base model's policy. */
+/** Default reasoning effort for a displayed row. Fast / 1M rows share the base policy. */
 export declare function defaultCodexReasoningEffort(id: string): 'high' | 'xhigh' | 'max';
+/** Reasoning levels shown when Default thinking is available. */
+export declare function effortsForCodexModel(model: CodexCatalogModel): readonly string[];
 /** Whether this picker id is a Fast variant of a model that supports it. */
 export declare function isFastCatalogId(id: string): boolean;
+/** Whether this picker id is a 1M variant of an official large-context model. */
+export declare function isLargeContextCatalogId(id: string): boolean;
 /** Wire id and optional service tier for one picker row. */
 export interface CodexWireTarget {
     wireId: string;

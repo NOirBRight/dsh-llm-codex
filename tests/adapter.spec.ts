@@ -19,6 +19,8 @@ describe('applyCodexDefaultReasoningMetadata', () => {
       .reasoning?.defaultEffort).toBe(ReasoningEffortId('xhigh'))
     expect(applyCodexDefaultReasoningMetadata(resolved(['high', 'xhigh']), 'gpt-5.6-sol')
       .reasoning?.defaultEffort).toBe(ReasoningEffortId('high'))
+    expect(applyCodexDefaultReasoningMetadata(resolved(['low', 'high', 'xhigh']), 'gpt-5.6-sol', 'low')
+      .reasoning?.defaultEffort).toBe(ReasoningEffortId('low'))
   })
 
   it('does not advertise an unsupported custom-model default', () => {

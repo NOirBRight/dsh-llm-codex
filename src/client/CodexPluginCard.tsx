@@ -5,7 +5,13 @@ import type { CSSProperties, ReactNode } from 'react'
 import type { SettingsScope } from '@deepseek-ai/dsh-client-runtime/client'
 import type { InjectFace, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import type {} from '@deepseek-ai/dsh-client-ui-settings-plugins/client'
-import { CODEX_OFFICIAL_MODELS } from '../catalog.ts'
+import {
+  CODEX_EFFORT_LABELS,
+  CODEX_OFFICIAL_MODELS,
+  defaultCodexReasoningEffort,
+  effortsForCodexModel,
+  officialModelFor,
+} from '../catalog.ts'
 import type { CodexCatalogModel } from '../catalog.ts'
 import type {
   CodexAccountStatus,
@@ -46,7 +52,8 @@ interface ModelDraft {
   name?: string
   thinking?: boolean
   vision?: boolean
-  tools?: boolean
+  defaultEffort?: string
+  contextWindow: string
   fast?: boolean
 }
 
@@ -188,25 +195,35 @@ function newModelRowId(): string {
   return 'codex-model-row-' + String(nextModelRow)
 }
 
+function integerOf(text: string): number | undefined {
+  const trimmed = text.trim()
+  if (trimmed.length === 0) return undefined
+  if (!/^[1-9]\d*$/u.test(trimmed)) return Number.NaN
+  return Number(trimmed)
+}
+
 function modelDraftOf(model: CodexCatalogModel): ModelDraft {
   return {
     rowId: newModelRowId(),
     id: model.id,
+    contextWindow: model.contextWindow === undefined ? '' : String(model.contextWindow),
     ...model.name === undefined ? {} : { name: model.name },
     ...model.thinking === undefined ? {} : { thinking: model.thinking },
     ...model.vision === undefined ? {} : { vision: model.vision },
-    ...model.tools === undefined ? {} : { tools: model.tools },
+    ...model.defaultEffort === undefined ? {} : { defaultEffort: model.defaultEffort },
     ...model.fast === undefined ? {} : { fast: model.fast },
   }
 }
 
 function modelSettingsOf(draft: ModelDraft): CodexCatalogModel {
+  const contextWindow = integerOf(draft.contextWindow)
   return {
     id: draft.id.trim(),
     ...draft.name === undefined || draft.name.trim().length === 0 ? {} : { name: draft.name.trim() },
     ...draft.thinking === undefined ? {} : { thinking: draft.thinking },
     ...draft.vision === undefined ? {} : { vision: draft.vision },
-    ...draft.tools === undefined ? {} : { tools: draft.tools },
+    ...draft.defaultEffort === undefined ? {} : { defaultEffort: draft.defaultEffort },
+    ...contextWindow === undefined || Number.isNaN(contextWindow) ? {} : { contextWindow },
     ...draft.fast === undefined ? {} : { fast: draft.fast },
   }
 }
@@ -231,6 +248,7 @@ function modelFailure(models: readonly ModelDraft[]): boolean {
   for (const model of models) {
     const id = model.id.trim()
     if (id.length === 0 || ids.has(id)) return true
+    if (Number.isNaN(integerOf(model.contextWindow))) return true
     ids.add(id)
   }
   return false
@@ -707,14 +725,63 @@ export function CodexPluginCard(props: CodexPluginCardProps): ReactNode {
                               ? (
                                 <div style={{ ...modelDetailStyle, gridColumn: '1 / -1' }}>
                                   <Capability label={t('thinking')} checked={item.thinking === true} disabled={disabled} onChange={(checked) => {
-                                    patchDraft(draft.map((model, at) => at === index ? { ...model, thinking: checked } : model))
+                                    patchDraft(draft.map((model, at) => {
+                                      if (at !== index) return model
+                                      const next = { ...model, thinking: checked }
+                                      if (!checked) delete next.defaultEffort
+                                      return next
+                                    }))
                                   }} />
                                   <Capability label={t('vision')} checked={item.vision === true} disabled={disabled} onChange={(checked) => {
                                     patchDraft(draft.map((model, at) => at === index ? { ...model, vision: checked } : model))
                                   }} />
-                                  <Capability label={t('tools')} checked={item.tools !== false} disabled={disabled} onChange={(checked) => {
-                                    patchDraft(draft.map((model, at) => at === index ? { ...model, tools: checked } : model))
-                                  }} />
+                                  {(() => {
+                                    const efforts = effortsForCodexModel(modelSettingsOf(item))
+                                    if (efforts.length === 0) return null
+                                    const suggested = officialModelFor(item.id.trim()) === undefined
+                                      ? efforts[0]
+                                      : defaultCodexReasoningEffort(item.id.trim())
+                                    return (
+                                      <label style={{ ...labelStyle, display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                                        {t('defaultEffort')}
+                                        <select
+                                          style={rowInputStyle}
+                                          value={item.defaultEffort ?? suggested ?? ''}
+                                          disabled={disabled}
+                                          aria-label={t('defaultEffort')}
+                                          onChange={(event) => {
+                                            const effort = efforts.find(entry => entry === event.target.value)
+                                            patchDraft(draft.map((model, at) => {
+                                              if (at !== index) return model
+                                              const next = { ...model }
+                                              if (effort === undefined) delete next.defaultEffort
+                                              else next.defaultEffort = effort
+                                              return next
+                                            }))
+                                          }}
+                                        >
+                                          {efforts.map(effort => (
+                                            <option key={effort} value={effort}>{CODEX_EFFORT_LABELS[effort] ?? effort}</option>
+                                          ))}
+                                        </select>
+                                      </label>
+                                    )
+                                  })()}
+                                  <label style={{ ...labelStyle, display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                                    {t('contextWindow')}
+                                    <input
+                                      style={{ ...rowInputStyle, width: 110 }}
+                                      inputMode="numeric"
+                                      placeholder={officialModelFor(item.id.trim()) === undefined ? t('contextWindowDefault') : undefined}
+                                      value={item.contextWindow}
+                                      disabled={disabled}
+                                      aria-label={t('contextWindow')}
+                                      onChange={(event) => {
+                                        const contextWindow = event.target.value
+                                        patchDraft(draft.map((model, at) => at === index ? { ...model, contextWindow } : model))
+                                      }}
+                                    />
+                                  </label>
                                 </div>
                               )
                               : null}

@@ -19,7 +19,7 @@ export declare function resolveCodexAccessToken(store: CodexCredentialStore): Pr
  * Apply the plugin-owned default only when pi-ai advertises that exact level.
  * A conversation's explicit reasoningEffort still takes precedence in DSH.
  */
-export declare function applyCodexDefaultReasoningMetadata(info: LlmResolvedModelInfo, model: string): LlmResolvedModelInfo;
+export declare function applyCodexDefaultReasoningMetadata(info: LlmResolvedModelInfo, model: string, override?: string): LlmResolvedModelInfo;
 export declare class CodexAdapter extends LlmAdapter {
     private readonly config;
     private snapshot;

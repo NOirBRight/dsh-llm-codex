@@ -30,6 +30,9 @@ export declare const en: {
     readonly thinking: "Reasoning";
     readonly vision: "Vision";
     readonly tools: "Tools";
+    readonly defaultEffort: "Default thinking";
+    readonly contextWindow: "Context window";
+    readonly contextWindowDefault: "Provider default";
     readonly remove: "Remove";
     readonly inherited: "Showing the default catalog";
     readonly customized: "Custom catalog";
@@ -40,7 +43,7 @@ export declare const en: {
     readonly invalidModel: "Every model needs a unique ID.";
     readonly requestFailed: "Request failed.";
     readonly pickerTitle: "Choose models";
-    readonly pickerDescription: "Pick which Codex models appear in the conversation selector. Fast is a separate row.";
+    readonly pickerDescription: "Pick which Codex models appear in the conversation selector. Fast and 1M are separate rows.";
     readonly pickerLoading: "Loading models…";
     readonly close: "Close";
     readonly cancel: "Cancel";

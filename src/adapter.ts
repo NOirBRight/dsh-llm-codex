@@ -61,9 +61,11 @@ export async function resolveCodexAccessToken(store: CodexCredentialStore): Prom
 export function applyCodexDefaultReasoningMetadata(
   info: LlmResolvedModelInfo,
   model: string,
+  override?: string,
 ): LlmResolvedModelInfo {
   if (info.reasoning === undefined) return info
-  const defaultEffort = ReasoningEffortId(defaultCodexReasoningEffort(model))
+  const wanted = override ?? defaultCodexReasoningEffort(model)
+  const defaultEffort = ReasoningEffortId(wanted)
   if (!info.reasoning.efforts.some(effort => effort.id === defaultEffort)) return info
   return {
     ...info,
@@ -113,7 +115,8 @@ export class CodexAdapter extends LlmAdapter {
     signal?: AbortSignal,
   ): Promise<LlmResolvedModelInfo> {
     const info = await this.current().resolveModel(provider, model, signal)
-    return applyCodexDefaultReasoningMetadata(info, model)
+    const catalog = this.config.options().models.find(entry => entry.id === model)
+    return applyCodexDefaultReasoningMetadata(info, model, catalog?.defaultEffort)
   }
 
   override stream(options: GenerateOptions): AsyncIterable<StreamChunk> {

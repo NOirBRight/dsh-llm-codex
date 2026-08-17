@@ -176,6 +176,7 @@ export function decodeCodexCatalogModel(value: unknown): CodexCatalogModel | und
   const contextWindow = optionalPositiveInt(value, 'contextWindow')
   const maxTokens = optionalPositiveInt(value, 'maxTokens')
   const thinking = optionalBoolean(value, 'thinking')
+  const defaultEffort = optionalString(value, 'defaultEffort')
   const vision = optionalBoolean(value, 'vision')
   const tools = optionalBoolean(value, 'tools')
   const fast = optionalBoolean(value, 'fast')
@@ -184,6 +185,7 @@ export function decodeCodexCatalogModel(value: unknown): CodexCatalogModel | und
   if (contextWindow !== undefined) model.contextWindow = contextWindow
   if (maxTokens !== undefined) model.maxTokens = maxTokens
   if (thinking !== undefined) model.thinking = thinking
+  if (defaultEffort !== undefined) model.defaultEffort = defaultEffort
   if (vision !== undefined) model.vision = vision
   if (tools !== undefined) model.tools = tools
   if (fast !== undefined) model.fast = fast

@@ -23,8 +23,25 @@ describe('official Codex catalog', () => {
     expect(ids).not.toContain('gpt-5.3-codex-spark-fast')
   })
 
-  it('maps Fast picker ids onto the official wire model and priority tier', () => {
+  it('exposes 1M rows only for official 5.6 models', () => {
+    const ids = officialPickerCatalog().map(model => model.id)
+    expect(ids).toContain('gpt-5.6-sol-1m')
+    expect(ids).toContain('gpt-5.6-sol-1m-fast')
+    expect(ids).toContain('gpt-5.6-terra-1m')
+    expect(ids).toContain('gpt-5.6-luna-1m-fast')
+    expect(ids).not.toContain('gpt-5.5-1m')
+    expect(ids).not.toContain('gpt-5.4-1m')
+    expect(ids).not.toContain('gpt-5.3-codex-spark-1m')
+    expect(defaultDisplayedCatalog().map(model => model.id)).not.toContain('gpt-5.6-sol-1m')
+  })
+
+  it('maps Fast and 1M picker ids onto the official wire model', () => {
     expect(resolveWireModel('gpt-5.6-sol-fast')).toEqual({
+      wireId: 'gpt-5.6-sol',
+      serviceTier: 'priority',
+    })
+    expect(resolveWireModel('gpt-5.6-sol-1m')).toEqual({ wireId: 'gpt-5.6-sol' })
+    expect(resolveWireModel('gpt-5.6-sol-1m-fast')).toEqual({
       wireId: 'gpt-5.6-sol',
       serviceTier: 'priority',
     })
@@ -50,6 +67,16 @@ describe('official Codex catalog', () => {
       vision: true,
       fast: true,
       contextWindow: 272_000,
+    })
+    expect(hydrateCatalogModel({ id: 'gpt-5.6-sol-1m' })).toMatchObject({
+      id: 'gpt-5.6-sol-1m',
+      name: 'GPT-5.6 Sol 1M',
+      contextWindow: 1_000_000,
+    })
+    expect(hydrateCatalogModel({ id: 'gpt-5.6-sol-1m-fast' })).toMatchObject({
+      name: 'GPT-5.6 Sol 1M Fast',
+      fast: true,
+      contextWindow: 1_000_000,
     })
     expect(hydrateCatalogModel({ id: 'gpt-5.3-codex-spark' })).toMatchObject({
       vision: false,

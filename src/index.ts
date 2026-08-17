@@ -79,6 +79,8 @@ export type {
 export {
   CODEX_FAST_SERVICE_TIER,
   CODEX_FAST_SUFFIX,
+  CODEX_LARGE_CONTEXT_SUFFIX,
+  CODEX_LARGE_CONTEXT_WINDOW,
   CODEX_OFFICIAL_MODELS,
   defaultDisplayedCatalog,
   officialPickerCatalog,
@@ -145,6 +147,7 @@ const catalogModel = z.object({
   maxTokens: z.number().step(1).min(1),
   vision: z.boolean(),
   thinking: z.boolean(),
+  defaultEffort: z.string(),
   tools: z.boolean(),
   fast: z.boolean(),
 })

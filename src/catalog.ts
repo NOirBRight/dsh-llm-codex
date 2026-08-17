@@ -1,25 +1,27 @@
 /**
- * Official Codex catalog plus first-class Fast rows.
+ * Official Codex catalog plus first-class Fast and 1M rows.
  * Display ids are picker keys; wire ids are what ChatGPT receives.
  */
 
 /** One model in the plugin's displayed or official catalog. */
 export interface CodexCatalogModel {
-  /** Picker id; Fast rows use a `-fast` suffix. */
+  /** Picker id; Fast rows use `-fast`, 1M rows use `-1m`. */
   id: string
   /** Selector label; omission uses {@link id}. */
   name?: string
   /** Optional selector detail. */
   description?: string
-  /** Known combined request and response context capacity. */
+  /** Combined request and response budget used by DSH compaction. */
   contextWindow?: number
-  /** Per-request output cap for this model. */
+  /** Per-request output capability for pi-ai; not a request cap. */
   maxTokens?: number
   /** Whether the model supports native thinking. */
   thinking?: boolean
+  /** Chat-picker default when the conversation has not chosen a level. */
+  defaultEffort?: string
   /** Whether the model accepts image input. */
   vision?: boolean
-  /** Whether the model supports tool calls. */
+  /** Legacy capability flag. Ignored at runtime; still decoded. */
   tools?: boolean
   /** First-class Fast row; chat sends `service_tier: "priority"`. */
   fast?: boolean
@@ -27,10 +29,24 @@ export interface CodexCatalogModel {
 
 /** Suffix that marks a first-class Fast picker row. */
 export const CODEX_FAST_SUFFIX = '-fast'
+/** Suffix that marks a first-class 1M context picker row. */
+export const CODEX_LARGE_CONTEXT_SUFFIX = '-1m'
 /** Official Fast service tier sent on the wire. */
 export const CODEX_FAST_SERVICE_TIER = 'priority' as const
+/** Documented 1M context budget for official 5.6 large rows. */
+export const CODEX_LARGE_CONTEXT_WINDOW = 1_000_000
 
-/** One official Codex model as shipped by pi-ai. */
+/** Parsed picker id after stripping official Fast / 1M suffixes. */
+export interface CodexPickerVariant {
+  /** Wire model id sent to ChatGPT. */
+  wireId: string
+  /** Whether this row sends the Fast service tier. */
+  fast: boolean
+  /** Whether this row uses the 1M context budget. */
+  largeContext: boolean
+}
+
+/** One official Codex model as shipped by the plugin snapshot. */
 export interface CodexOfficialModel {
   id: string
   name: string
@@ -38,15 +54,25 @@ export interface CodexOfficialModel {
   thinking: true
   tools: true
   contextWindow: number
+  maxContextWindow: number
   maxTokens: number
   fast: boolean
+  largeContext: boolean
   thinkingLevelMap: Readonly<Record<string, string>>
 }
 
-const LEVELS_56 = Object.freeze({ xhigh: 'xhigh', max: 'max', minimal: 'low' })
-const LEVELS_DEFAULT = Object.freeze({ xhigh: 'xhigh', minimal: 'low' })
+const LEVELS_56 = Object.freeze({
+  low: 'low',
+  medium: 'medium',
+  high: 'high',
+  xhigh: 'xhigh',
+  max: 'max',
+  ultra: 'ultra',
+  minimal: 'low',
+})
+const LEVELS_DEFAULT = Object.freeze({ xhigh: 'xhigh', high: 'high', minimal: 'low' })
 
-/** Official pi-ai openai-codex models, in picker order. */
+/** Official Codex models, in picker order. 1M rows are opt-in for the 5.6 family. */
 export const CODEX_OFFICIAL_MODELS: readonly CodexOfficialModel[] = Object.freeze([
   Object.freeze({
     id: 'gpt-5.6-sol',
@@ -55,8 +81,10 @@ export const CODEX_OFFICIAL_MODELS: readonly CodexOfficialModel[] = Object.freez
     thinking: true,
     tools: true,
     contextWindow: 272_000,
+    maxContextWindow: CODEX_LARGE_CONTEXT_WINDOW,
     maxTokens: 128_000,
     fast: true,
+    largeContext: true,
     thinkingLevelMap: LEVELS_56,
   }),
   Object.freeze({
@@ -66,8 +94,10 @@ export const CODEX_OFFICIAL_MODELS: readonly CodexOfficialModel[] = Object.freez
     thinking: true,
     tools: true,
     contextWindow: 272_000,
+    maxContextWindow: CODEX_LARGE_CONTEXT_WINDOW,
     maxTokens: 128_000,
     fast: true,
+    largeContext: true,
     thinkingLevelMap: LEVELS_56,
   }),
   Object.freeze({
@@ -77,8 +107,10 @@ export const CODEX_OFFICIAL_MODELS: readonly CodexOfficialModel[] = Object.freez
     thinking: true,
     tools: true,
     contextWindow: 272_000,
+    maxContextWindow: CODEX_LARGE_CONTEXT_WINDOW,
     maxTokens: 128_000,
     fast: true,
+    largeContext: true,
     thinkingLevelMap: LEVELS_56,
   }),
   Object.freeze({
@@ -88,8 +120,10 @@ export const CODEX_OFFICIAL_MODELS: readonly CodexOfficialModel[] = Object.freez
     thinking: true,
     tools: true,
     contextWindow: 272_000,
+    maxContextWindow: 272_000,
     maxTokens: 128_000,
     fast: true,
+    largeContext: false,
     thinkingLevelMap: LEVELS_DEFAULT,
   }),
   Object.freeze({
@@ -99,8 +133,10 @@ export const CODEX_OFFICIAL_MODELS: readonly CodexOfficialModel[] = Object.freez
     thinking: true,
     tools: true,
     contextWindow: 272_000,
+    maxContextWindow: CODEX_LARGE_CONTEXT_WINDOW,
     maxTokens: 128_000,
     fast: true,
+    largeContext: false,
     thinkingLevelMap: LEVELS_DEFAULT,
   }),
   Object.freeze({
@@ -110,8 +146,10 @@ export const CODEX_OFFICIAL_MODELS: readonly CodexOfficialModel[] = Object.freez
     thinking: true,
     tools: true,
     contextWindow: 272_000,
+    maxContextWindow: 272_000,
     maxTokens: 128_000,
     fast: false,
+    largeContext: false,
     thinkingLevelMap: LEVELS_DEFAULT,
   }),
   Object.freeze({
@@ -121,8 +159,10 @@ export const CODEX_OFFICIAL_MODELS: readonly CodexOfficialModel[] = Object.freez
     thinking: true,
     tools: true,
     contextWindow: 128_000,
+    maxContextWindow: 128_000,
     maxTokens: 128_000,
     fast: false,
+    largeContext: false,
     thinkingLevelMap: LEVELS_DEFAULT,
   }),
 ])
@@ -137,25 +177,83 @@ export const CODEX_DEFAULT_MODEL_IDS: readonly string[] = Object.freeze([
   'gpt-5.6-luna-fast',
 ])
 
-function rowOf(official: CodexOfficialModel, fast: boolean): CodexCatalogModel {
+/** Stable order for the Default thinking dropdown. */
+export const CODEX_EFFORT_ORDER = ['minimal', 'low', 'medium', 'high', 'xhigh', 'max', 'ultra'] as const
+
+/** Short labels for advertised Codex reasoning levels. */
+export const CODEX_EFFORT_LABELS: Readonly<Record<string, string>> = Object.freeze({
+  minimal: 'Minimal',
+  low: 'Low',
+  medium: 'Medium',
+  high: 'High',
+  xhigh: 'Extra high',
+  max: 'Max',
+  ultra: 'Ultra',
+})
+
+function officialByWireId(id: string): CodexOfficialModel | undefined {
+  return CODEX_OFFICIAL_MODELS.find(model => model.id === id)
+}
+
+/**
+ * Split a picker id into the ChatGPT wire id plus Fast / 1M flags.
+ * Unknown ids keep historical `-fast` stripping and ignore `-1m`.
+ */
+export function parseCodexPickerId(id: string): CodexPickerVariant {
+  let rest = id
+  let fast = false
+  if (rest.endsWith(CODEX_FAST_SUFFIX)) {
+    rest = rest.slice(0, -CODEX_FAST_SUFFIX.length)
+    fast = true
+  }
+  let largeContext = false
+  if (rest.endsWith(CODEX_LARGE_CONTEXT_SUFFIX)) {
+    rest = rest.slice(0, -CODEX_LARGE_CONTEXT_SUFFIX.length)
+    largeContext = true
+  }
+  const official = officialByWireId(rest)
+  if (official === undefined) {
+    if (id.endsWith(CODEX_FAST_SUFFIX)) {
+      return { wireId: id.slice(0, -CODEX_FAST_SUFFIX.length), fast: true, largeContext: false }
+    }
+    return { wireId: id, fast: false, largeContext: false }
+  }
+  return { wireId: official.id, fast, largeContext }
+}
+
+function variantName(official: CodexOfficialModel, variant: { fast: boolean, largeContext: boolean }): string {
+  return [official.name, ...variant.largeContext ? ['1M'] : [], ...variant.fast ? ['Fast'] : []].join(' ')
+}
+
+function variantId(official: CodexOfficialModel, variant: { fast: boolean, largeContext: boolean }): string {
+  return official.id
+    + (variant.largeContext ? CODEX_LARGE_CONTEXT_SUFFIX : '')
+    + (variant.fast ? CODEX_FAST_SUFFIX : '')
+}
+
+function rowOf(official: CodexOfficialModel, variant: { fast: boolean, largeContext: boolean }): CodexCatalogModel {
   return {
-    id: fast ? official.id + CODEX_FAST_SUFFIX : official.id,
-    name: fast ? official.name + ' Fast' : official.name,
+    id: variantId(official, variant),
+    name: variantName(official, variant),
     thinking: official.thinking,
     vision: official.vision,
     tools: official.tools,
-    contextWindow: official.contextWindow,
+    contextWindow: variant.largeContext ? CODEX_LARGE_CONTEXT_WINDOW : official.contextWindow,
     maxTokens: official.maxTokens,
-    ...fast ? { fast: true } : {},
+    ...variant.fast ? { fast: true } : {},
   }
 }
 
-/** Official catalog plus Fast rows where the model advertises a speed tier. */
+/** Official catalog plus Fast and 1M rows where the model advertises them. */
 export function officialPickerCatalog(): CodexCatalogModel[] {
   const rows: CodexCatalogModel[] = []
   for (const model of CODEX_OFFICIAL_MODELS) {
-    rows.push(rowOf(model, false))
-    if (model.fast) rows.push(rowOf(model, true))
+    rows.push(rowOf(model, { fast: false, largeContext: false }))
+    if (model.fast) rows.push(rowOf(model, { fast: true, largeContext: false }))
+    if (model.largeContext) {
+      rows.push(rowOf(model, { fast: false, largeContext: true }))
+      if (model.fast) rows.push(rowOf(model, { fast: true, largeContext: true }))
+    }
   }
   return rows
 }
@@ -168,11 +266,10 @@ export function defaultDisplayedCatalog(): CodexCatalogModel[] {
 
 /** Look up the official model that backs a picker id, if any. */
 export function officialModelFor(id: string): CodexOfficialModel | undefined {
-  const wireId = id.endsWith(CODEX_FAST_SUFFIX) ? id.slice(0, -CODEX_FAST_SUFFIX.length) : id
-  return CODEX_OFFICIAL_MODELS.find(model => model.id === wireId)
+  return officialByWireId(parseCodexPickerId(id).wireId)
 }
 
-/** Default reasoning effort for a displayed row. Fast rows share their base model's policy. */
+/** Default reasoning effort for a displayed row. Fast / 1M rows share the base policy. */
 export function defaultCodexReasoningEffort(id: string): 'high' | 'xhigh' | 'max' {
   switch (officialModelFor(id)?.id) {
     case 'gpt-5.6-luna': return 'max'
@@ -182,10 +279,34 @@ export function defaultCodexReasoningEffort(id: string): 'high' | 'xhigh' | 'max
   }
 }
 
+/** Reasoning levels shown when Default thinking is available. */
+export function effortsForCodexModel(model: CodexCatalogModel): readonly string[] {
+  if (model.thinking === false) return []
+  const official = officialModelFor(model.id)
+  if (official !== undefined) {
+    const keys = new Set(Object.keys(official.thinkingLevelMap))
+    keys.add(defaultCodexReasoningEffort(model.id))
+    if (model.defaultEffort !== undefined) keys.add(model.defaultEffort)
+    return CODEX_EFFORT_ORDER.filter(effort => keys.has(effort))
+  }
+  if (model.thinking === true) {
+    return CODEX_EFFORT_ORDER.filter(effort => effort !== 'ultra' && effort !== 'minimal')
+  }
+  return []
+}
+
 /** Whether this picker id is a Fast variant of a model that supports it. */
 export function isFastCatalogId(id: string): boolean {
-  if (!id.endsWith(CODEX_FAST_SUFFIX)) return false
-  return officialModelFor(id)?.fast === true
+  const parsed = parseCodexPickerId(id)
+  if (!parsed.fast) return false
+  const official = officialByWireId(parsed.wireId)
+  return official === undefined || official.fast === true
+}
+
+/** Whether this picker id is a 1M variant of an official large-context model. */
+export function isLargeContextCatalogId(id: string): boolean {
+  const parsed = parseCodexPickerId(id)
+  return parsed.largeContext && officialByWireId(parsed.wireId)?.largeContext === true
 }
 
 /** Wire id and optional service tier for one picker row. */
@@ -196,16 +317,19 @@ export interface CodexWireTarget {
 
 /** Map a displayed catalog id onto the ChatGPT request. */
 export function resolveWireModel(id: string): CodexWireTarget {
-  if (id.endsWith(CODEX_FAST_SUFFIX)) {
-    return { wireId: id.slice(0, -CODEX_FAST_SUFFIX.length), serviceTier: CODEX_FAST_SERVICE_TIER }
+  const parsed = parseCodexPickerId(id)
+  return {
+    wireId: parsed.wireId,
+    ...parsed.fast ? { serviceTier: CODEX_FAST_SERVICE_TIER } : {},
   }
-  return { wireId: id }
 }
 
 /** Merge a user-edited row with official metadata when the id is known. */
 export function hydrateCatalogModel(model: CodexCatalogModel): CodexCatalogModel {
-  const official = officialModelFor(model.id)
-  const fast = isFastCatalogId(model.id)
+  const parsed = parseCodexPickerId(model.id)
+  const official = officialByWireId(parsed.wireId)
+  const fast = parsed.fast && (official === undefined || official.fast === true)
+  const largeContext = parsed.largeContext && official?.largeContext === true
   if (official === undefined) {
     return {
       id: model.id,
@@ -214,6 +338,7 @@ export function hydrateCatalogModel(model: CodexCatalogModel): CodexCatalogModel
       ...model.contextWindow === undefined ? {} : { contextWindow: model.contextWindow },
       ...model.maxTokens === undefined ? {} : { maxTokens: model.maxTokens },
       ...model.thinking === undefined ? {} : { thinking: model.thinking },
+      ...model.defaultEffort === undefined ? {} : { defaultEffort: model.defaultEffort },
       ...model.vision === undefined ? {} : { vision: model.vision },
       ...model.tools === undefined ? {} : { tools: model.tools },
       ...fast ? { fast: true } : {},
@@ -221,13 +346,14 @@ export function hydrateCatalogModel(model: CodexCatalogModel): CodexCatalogModel
   }
   return {
     id: model.id,
-    name: model.name ?? (fast ? official.name + ' Fast' : official.name),
+    name: model.name ?? variantName(official, { fast, largeContext }),
     thinking: model.thinking ?? official.thinking,
     vision: model.vision ?? official.vision,
     tools: model.tools ?? official.tools,
-    contextWindow: model.contextWindow ?? official.contextWindow,
+    contextWindow: model.contextWindow ?? (largeContext ? CODEX_LARGE_CONTEXT_WINDOW : official.contextWindow),
     maxTokens: model.maxTokens ?? official.maxTokens,
     ...fast ? { fast: true } : {},
+    ...model.defaultEffort === undefined ? {} : { defaultEffort: model.defaultEffort },
     ...model.description === undefined ? {} : { description: model.description },
   }
 }

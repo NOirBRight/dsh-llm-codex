@@ -74,7 +74,9 @@ describe('CodexPluginCard', () => {
     fireEvent.click(screen.getByRole('button', { name: en.modelDetails + ': gpt-5.6-sol' }))
     expect(screen.getByLabelText(en.thinking)).toBeTruthy()
     expect(screen.getByLabelText(en.vision)).toBeTruthy()
-    expect(screen.getByLabelText(en.tools)).toBeTruthy()
+    expect(screen.getByLabelText(en.defaultEffort)).toBeTruthy()
+    expect(screen.getByLabelText(en.contextWindow)).toBeTruthy()
+    expect(screen.queryByLabelText(en.tools)).toBeNull()
     expect(screen.queryByLabelText('Fast')).toBeNull()
   })
 

@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.2
+
+- Official 5.6 picker can add first-class 1M rows (`gpt-5.6-sol-1m`, `…-1m-fast`); default catalog stays the six 272k rows
+- Per-row Default thinking and Context window; Tools checkbox removed (it never changed requests)
+- 1M rows set `contextWindow` to 1,000,000; DSH compaction still uses its default 80% threshold
+
 ## 0.1.1
 
 - Set model defaults: Luna `max`, Terra `xhigh`, Sol `high`, all other official models `xhigh`; Fast rows inherit their base model

@@ -31,9 +31,9 @@ dsh web
 - `gpt-5.6-terra` / `gpt-5.6-terra-fast`
 - `gpt-5.6-luna` / `gpt-5.6-luna-fast`
 
-Fast 是独立的选择器行，不是复选框，也不是全局开关。模型目录和每行详情默认折叠。聊天仍使用官方 wire id；Fast 行会在 Codex Responses 请求上发送 `service_tier: "priority"`。覆盖层选择器可以再加入官方目录其余模型（`gpt-5.5`、`gpt-5.4`、`gpt-5.4-mini`、`gpt-5.3-codex-spark`，以及支持 Fast 的对应行）。也可以手动添加自定义 id。
+Fast 和 1M 都是独立选择器行，不是复选框。聊天仍使用官方 wire id；Fast 行发送 `service_tier: "priority"`。1M 行（`gpt-5.6-sol-1m`、`gpt-5.6-sol-1m-fast` 以及 Terra/Luna 对应行）把 `contextWindow` 设为 1,000,000，DSH 压缩仍按默认 80%（800k）触发。它们不在默认 6 行里，需从官方选择器添加。覆盖层还可以加入 `gpt-5.5`、`gpt-5.4`、`gpt-5.4-mini`、`gpt-5.3-codex-spark` 以及 Fast 行。也可以手动添加自定义 id。
 
-思考等级默认按模型设置：Luna 用 `max`，Terra 用 `xhigh`，Sol 用 `high`，其他官方 Codex 模型用 `xhigh`。Fast 行沿用基础型号；会话中用户手动选择的等级优先。
+思考等级默认按模型设置，并可在行上改：Luna 用 `max`，Terra 用 `xhigh`，Sol 用 `high`，其他官方 Codex 模型用 `xhigh`。Fast / 1M 行沿用基础型号；会话中用户手动选择的等级优先。
 
 聊天走 pi-ai `openai-codex-responses`，目标是 `https://chatgpt.com/backend-api`。未登录聊天会失败为 `MISSING_CREDENTIAL`。已存会话刷新失败则报 `AUTH`。
 
