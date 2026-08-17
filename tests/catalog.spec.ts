@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   CODEX_DEFAULT_MODEL_IDS,
+  defaultCodexReasoningEffort,
   defaultDisplayedCatalog,
   hydrateCatalogModel,
   officialPickerCatalog,
@@ -28,6 +29,18 @@ describe('official Codex catalog', () => {
       serviceTier: 'priority',
     })
     expect(resolveWireModel('gpt-5.6-sol')).toEqual({ wireId: 'gpt-5.6-sol' })
+  })
+
+  it('sets the requested per-model reasoning defaults for normal and Fast rows', () => {
+    expect(defaultCodexReasoningEffort('gpt-5.6-luna')).toBe('max')
+    expect(defaultCodexReasoningEffort('gpt-5.6-luna-fast')).toBe('max')
+    expect(defaultCodexReasoningEffort('gpt-5.6-terra')).toBe('xhigh')
+    expect(defaultCodexReasoningEffort('gpt-5.6-terra-fast')).toBe('xhigh')
+    expect(defaultCodexReasoningEffort('gpt-5.6-sol')).toBe('high')
+    expect(defaultCodexReasoningEffort('gpt-5.6-sol-fast')).toBe('high')
+    expect(defaultCodexReasoningEffort('gpt-5.5')).toBe('xhigh')
+    expect(defaultCodexReasoningEffort('gpt-5.4-mini')).toBe('xhigh')
+    expect(defaultCodexReasoningEffort('gpt-5.3-codex-spark')).toBe('xhigh')
   })
 
   it('hydrates official metadata onto user-edited rows', () => {

@@ -49,6 +49,8 @@ export declare function officialPickerCatalog(): CodexCatalogModel[];
 export declare function defaultDisplayedCatalog(): CodexCatalogModel[];
 /** Look up the official model that backs a picker id, if any. */
 export declare function officialModelFor(id: string): CodexOfficialModel | undefined;
+/** Default reasoning effort for a displayed row. Fast rows share their base model's policy. */
+export declare function defaultCodexReasoningEffort(id: string): 'high' | 'xhigh' | 'max';
 /** Whether this picker id is a Fast variant of a model that supports it. */
 export declare function isFastCatalogId(id: string): boolean;
 /** Wire id and optional service tier for one picker row. */

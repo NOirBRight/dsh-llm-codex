@@ -3,7 +3,7 @@
  * implementation is pi-ai openai-codex-responses plus Fast service_tier.
  */
 
-import { LlmAdapter, LlmError } from '@deepseek-ai/dsh-llm'
+import { LlmAdapter, LlmError, ReasoningEffortId } from '@deepseek-ai/dsh-llm'
 import type {
   GenerateOptions,
   LlmModelInfo,
@@ -18,6 +18,7 @@ import type { ResolvedPiAiProviderProfile } from '@deepseek-ai/dsh-llm-pi-ai'
 import { createModels } from '@earendil-works/pi-ai'
 import { openaiCodexProvider } from '@earendil-works/pi-ai/providers/openai-codex'
 import { CODEX_PROVIDER } from './client-contract.ts'
+import { defaultCodexReasoningEffort } from './catalog.ts'
 import { createCodexPiAiProfile } from './pi-ai-profile.ts'
 import type { CodexConnectionOptions } from './pi-ai-profile.ts'
 import type { CodexCredentialStore } from './store.ts'
@@ -51,6 +52,23 @@ export async function resolveCodexAccessToken(store: CodexCredentialStore): Prom
     )
   }
   return access
+}
+
+/**
+ * Apply the plugin-owned default only when pi-ai advertises that exact level.
+ * A conversation's explicit reasoningEffort still takes precedence in DSH.
+ */
+export function applyCodexDefaultReasoningMetadata(
+  info: LlmResolvedModelInfo,
+  model: string,
+): LlmResolvedModelInfo {
+  if (info.reasoning === undefined) return info
+  const defaultEffort = ReasoningEffortId(defaultCodexReasoningEffort(model))
+  if (!info.reasoning.efforts.some(effort => effort.id === defaultEffort)) return info
+  return {
+    ...info,
+    reasoning: { ...info.reasoning, defaultEffort },
+  }
 }
 
 export class CodexAdapter extends LlmAdapter {
@@ -94,7 +112,8 @@ export class CodexAdapter extends LlmAdapter {
     model: string,
     signal?: AbortSignal,
   ): Promise<LlmResolvedModelInfo> {
-    return this.current().resolveModel(provider, model, signal)
+    const info = await this.current().resolveModel(provider, model, signal)
+    return applyCodexDefaultReasoningMetadata(info, model)
   }
 
   override stream(options: GenerateOptions): AsyncIterable<StreamChunk> {

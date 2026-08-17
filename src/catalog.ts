@@ -172,6 +172,16 @@ export function officialModelFor(id: string): CodexOfficialModel | undefined {
   return CODEX_OFFICIAL_MODELS.find(model => model.id === wireId)
 }
 
+/** Default reasoning effort for a displayed row. Fast rows share their base model's policy. */
+export function defaultCodexReasoningEffort(id: string): 'high' | 'xhigh' | 'max' {
+  switch (officialModelFor(id)?.id) {
+    case 'gpt-5.6-luna': return 'max'
+    case 'gpt-5.6-terra': return 'xhigh'
+    case 'gpt-5.6-sol': return 'high'
+    default: return 'xhigh'
+  }
+}
+
 /** Whether this picker id is a Fast variant of a model that supports it. */
 export function isFastCatalogId(id: string): boolean {
   if (!id.endsWith(CODEX_FAST_SUFFIX)) return false

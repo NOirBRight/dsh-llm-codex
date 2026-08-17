@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.1
+
+- Set model defaults: Luna `max`, Terra `xhigh`, Sol `high`, all other official models `xhigh`; Fast rows inherit their base model
+
 ## 0.1.0
 
 Initial ChatGPT Codex provider for DeepSeek Harness.

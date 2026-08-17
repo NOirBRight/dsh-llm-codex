@@ -33,6 +33,8 @@ The conversation picker uses the displayed catalog stored as `settings.models`. 
 
 Fast is a first-class picker row, not a checkbox or a global toggle. Chat still uses the official wire id; Fast rows send `service_tier: "priority"` on the Codex Responses request. The model catalog and each row's details stay collapsed until opened. The overlay picker can add the rest of the official catalog (`gpt-5.5`, `gpt-5.4`, `gpt-5.4-mini`, `gpt-5.3-codex-spark`, and Fast variants where the model supports them). Custom ids can be added manually.
 
+Default reasoning effort is per model: Luna uses `max`, Terra `xhigh`, Sol `high`, and every other official Codex model `xhigh`. Fast rows use their base model's default. A reasoning effort explicitly selected in a conversation takes precedence.
+
 Chat goes through pi-ai `openai-codex-responses` against `https://chatgpt.com/backend-api`. Chat without a session fails `MISSING_CREDENTIAL`. A stored session whose refresh fails is reported as `AUTH`.
 
 ### Optional capabilities
