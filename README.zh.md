@@ -4,14 +4,14 @@
 
 DeepSeek Harness 的 ChatGPT Codex 集成。独立提供方路由是 `codex`，设置命名空间是 `llm-codex`。不声明 `apiKeyEnv`，不读写 `~/.codex/auth.json`，也不和 `dsh-codex-connect` 共用凭据文件。
 
-包根导出 Cordis 插件契约。同一产物还导出 `./client`，在「设置 → 供应商」里贡献 Codex 卡片。
+包根导出 Cordis 插件契约。同一产物还导出 `./client`，在「设置 → LLM 供应商」里贡献 Codex 卡片。
 
 ## 安装
 
 需要 DeepSeek Harness 0.1.0-rc.6 或更新版本。可直接从 GitHub 安装：
 
 ~~~sh
-dsh plugin --profile web add github:NOirBRight/dsh-llm-codex#v0.2.1
+dsh plugin --profile web add github:NOirBRight/dsh-llm-codex#v0.2.2
 dsh web
 ~~~
 
@@ -19,7 +19,7 @@ dsh web
 
 ## Web 配置
 
-打开「设置 → 供应商 → Codex」。**用 ChatGPT 登录**会走官方 ChatGPT OAuth，用系统浏览器打开授权页，并把会话只存在 Host 的 `$DSH_HOME/codex-oauth.json`（权限 `0600`）。登录后卡片显示额度。退出登录会删除该文件。浏览器永远收不到 token。
+打开「设置 → LLM 供应商 → Codex」。**用 ChatGPT 登录**会走官方 ChatGPT OAuth，用系统浏览器打开授权页，并把会话只存在 Host 的 `$DSH_HOME/codex-oauth.json`（权限 `0600`）。登录后卡片显示额度。退出登录会删除该文件。浏览器永远收不到 token。
 
 ![Codex 插件卡：ChatGPT 登录、额度与 Fast 目录行](docs/images/plugin-card-catalog.png)
 

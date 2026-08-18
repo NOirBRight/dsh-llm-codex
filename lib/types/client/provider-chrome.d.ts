@@ -1,6 +1,6 @@
 /** Shared Providers chrome: official DSH glyphs, auth row, chart skeleton. */
 import type { CSSProperties, ReactNode } from 'react';
-/** Use the official 14px globe glyph on the 供应商 nav row. */
+/** Use the official 14px globe glyph on the LLM 供应商 nav row. */
 export declare function installProvidersNavIcon(): () => void;
 /** Account status on the left, sign-in / sign-out on the right. */
 export declare function AuthToolbar(props: {
@@ -45,6 +45,21 @@ export declare function UsageHeader(props: {
 }): ReactNode;
 /** Format a usage stamp as a compact local clock, e.g. "12:04". */
 export declare function formatUsageClock(at: Date): string;
+/** Official grok.com form: 2026年8月20日 11:35. English stays a short local datetime. */
+export declare function formatResetStamp(iso: string, locales?: string | readonly string[]): string;
+/** Official Cursor form: Sep 16 / 9月16日. */
+export declare function formatResetDate(iso: string, locales?: string | readonly string[]): string;
+/** Whole days until reset when at least one day remains; otherwise the datetime form is used. */
+export declare function remainingResetDays(iso: string, now?: number): number | undefined;
+/** Localized reset line matching official dashboards. */
+export declare function resetLabelOf(iso: string | undefined, copy: {
+    at: string;
+    atDays: string;
+}, now?: number): string | undefined;
+/** Official-style reset caption under a usage bar. */
+export declare function UsageResetAt(props: {
+    label: string | undefined;
+}): ReactNode;
 /**
  * Last successful usage read, right-aligned under the bars.
  * @param props.at - when the last successful snapshot arrived.

@@ -11,7 +11,7 @@ export declare class CodexReauthRequiredError extends Error {
 }
 export declare function isCodexReauthRequiredError(error: unknown): error is CodexReauthRequiredError;
 /** Convert the provider response into the small secret-free object sent to the browser. */
-export declare function parseCodexUsage(value: unknown): CodexUsage;
+export declare function parseCodexUsage(value: unknown, now?: number): CodexUsage;
 /** Read current quota without issuing a model request. */
 export declare function readCodexRateLimits(store: CodexCredentialStore): Promise<CodexUsage>;
 //# sourceMappingURL=usage.d.ts.map

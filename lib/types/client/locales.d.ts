@@ -67,6 +67,8 @@ export declare const en: {
     readonly usageFailed: "Could not read usage.";
     readonly usageRefreshFailed: "Refresh failed";
     readonly usageUpdatedAt: "Updated {time}";
+    readonly usageResetAt: "Resets {time}";
+    readonly usageResetAtDays: "Usage limits reset on {date} ({count} days left)";
     readonly capabilities: "Optional capabilities";
     readonly capabilitiesIntro: "These stay off until you enable them. They never change the default model or the global search route.";
     readonly enableSearch: "Enable Codex search provider";

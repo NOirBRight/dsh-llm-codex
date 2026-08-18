@@ -23,7 +23,7 @@ import type {
 } from '../client-contract.ts'
 import type { CodexSettingsKey } from './locales.ts'
 import { BrandMark } from './BrandMark.tsx'
-import { AuthToolbar, ProviderCardHeader, UsageHeader, UsageSkeleton, UsageUpdatedAt, formatProviderSummary, formatUsageClock, providerHeaderStyle } from './provider-chrome.tsx'
+import { AuthToolbar, ProviderCardHeader, UsageHeader, UsageResetAt, UsageSkeleton, UsageUpdatedAt, formatProviderSummary, formatUsageClock, providerHeaderStyle, resetLabelOf } from './provider-chrome.tsx'
 import type {} from './provider-section.ts'
 import { SortableList } from './SortableList.tsx'
 
@@ -336,6 +336,12 @@ function UsageLimits({ usage, quotaError, t }: {
                     }}
                   />
                 </div>
+                <UsageResetAt
+                  label={resetLabelOf(window.resetsAt, {
+                    at: t('usageResetAt'),
+                    atDays: t('usageResetAtDays'),
+                  })}
+                />
               </div>
             )
           })}

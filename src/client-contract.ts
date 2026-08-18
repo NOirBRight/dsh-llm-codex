@@ -78,6 +78,8 @@ export interface CodexSaveResult {
 export interface CodexRateLimitWindow {
   readonly remainingPercent: number
   readonly windowSeconds: number
+  /** ISO-8601 instant from official `reset_at` / `reset_after_seconds`. */
+  readonly resetsAt?: string
 }
 
 /** One separately metered Codex quota bucket. */
@@ -299,7 +301,13 @@ function decodeRateLimitWindow(value: unknown): CodexRateLimitWindow | undefined
   if (typeof windowSeconds !== 'number' || !Number.isFinite(windowSeconds) || windowSeconds <= 0) {
     return undefined
   }
-  return { remainingPercent, windowSeconds }
+  const resetsAt = value['resetsAt']
+  if (resetsAt !== undefined && (typeof resetsAt !== 'string' || resetsAt.length === 0)) return undefined
+  return {
+    remainingPercent,
+    windowSeconds,
+    ...resetsAt === undefined ? {} : { resetsAt },
+  }
 }
 
 function decodeRateLimit(value: unknown): CodexRateLimit | undefined {

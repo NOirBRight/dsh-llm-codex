@@ -42,7 +42,28 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
-function parseWindow(value: unknown): CodexRateLimitWindow | undefined {
+function isoInstant(value: unknown): string | undefined {
+  if (typeof value === 'string' && value.length > 0) {
+    const parsed = Date.parse(value)
+    return Number.isFinite(parsed) ? new Date(parsed).toISOString() : undefined
+  }
+  if (typeof value === 'number' && Number.isFinite(value) && value > 0) {
+    const ms = value < 1e12 ? value * 1000 : value
+    const date = new Date(ms)
+    return Number.isNaN(date.getTime()) ? undefined : date.toISOString()
+  }
+}
+
+function parseResetAt(record: Record<string, unknown>, now: number): string | undefined {
+  const direct = isoInstant(record['reset_at'] ?? record['resetAt'] ?? record['resetsAt'])
+  if (direct !== undefined) return direct
+  const after = record['reset_after_seconds'] ?? record['resetAfterSeconds']
+  if (typeof after === 'number' && Number.isFinite(after) && after >= 0) {
+    return new Date(now + after * 1000).toISOString()
+  }
+}
+
+function parseWindow(value: unknown, now: number): CodexRateLimitWindow | undefined {
   if (value === undefined || value === null) return undefined
   if (!isRecord(value)) throw new Error('Codex returned a malformed rate-limit window')
   const usedPercent = value['used_percent']
@@ -53,13 +74,18 @@ function parseWindow(value: unknown): CodexRateLimitWindow | undefined {
   if (typeof windowSeconds !== 'number' || !Number.isInteger(windowSeconds) || windowSeconds <= 0) {
     throw new Error('Codex returned an invalid rate-limit window duration')
   }
-  return { remainingPercent: 100 - usedPercent, windowSeconds }
+  const resetsAt = parseResetAt(value, now)
+  return {
+    remainingPercent: 100 - usedPercent,
+    windowSeconds,
+    ...resetsAt === undefined ? {} : { resetsAt },
+  }
 }
 
-function parseLimit(id: string, name: string | undefined, value: unknown): CodexRateLimit | undefined {
+function parseLimit(id: string, name: string | undefined, value: unknown, now: number): CodexRateLimit | undefined {
   if (value === undefined || value === null) return undefined
   if (!isRecord(value)) throw new Error('Codex returned malformed rate-limit details')
-  const windows = [parseWindow(value['primary_window']), parseWindow(value['secondary_window'])]
+  const windows = [parseWindow(value['primary_window'], now), parseWindow(value['secondary_window'], now)]
     .filter(window => window !== undefined)
   return windows.length === 0 ? undefined : { id, ...name === undefined ? {} : { name }, windows }
 }
@@ -109,10 +135,10 @@ function parseIndividualLimit(value: unknown): CodexIndividualLimit | undefined 
 }
 
 /** Convert the provider response into the small secret-free object sent to the browser. */
-export function parseCodexUsage(value: unknown): CodexUsage {
+export function parseCodexUsage(value: unknown, now = Date.now()): CodexUsage {
   if (!isRecord(value)) throw new Error('Codex returned a malformed usage response')
   const limits: CodexRateLimit[] = []
-  const primary = parseLimit('codex', 'Codex', value['rate_limit'])
+  const primary = parseLimit('codex', 'Codex', value['rate_limit'], now)
   if (primary !== undefined) limits.push(primary)
   const additional = value['additional_rate_limits']
   if (additional !== undefined && additional !== null && !Array.isArray(additional)) {
@@ -128,7 +154,12 @@ export function parseCodexUsage(value: unknown): CodexUsage {
     if (name !== undefined && name !== null && typeof name !== 'string') {
       throw new Error('Codex returned an invalid additional rate-limit name')
     }
-    const limit = parseLimit(id, typeof name === 'string' && name.length > 0 ? name : undefined, item['rate_limit'])
+    const limit = parseLimit(
+      id,
+      typeof name === 'string' && name.length > 0 ? name : undefined,
+      item['rate_limit'],
+      now,
+    )
     if (limit !== undefined) limits.push(limit)
   }
   const credits = parseCredits(value['credits'])

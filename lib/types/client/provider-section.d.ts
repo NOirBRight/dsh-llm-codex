@@ -1,4 +1,4 @@
-/** Shared Settings > 供应商 section. First installed provider plugin wins the nav row. */
+/** Shared Settings > LLM 供应商 section. First installed provider plugin wins the nav row. */
 import type { ClientContext } from '@deepseek-ai/dsh-client-runtime/client';
 export declare const PROVIDERS_SECTION_ID = "providers";
 export declare const PROVIDERS_ITEM_SLOT = "settings.provider.item";
@@ -31,7 +31,7 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
     }
 }
 /**
- * Register the shared 供应商 section when missing. Uninstalling every
+ * Register the shared LLM 供应商 section when missing. Uninstalling every
  * provider plugin drops the nav row because only they call this helper.
  * @param ctx - browser plugin context (slots + locale).
  */

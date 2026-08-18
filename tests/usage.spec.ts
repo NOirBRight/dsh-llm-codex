@@ -51,4 +51,33 @@ describe('parseCodexUsage', () => {
       },
     })
   })
+
+  it('projects official reset_at and reset_after_seconds onto each window', () => {
+    const now = Date.parse('2026-08-19T00:00:00.000Z')
+    expect(parseCodexUsage({
+      rate_limit: {
+        primary_window: {
+          used_percent: 25,
+          limit_window_seconds: 18_000,
+          reset_after_seconds: 3_600,
+        },
+        secondary_window: {
+          used_percent: 10,
+          limit_window_seconds: 604_800,
+          reset_at: 1_787_270_400,
+        },
+      },
+    }, now)).toEqual({
+      rateLimits: [
+        {
+          id: 'codex',
+          name: 'Codex',
+          windows: [
+            { remainingPercent: 75, windowSeconds: 18_000, resetsAt: '2026-08-19T01:00:00.000Z' },
+            { remainingPercent: 90, windowSeconds: 604_800, resetsAt: '2026-08-21T00:00:00.000Z' },
+          ],
+        },
+      ],
+    })
+  })
 })

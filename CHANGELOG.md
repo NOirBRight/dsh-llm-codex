@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.2.2
+
+- Show official reset time under each Codex window (`reset_at` / `reset_after_seconds`)
+- Rename Settings nav/title from Providers to LLM Providers / LLM 供应商
+
 ## 0.2.1
 
 - Cancel an abandoned ChatGPT browser login from the Providers card so closing the window mid-auth no longer leaves the Host stuck on “waiting for browser sign-in”

@@ -1,4 +1,4 @@
-/** Shared Settings > 供应商 section. First installed provider plugin wins the nav row. */
+/** Shared Settings > LLM 供应商 section. First installed provider plugin wins the nav row. */
 
 import type { ClientContext } from '@deepseek-ai/dsh-client-runtime/client'
 import { installProvidersNavIcon } from './provider-chrome.tsx'
@@ -13,14 +13,14 @@ export const PROVIDER_ITEM_ORDER = ['llm-cursor', 'llm-grok', 'llm-codex', 'llm-
 
 const copy = {
   zh: {
-    nav: '供应商',
-    title: '供应商',
+    nav: 'LLM 供应商',
+    title: 'LLM 供应商',
     subtitle: '连接账号，并选择哪些模型出现在对话的模型列表里。',
     empty: '安装 Cursor、Grok、Codex 或 Ollama Cloud 后，在这里连接账号并选择模型。',
   },
   en: {
-    nav: 'Providers',
-    title: 'Providers',
+    nav: 'LLM Providers',
+    title: 'LLM Providers',
     subtitle: 'Connect accounts and choose which models appear in the chat picker.',
     empty: 'Install Cursor, Grok, Codex, or Ollama Cloud to connect an account and pick models here.',
   },
@@ -56,7 +56,7 @@ function duplicateSection(error: unknown): boolean {
 }
 
 /**
- * Register the shared 供应商 section when missing. Uninstalling every
+ * Register the shared LLM 供应商 section when missing. Uninstalling every
  * provider plugin drops the nav row because only they call this helper.
  * @param ctx - browser plugin context (slots + locale).
  */

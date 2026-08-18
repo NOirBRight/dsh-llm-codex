@@ -1,7 +1,7 @@
 {
   "name": "dsh-llm-codex",
   "description": "ChatGPT Codex login, sortable catalog, and Fast models for DeepSeek Harness",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "publishConfig": {
     "access": "public"
   },
@@ -45,7 +45,7 @@
     "docs/images/plugin-card-capabilities.png"
   ],
   "scripts": {
-    "bundle": "tsdown",
+    "bundle": "tsc -p tsconfig.json && tsdown",
     "build": "tsc -p tsconfig.json && tsdown",
     "test": "vitest run",
     "pack:check": "node scripts/check-pack.mjs",

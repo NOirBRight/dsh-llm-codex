@@ -68,6 +68,8 @@ export interface CodexSaveResult {
 export interface CodexRateLimitWindow {
     readonly remainingPercent: number;
     readonly windowSeconds: number;
+    /** ISO-8601 instant from official `reset_at` / `reset_after_seconds`. */
+    readonly resetsAt?: string;
 }
 /** One separately metered Codex quota bucket. */
 export interface CodexRateLimit {
