@@ -4,7 +4,7 @@ English | [中文](README.zh.md)
 
 ChatGPT Codex integration for DeepSeek Harness. This plugin is a separate provider route (`codex`) and settings namespace (`llm-codex`). It does not declare `apiKeyEnv`, does not read or write `~/.codex/auth.json`, and does not share a credential file with `dsh-codex-connect`.
 
-The package root exposes the Cordis plugin contract. The same artifact exports `./client`, which contributes the Codex card under Settings → Plugins → Plugin configuration.
+The package root exposes the Cordis plugin contract. The same artifact exports `./client`, which contributes the Codex card under Settings → Providers.
 
 ## Installation
 
@@ -19,7 +19,7 @@ The repository tracks release-ready lib artifacts, so GitHub installation needs 
 
 ## Web configuration
 
-Open Settings → Plugins → Plugin configuration → Codex. **Sign in with ChatGPT** starts the official ChatGPT OAuth flow, opens a popup, and stores the session only on the Host at `$DSH_HOME/codex-oauth.json` (mode `0600`). The card then shows usage limits. Sign out deletes that file. The browser never receives tokens.
+Open Settings → Providers → Codex. **Sign in with ChatGPT** starts the official ChatGPT OAuth flow, opens a popup, and stores the session only on the Host at `$DSH_HOME/codex-oauth.json` (mode `0600`). The card then shows usage limits. Sign out deletes that file. The browser never receives tokens.
 
 ![Codex plugin card: ChatGPT login, usage, and Fast catalog rows](docs/images/plugin-card-catalog.png)
 

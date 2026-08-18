@@ -23,6 +23,6 @@ export interface CodexPluginCardFace {
     failModelPicker: (message: string) => void;
     closeModelPicker: () => void;
 }
-export type CodexPluginCardProps = PropsRuntime<'settings.plugin.item'> & InjectFace<CodexPluginCardFace>;
+export type CodexPluginCardProps = PropsRuntime<'settings.provider.item'> & InjectFace<CodexPluginCardFace>;
 export declare function CodexPluginCard(props: CodexPluginCardProps): ReactNode;
 //# sourceMappingURL=CodexPluginCard.d.ts.map

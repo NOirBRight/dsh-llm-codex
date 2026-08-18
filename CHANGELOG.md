@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.2.0
+
+- Move the settings card from Plugins to Settings → Providers
+- The Providers nav row is claimed by the first installed provider plugin and disappears when all of them are uninstalled
+- Collapsed cards show a short connection status and model count, not the account email
+- Usage refresh shows a skeleton, a spinning official refresh glyph, a failure hint next to the button, and a last-updated clock
+
 ## 0.1.2
 
 - Official 5.6 picker can add first-class 1M rows (`gpt-5.6-sol-1m`, `…-1m-fast`); default catalog stays the six 272k rows

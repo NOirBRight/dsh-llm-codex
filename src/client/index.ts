@@ -22,6 +22,7 @@ import {
 } from '../client-contract.ts'
 import type { CodexSettingsView } from '../client-contract.ts'
 import { officialPickerCatalog } from '../catalog.ts'
+import { ensureProviderSection } from './provider-section.ts'
 import { CodexPluginCard } from './CodexPluginCard.tsx'
 import type { CodexPluginCardFace } from './CodexPluginCard.tsx'
 import { CodexModelPicker, CodexModelPickerController } from './CodexModelPicker.tsx'
@@ -46,7 +47,8 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 async function jsonRequest<T>(path: string, method: string, decode: (value: unknown) => T | undefined, signal?: AbortSignal): Promise<T> {
   const response = await fetch(path, {
     method,
-    headers: { accept: 'application/json' },
+    headers: { accept: 'application/json', 'cache-control': 'no-store' },
+    cache: 'no-store',
     credentials: 'same-origin',
     ...signal === undefined ? {} : { signal },
   })
@@ -122,10 +124,10 @@ export function apply(ctx: ClientContext): void {
     }),
   }, CodexModelPicker))
 
-  ctx.slots.inject('settings.plugin.item', () => ctx.slots.register({
-    name: 'settings.plugin.item',
-    id: 'codex',
-    order: 35,
+  ensureProviderSection(ctx)
+  ctx.slots.inject('settings.provider.item', () => ctx.slots.register({
+    name: 'settings.provider.item',
+    key: CODEX_SETTINGS_NAMESPACE,
     locale: localeNamespace,
     inject: (): CodexPluginCardFace => ({
       t,

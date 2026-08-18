@@ -80,6 +80,18 @@ describe('CodexPluginCard', () => {
     expect(screen.queryByLabelText('Fast')).toBeNull()
   })
 
+  it('rereads usage when the card opens and when refresh is pressed', async () => {
+    const readAuthStatus = vi.fn(async (): Promise<CodexAccountStatus> => ({
+      status: 'signed-in',
+      usage: { rateLimits: [] },
+    }))
+    render(<CodexPluginCard {...props({ readAuthStatus })} />)
+    expand()
+    await waitFor(() => { expect(readAuthStatus.mock.calls.length).toBeGreaterThanOrEqual(2) })
+    fireEvent.click(screen.getByRole('button', { name: en.usageRefresh }))
+    await waitFor(() => { expect(readAuthStatus.mock.calls.length).toBeGreaterThanOrEqual(3) })
+  })
+
   it('does not offer sign-in while the host is still reading auth status', () => {
     const readAuthStatus = vi.fn(() => new Promise<CodexAccountStatus>(() => undefined))
     render(<CodexPluginCard {...props({ readAuthStatus })} />)

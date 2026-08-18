@@ -22,6 +22,9 @@ import type {
   CodexUsage,
 } from '../client-contract.ts'
 import type { CodexSettingsKey } from './locales.ts'
+import { BrandMark } from './BrandMark.tsx'
+import { AuthToolbar, ProviderCardHeader, UsageHeader, UsageSkeleton, UsageUpdatedAt, formatProviderSummary, formatUsageClock, providerHeaderStyle } from './provider-chrome.tsx'
+import type {} from './provider-section.ts'
 import { SortableList } from './SortableList.tsx'
 
 export type { CodexAccountStatus }
@@ -43,7 +46,7 @@ export interface CodexPluginCardFace {
 }
 
 export type CodexPluginCardProps =
-  PropsRuntime<'settings.plugin.item'>
+  PropsRuntime<'settings.provider.item'>
   & InjectFace<CodexPluginCardFace>
 
 interface ModelDraft {
@@ -69,21 +72,7 @@ const cardStyle: CSSProperties = {
   borderRadius: 10,
   background: 'var(--dsw-alias-bg-module-platform)',
 }
-const headerStyle: CSSProperties = {
-  boxSizing: 'border-box',
-  width: '100%',
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'space-between',
-  gap: 16,
-  border: 0,
-  padding: '13px 14px',
-  background: 'transparent',
-  color: 'var(--dsw-alias-label-primary)',
-  font: 'inherit',
-  textAlign: 'left',
-  cursor: 'pointer',
-}
+const headerStyle = providerHeaderStyle
 const bodyStyle: CSSProperties = {
   display: 'flex',
   flexDirection: 'column',
@@ -182,7 +171,8 @@ const checkboxStyle: CSSProperties = {
 }
 const barTrackStyle: CSSProperties = {
   boxSizing: 'border-box',
-  height: 8,
+  height: 14,
+  display: 'flex',
   overflow: 'hidden',
   borderRadius: 999,
   background: 'color-mix(in srgb, var(--dsw-alias-label-primary) 14%, transparent)',
@@ -334,8 +324,17 @@ function UsageLimits({ usage, quotaError, t }: {
                   <span style={labelStyle}>{limit.name ?? label}</span>
                   <span style={hintStyle}>{interpolate(t('percentRemaining'), { percent: formatPercent(remaining) })}</span>
                 </div>
-                <div style={barTrackStyle} role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(remaining)}>
-                  <span style={{ width: String(remaining) + '%', height: '100%', display: 'block', background: 'var(--dsw-alias-state-business-primary)' }} />
+                <div style={barTrackStyle} role="progressbar" aria-label={limit.name ?? label} aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(remaining)}>
+                  <span
+                    data-usage-fill="true"
+                    style={{
+                      width: String(remaining) + '%',
+                      height: '100%',
+                      flex: 'none',
+                      background: 'var(--dsw-alias-state-business-primary)',
+                      transition: 'width 200ms ease',
+                    }}
+                  />
                 </div>
               </div>
             )
@@ -374,6 +373,10 @@ export function CodexPluginCard(props: CodexPluginCardProps): ReactNode {
   const [auth, setAuth] = useState<CodexAccountStatus>({ status: 'loading' })
   const [catalogOpen, setCatalogOpen] = useState(false)
   const [expandedModels, setExpandedModels] = useState<ReadonlySet<string>>(new Set())
+  const [quotaRefreshing, setQuotaRefreshing] = useState(false)
+  const [lastUsage, setLastUsage] = useState<CodexUsage | undefined>(undefined)
+  const [usageUpdatedAt, setUsageUpdatedAt] = useState<Date | undefined>(undefined)
+  const [refreshError, setRefreshError] = useState<string | undefined>(undefined)
   const [busy, setBusy] = useState(false)
   const [fetching, setFetching] = useState(false)
   const [failure, setFailure] = useState<string | undefined>(undefined)
@@ -413,21 +416,43 @@ export function CodexPluginCard(props: CodexPluginCardProps): ReactNode {
 
   useEffect(() => () => { props.closeModelPicker() }, [props.closeModelPicker])
 
-  const refreshAuth = useCallback(async (signal?: AbortSignal): Promise<void> => {
+  const refreshAuth = useCallback(async (signal?: AbortSignal, spin = false): Promise<void> => {
+    if (spin) setQuotaRefreshing(true)
     try {
       const next = await readAuthStatus(signal)
-      if (mounted.current && signal?.aborted !== true) setAuth(next)
+      if (!mounted.current || signal?.aborted === true) return
+      setAuth(next)
+      if (next.status === 'signed-in') {
+        if (next.quotaError === undefined) {
+          setLastUsage(next.usage)
+          setUsageUpdatedAt(new Date())
+          setRefreshError(undefined)
+        } else {
+          setRefreshError(t('usageRefreshFailed'))
+        }
+      }
     } catch (error: unknown) {
       if (mounted.current && signal?.aborted !== true) {
-        setAuth({ status: 'error', message: messageOf(error, t('statusFailed')) })
+        setRefreshError(t('usageRefreshFailed'))
+        setAuth(current => current.status === 'signed-in'
+          ? current
+          : { status: 'error', message: messageOf(error, t('statusFailed')) })
       }
+    } finally {
+      if (spin && mounted.current) setQuotaRefreshing(false)
     }
   }, [readAuthStatus, t])
 
   useEffect(() => {
-    if (!open) return
     const controller = new AbortController()
     void refreshAuth(controller.signal)
+    return () => { controller.abort() }
+  }, [refreshAuth])
+
+  useEffect(() => {
+    if (!open) return
+    const controller = new AbortController()
+    void refreshAuth(controller.signal, true)
     return () => { controller.abort() }
   }, [open, refreshAuth])
 
@@ -477,7 +502,12 @@ export function CodexPluginCard(props: CodexPluginCardProps): ReactNode {
     setBusy(true)
     try {
       await logout()
-      if (mounted.current) setAuth({ status: 'signed-out' })
+      if (mounted.current) {
+        setAuth({ status: 'signed-out' })
+        setLastUsage(undefined)
+        setUsageUpdatedAt(undefined)
+        setRefreshError(undefined)
+      }
     } catch (error: unknown) {
       if (mounted.current) setAuth({ status: 'error', message: messageOf(error, t('signOutFailed')) })
     } finally {
@@ -572,16 +602,17 @@ export function CodexPluginCard(props: CodexPluginCardProps): ReactNode {
           : auth.status === 'loading'
             ? t('authLoading')
             : t('signedOut')
+  const modelCount = Array.isArray(draft) ? draft.length : (snapshot.value?.models?.length ?? 0)
+  const headerSummary = formatProviderSummary(
+    auth.status === 'signed-in' ? t('summaryOn') : t('summaryOff'),
+    t('summaryModels').replace('{count}', String(modelCount)),
+  )
 
   if (snapshot.status === 'unavailable') {
     return (
       <li style={cardStyle}>
         <button type="button" style={headerStyle} aria-expanded={open} onClick={() => { setOpen(!open) }}>
-          <span style={{ display: 'flex', minWidth: 0, flexDirection: 'column', gap: 3 }}>
-            <span style={{ fontSize: 14, lineHeight: '20px', fontWeight: 600 }}>{title}</span>
-            <span style={{ fontSize: 13, lineHeight: '18px', color: 'var(--dsw-alias-label-tertiary)' }}>{t('description')}</span>
-          </span>
-          <span aria-hidden="true" style={{ fontSize: 18, transform: open ? 'rotate(180deg)' : 'none' }}>⌄</span>
+          <ProviderCardHeader title={title} mark={<BrandMark />} summary={headerSummary} open={open} />
         </button>
         {open ? <div style={bodyStyle}><p style={statusStyle} role="status">{t('remoteAccess')}</p></div> : null}
       </li>
@@ -592,11 +623,7 @@ export function CodexPluginCard(props: CodexPluginCardProps): ReactNode {
     return (
       <li style={cardStyle}>
         <button type="button" style={headerStyle} aria-expanded={open} onClick={() => { setOpen(!open) }}>
-          <span style={{ display: 'flex', minWidth: 0, flexDirection: 'column', gap: 3 }}>
-            <span style={{ fontSize: 14, lineHeight: '20px', fontWeight: 600 }}>{title}</span>
-            <span style={{ fontSize: 13, lineHeight: '18px', color: 'var(--dsw-alias-label-tertiary)' }}>{t('description')}</span>
-          </span>
-          <span aria-hidden="true" style={{ fontSize: 18 }}>⌄</span>
+          <ProviderCardHeader title={title} mark={<BrandMark />} summary={headerSummary} open={open} />
         </button>
         {open ? <div style={bodyStyle}><p style={statusStyle}>{t('loading')}</p></div> : null}
       </li>
@@ -606,31 +633,61 @@ export function CodexPluginCard(props: CodexPluginCardProps): ReactNode {
   return (
     <li style={cardStyle}>
       <button type="button" style={headerStyle} aria-expanded={open} onClick={() => { setOpen(!open) }}>
-        <span style={{ display: 'flex', minWidth: 0, flexDirection: 'column', gap: 3 }}>
-          <span style={{ fontSize: 14, lineHeight: '20px', fontWeight: 600 }}>{title}</span>
-          <span style={{ fontSize: 13, lineHeight: '18px', color: 'var(--dsw-alias-label-tertiary)' }}>{t('description')}</span>
-        </span>
-        <span aria-hidden="true" style={{ fontSize: 18, transform: open ? 'rotate(180deg)' : 'none' }}>⌄</span>
+        <ProviderCardHeader
+          title={title}
+          mark={<BrandMark />}
+          summary={headerSummary}
+          open={open}
+          unsaved={dirty}
+          unsavedLabel={t('unsaved')}
+        />
       </button>
       {open
         ? (
           <div style={bodyStyle}>
+            <p style={hintStyle}>{t('description')}</p>
             <section style={sectionStyle}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
-                <p style={statusStyle} role="status">{statusLabel}</p>
-                {auth.status === 'signed-in'
+              <AuthToolbar
+                status={<p style={{ ...statusStyle, margin: 0 }} role="status">{statusLabel}</p>}
+                action={auth.status === 'signed-in'
                   ? <button type="button" style={buttonStyle} disabled={busy} onClick={() => { void onSignOut() }}>{t('signOut')}</button>
                   : auth.status === 'loading' || auth.status === 'signing-in'
                     ? null
                     : <button type="button" style={primaryButtonStyle} disabled={busy} onClick={() => { void onSignIn() }}>
                         {auth.status === 'error' || auth.status === 'reauth-required' ? t('signInAgain') : t('signIn')}
                       </button>}
-              </div>
+              />
               {auth.status === 'error' || auth.status === 'reauth-required'
                 ? <p style={errorStyle}>{auth.message}</p>
                 : null}
-              {auth.status === 'signed-in'
-                ? <UsageLimits usage={auth.usage} {...auth.quotaError === undefined ? {} : { quotaError: auth.quotaError }} t={t} />
+              {auth.status === 'signed-in' || auth.status === 'loading'
+                ? (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                    <UsageHeader
+                      title={t('usage')}
+                      spinning={auth.status === 'loading' || quotaRefreshing}
+                      disabled={auth.status === 'loading' || quotaRefreshing}
+                      refreshLabel={t('usageRefresh')}
+                      busyLabel={t('usageLoading')}
+                      {...refreshError === undefined ? {} : { error: refreshError }}
+                      onRefresh={() => { void refreshAuth(undefined, true) }}
+                    />
+                    {(() => {
+                      if (quotaRefreshing || auth.status === 'loading') {
+                        const known = lastUsage?.rateLimits.reduce((count, limit) => count + limit.windows.length, 0) ?? 0
+                        return <UsageSkeleton rows={known > 0 ? known : 2} />
+                      }
+                      const usageView = auth.status === 'signed-in' ? auth.usage : lastUsage
+                      return usageView === undefined
+                        ? <UsageSkeleton rows={2} />
+                        : <UsageLimits usage={usageView} t={t} />
+                    })()}
+                    <UsageUpdatedAt
+                      at={usageUpdatedAt}
+                      label={usageUpdatedAt === undefined ? '' : t('usageUpdatedAt').replace('{time}', formatUsageClock(usageUpdatedAt))}
+                    />
+                  </div>
+                )
                 : null}
             </section>
 

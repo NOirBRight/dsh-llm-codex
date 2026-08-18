@@ -19,6 +19,10 @@ export declare const en: {
     readonly loading: "Loading plugin settings…";
     readonly remoteAccess: "A remote browser cannot edit plugin settings. Open this page on the host, or forward the port.";
     readonly models: "Model catalog";
+    readonly summaryModels: "{count} models";
+    readonly summaryOn: "Signed in";
+    readonly summaryOff: "Not signed in";
+    readonly unsaved: "Unsaved changes";
     readonly modelDetails: "Details";
     readonly dragModel: "Drag to reorder";
     readonly fetchModels: "Choose from official catalog";
@@ -62,6 +66,8 @@ export declare const en: {
     readonly unlimited: "Unlimited";
     readonly quotaUnavailable: "Usage limits are temporarily unavailable.";
     readonly usageFailed: "Could not read usage.";
+    readonly usageRefreshFailed: "Refresh failed";
+    readonly usageUpdatedAt: "Updated {time}";
     readonly capabilities: "Optional capabilities";
     readonly capabilitiesIntro: "These stay off until you enable them. They never change the default model or the global search route.";
     readonly enableSearch: "Enable Codex search provider";
