@@ -5,6 +5,7 @@ import type { AuthEvent, AuthPrompt } from '@earendil-works/pi-ai'
 import type { Context } from '@deepseek-ai/cordis'
 import type {} from '@deepseek-ai/dsh-host-webserver'
 import { loginCodex, logoutCodex, codexAuthStatus } from './auth.ts'
+import { openSystemBrowser } from './open-browser.ts'
 import type { CodexCredentialStore } from './store.ts'
 import {
   isCodexReauthRequiredError,
@@ -33,6 +34,7 @@ interface LoginChallenge {
 
 export interface CodexWebAuthOptions {
   challengeTimeoutMs?: number
+  openBrowser?: (url: string) => Promise<void>
 }
 
 function safeMessage(error: unknown): string {
@@ -42,12 +44,21 @@ function safeMessage(error: unknown): string {
     .slice(0, 1000)
 }
 
-function waitForPromptAbort(prompt: AuthPrompt): Promise<string> {
-  const signal = prompt.signal
-  if (signal === undefined) return new Promise<string>(() => {})
-  if (signal.aborted) return Promise.reject(signal.reason)
+function rejectOnAbort(signal: AbortSignal): Error {
+  const reason = signal.reason
+  return reason instanceof Error ? reason : new Error('Codex sign-in cancelled')
+}
+
+function waitForPromptAbort(prompt: AuthPrompt, extra?: AbortSignal): Promise<string> {
+  const signals = [prompt.signal, extra].filter((signal): signal is AbortSignal => signal !== undefined)
+  if (signals.length === 0) return new Promise<string>(() => {})
+  for (const signal of signals) {
+    if (signal.aborted) return Promise.reject(rejectOnAbort(signal))
+  }
   return new Promise<string>((_resolve, reject) => {
-    signal.addEventListener('abort', () => { reject(signal.reason) }, { once: true })
+    for (const signal of signals) {
+      signal.addEventListener('abort', () => { reject(rejectOnAbort(signal)) }, { once: true })
+    }
   })
 }
 
@@ -59,12 +70,14 @@ export class CodexWebAuth {
   private challengeWaiters: Array<{ resolve(value: LoginChallenge): void; reject(error: unknown): void }> = []
   private challengeTimer: ReturnType<typeof setTimeout> | undefined
   private readonly challengeTimeoutMs: number
+  private readonly openBrowser: (url: string) => Promise<void>
 
   constructor(
     private readonly store: CodexCredentialStore,
     options: CodexWebAuthOptions = {},
   ) {
     this.challengeTimeoutMs = options.challengeTimeoutMs ?? CODEX_AUTH_URL_TIMEOUT_MS
+    this.openBrowser = options.openBrowser ?? openSystemBrowser
     if (!Number.isFinite(this.challengeTimeoutMs) || this.challengeTimeoutMs <= 0) {
       throw new TypeError('Codex auth URL timeout must be a positive finite number')
     }
@@ -78,10 +91,17 @@ export class CodexWebAuth {
 
   async signIn(): Promise<LoginChallenge> {
     if (this.operation === undefined) this.start()
-    if (this.challenge !== undefined) return this.challenge
-    return new Promise<LoginChallenge>((resolve, reject) => {
+    const challenge = this.challenge ?? await new Promise<LoginChallenge>((resolve, reject) => {
       this.challengeWaiters.push({ resolve, reject })
     })
+    try {
+      await this.openBrowser(challenge.url)
+    } catch (error) {
+      const failure = error instanceof Error ? error : new Error(safeMessage(error))
+      this.cancelSignIn(failure)
+      throw failure
+    }
+    return challenge
   }
 
   async signOut(): Promise<void> {
@@ -110,7 +130,7 @@ export class CodexWebAuth {
       signal: cancellation.signal,
       prompt: prompt => prompt.type === 'select'
         ? Promise.resolve('browser')
-        : waitForPromptAbort(prompt),
+        : waitForPromptAbort(prompt, cancellation.signal),
       notify: event => { this.onEvent(event) },
     }, this.store).then(
       async () => {

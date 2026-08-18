@@ -25,6 +25,7 @@ interface LoginChallenge {
 }
 export interface CodexWebAuthOptions {
     challengeTimeoutMs?: number;
+    openBrowser?: (url: string) => Promise<void>;
 }
 export declare class CodexWebAuth {
     private readonly store;
@@ -35,6 +36,7 @@ export declare class CodexWebAuth {
     private challengeWaiters;
     private challengeTimer;
     private readonly challengeTimeoutMs;
+    private readonly openBrowser;
     constructor(store: CodexCredentialStore, options?: CodexWebAuthOptions);
     status(): Promise<CodexWebAuthStatus>;
     signIn(): Promise<LoginChallenge>;

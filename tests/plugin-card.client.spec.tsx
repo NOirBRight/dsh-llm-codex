@@ -101,6 +101,19 @@ describe('CodexPluginCard', () => {
     expect(screen.queryByRole('button', { name: en.signIn })).toBeNull()
   })
 
+  it('lets the user cancel an abandoned host sign-in and try again', async () => {
+    const readAuthStatus = vi.fn(async (): Promise<CodexAccountStatus> => ({ status: 'signing-in' }))
+    const logout = vi.fn(async () => undefined)
+    render(<CodexPluginCard {...props({ readAuthStatus, logout })} />)
+    expand()
+
+    await waitFor(() => { expect(screen.getByText(en.signingIn)).toBeTruthy() })
+    expect(screen.queryByRole('button', { name: en.signIn })).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: en.cancel }))
+    await waitFor(() => { expect(logout).toHaveBeenCalledTimes(1) })
+    await waitFor(() => { expect(screen.getByRole('button', { name: en.signIn })).toBeTruthy() })
+  })
+
   it('uses official non-Fast models in the search dropdown and defaults to Luna', async () => {
     render(<CodexPluginCard {...props({
       useCodexSettings: selector => selector(snapshot({

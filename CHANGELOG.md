@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.2.1
+
+- Cancel an abandoned ChatGPT browser login from the Providers card so closing the window mid-auth no longer leaves the Host stuck on “waiting for browser sign-in”
+- Open ChatGPT sign-in in the system browser (xdg-open), like Cursor and Grok, instead of a Lab-owned popup
+
 ## 0.2.0
 
 - Move the settings card from Plugins to Settings → Providers

@@ -11,7 +11,6 @@ export declare const en: {
     readonly signOut: "Sign out";
     readonly signingIn: "Waiting for browser sign-in…";
     readonly reauthRequired: "Sign in again";
-    readonly popupBlocked: "The browser blocked the sign-in window. Allow pop-ups for this page and retry.";
     readonly signInFailed: "Sign-in did not complete. You can try again.";
     readonly signOutFailed: "Could not sign out. Try again.";
     readonly statusFailed: "Could not read sign-in status.";

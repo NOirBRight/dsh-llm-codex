@@ -121,7 +121,7 @@ export type CodexAccountStatus =
   | { status: 'loading' }
   | CodexHostAuthStatus
 
-/** Host reply after Sign in with ChatGPT opens a popup. */
+/** Host reply after Sign in with ChatGPT opens the system browser. */
 export interface CodexAuthLoginReply {
   url: string
 }
@@ -393,7 +393,7 @@ export function decodeCodexAuthStatus(value: unknown): CodexHostAuthStatus | und
   }
 }
 
-/** Narrow the Host login reply. Only an http(s) popup URL is accepted. */
+/** Narrow the Host login reply. Only an http(s) system-browser URL is accepted. */
 export function decodeCodexAuthLoginReply(value: unknown): CodexAuthLoginReply | undefined {
   if (!isRecord(value) || hasTokenFields(value)) return undefined
   const url = value['url']

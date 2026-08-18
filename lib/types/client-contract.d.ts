@@ -113,7 +113,7 @@ export type CodexHostAuthStatus = {
 export type CodexAccountStatus = {
     status: 'loading';
 } | CodexHostAuthStatus;
-/** Host reply after Sign in with ChatGPT opens a popup. */
+/** Host reply after Sign in with ChatGPT opens the system browser. */
 export interface CodexAuthLoginReply {
     url: string;
 }
@@ -134,7 +134,7 @@ export declare function decodeCodexSaveResult(value: unknown): CodexSaveResult |
 export declare function decodeCodexUsage(value: unknown): CodexUsage | undefined;
 /** Narrow the Host auth status. Token-shaped fields fail closed. */
 export declare function decodeCodexAuthStatus(value: unknown): CodexHostAuthStatus | undefined;
-/** Narrow the Host login reply. Only an http(s) popup URL is accepted. */
+/** Narrow the Host login reply. Only an http(s) system-browser URL is accepted. */
 export declare function decodeCodexAuthLoginReply(value: unknown): CodexAuthLoginReply | undefined;
 /** Narrow the Host logout reply. */
 export declare function decodeCodexAuthLogoutReply(value: unknown): CodexAuthLogoutReply | undefined;

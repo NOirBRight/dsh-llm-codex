@@ -378,10 +378,12 @@ export function CodexPluginCard(props: CodexPluginCardProps): ReactNode {
   const [usageUpdatedAt, setUsageUpdatedAt] = useState<Date | undefined>(undefined)
   const [refreshError, setRefreshError] = useState<string | undefined>(undefined)
   const [busy, setBusy] = useState(false)
+  const [authBusy, setAuthBusy] = useState(false)
   const [fetching, setFetching] = useState(false)
   const [failure, setFailure] = useState<string | undefined>(undefined)
   const [notice, setNotice] = useState<string | undefined>(undefined)
   const mounted = useRef(true)
+  const authAttempt = useRef(0)
   const title = t('title')
   const signingIn = auth.status === 'signing-in'
   const disabled = snapshot.status !== 'ready' || !snapshot.writable || busy
@@ -474,44 +476,41 @@ export function CodexPluginCard(props: CodexPluginCardProps): ReactNode {
     setNotice(undefined)
   }
 
+  const nextAuthAttempt = (): number => {
+    const attempt = authAttempt.current + 1
+    authAttempt.current = attempt
+    return attempt
+  }
+  const liveAuthAttempt = (attempt: number): boolean => mounted.current && attempt === authAttempt.current
+
   const onSignIn = async (): Promise<void> => {
-    const popup = window.open('about:blank', '_blank')
-    if (popup === null) {
-      setAuth({ status: 'error', message: t('popupBlocked') })
-      return
-    }
-    popup.opener = null
-    setBusy(true)
+    const attempt = nextAuthAttempt()
+    setAuthBusy(true)
     setAuth({ status: 'signing-in' })
     try {
-      const challenge = await startAuth()
-      if (!mounted.current) {
-        popup.close()
-        return
-      }
-      popup.location.replace(challenge.url)
+      await startAuth()
     } catch (error: unknown) {
-      popup.close()
-      if (mounted.current) setAuth({ status: 'error', message: messageOf(error, t('signInFailed')) })
+      if (liveAuthAttempt(attempt)) setAuth({ status: 'error', message: messageOf(error, t('signInFailed')) })
     } finally {
-      if (mounted.current) setBusy(false)
+      if (liveAuthAttempt(attempt)) setAuthBusy(false)
     }
   }
 
   const onSignOut = async (): Promise<void> => {
-    setBusy(true)
+    const attempt = nextAuthAttempt()
+    setAuthBusy(true)
     try {
       await logout()
-      if (mounted.current) {
+      if (liveAuthAttempt(attempt)) {
         setAuth({ status: 'signed-out' })
         setLastUsage(undefined)
         setUsageUpdatedAt(undefined)
         setRefreshError(undefined)
       }
     } catch (error: unknown) {
-      if (mounted.current) setAuth({ status: 'error', message: messageOf(error, t('signOutFailed')) })
+      if (liveAuthAttempt(attempt)) setAuth({ status: 'error', message: messageOf(error, t('signOutFailed')) })
     } finally {
-      if (mounted.current) setBusy(false)
+      if (liveAuthAttempt(attempt)) setAuthBusy(false)
     }
   }
 
@@ -650,12 +649,14 @@ export function CodexPluginCard(props: CodexPluginCardProps): ReactNode {
               <AuthToolbar
                 status={<p style={{ ...statusStyle, margin: 0 }} role="status">{statusLabel}</p>}
                 action={auth.status === 'signed-in'
-                  ? <button type="button" style={buttonStyle} disabled={busy} onClick={() => { void onSignOut() }}>{t('signOut')}</button>
-                  : auth.status === 'loading' || auth.status === 'signing-in'
+                  ? <button type="button" style={buttonStyle} disabled={authBusy} onClick={() => { void onSignOut() }}>{t('signOut')}</button>
+                  : auth.status === 'loading'
                     ? null
-                    : <button type="button" style={primaryButtonStyle} disabled={busy} onClick={() => { void onSignIn() }}>
-                        {auth.status === 'error' || auth.status === 'reauth-required' ? t('signInAgain') : t('signIn')}
-                      </button>}
+                    : auth.status === 'signing-in'
+                      ? <button type="button" style={buttonStyle} disabled={authBusy} onClick={() => { void onSignOut() }}>{t('cancel')}</button>
+                      : <button type="button" style={primaryButtonStyle} disabled={authBusy} onClick={() => { void onSignIn() }}>
+                          {auth.status === 'error' || auth.status === 'reauth-required' ? t('signInAgain') : t('signIn')}
+                        </button>}
               />
               {auth.status === 'error' || auth.status === 'reauth-required'
                 ? <p style={errorStyle}>{auth.message}</p>
