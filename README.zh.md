@@ -11,7 +11,7 @@ DeepSeek Harness 的 ChatGPT Codex 集成。独立提供方路由是 `codex`，�
 需要 DeepSeek Harness 0.1.0-rc.6 或更新版本。可直接从 GitHub 安装：
 
 ~~~sh
-dsh plugin --profile web add github:NOirBRight/dsh-llm-codex
+dsh plugin --profile web add github:NOirBRight/dsh-llm-codex#v0.2.0
 dsh web
 ~~~
 
