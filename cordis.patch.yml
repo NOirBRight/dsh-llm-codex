@@ -7,3 +7,6 @@
       config:
         enableSearch: false
         enableImageTool: false
+        retryPolicy:
+          mode: normal
+          maxRetries: 8

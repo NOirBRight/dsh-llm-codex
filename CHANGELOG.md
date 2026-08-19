@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.2.3
+
+- Retry model requests up to eight times by default; provider configuration can override the budget
+- Classify retry-safe abnormal ChatGPT WebSocket closures and overload responses as `TRANSPORT` or `SERVER`; keep message-too-large 1009 and ambiguous usage limits non-retryable
+
 ## 0.2.2
 
 - Show official reset time under each Codex window (`reset_at` / `reset_after_seconds`)

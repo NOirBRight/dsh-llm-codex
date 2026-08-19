@@ -73,6 +73,35 @@ export function applyCodexDefaultReasoningMetadata(
   }
 }
 
+/**
+ * Classify ChatGPT WebSocket failures that pi-ai reports without an HTTP status.
+ * @param chunk - One delegated DSH stream chunk.
+ * @returns The original chunk, or a copy with a retryable transport code.
+ */
+export function classifyCodexTransientError(chunk: StreamChunk): StreamChunk {
+  if (chunk.type !== 'finish' || chunk.reason.kind !== 'error' || chunk.reason.failure.code !== 'PI_AI_ERROR') {
+    return chunk
+  }
+  const message = chunk.reason.failure.message
+  const closed = /^WebSocket closed(?: (\d+))?$/iu.exec(message)
+  const transport = /^WebSocket (?:error|stream closed before response\.completed)$/iu.test(message)
+    || (closed !== null && closed[1] !== '1009')
+  const code = transport
+    ? 'TRANSPORT'
+    : /overloaded|service unavailable/iu.test(message)
+      ? 'SERVER'
+      : undefined
+  if (code === undefined) return chunk
+  return {
+    ...chunk,
+    reason: {
+      ...chunk.reason,
+      failure: { ...chunk.reason.failure, code },
+    },
+  }
+}
+
+/** ChatGPT subscription adapter backed by pi-ai Codex Responses. */
 export class CodexAdapter extends LlmAdapter {
   private snapshot: { options: CodexConnectionOptions, adapter: PiAiAdapter } | undefined
 
@@ -119,7 +148,9 @@ export class CodexAdapter extends LlmAdapter {
     return applyCodexDefaultReasoningMetadata(info, model, catalog?.defaultEffort)
   }
 
-  override stream(options: GenerateOptions): AsyncIterable<StreamChunk> {
-    return this.current().stream(options)
+  override async * stream(options: GenerateOptions): AsyncIterable<StreamChunk> {
+    for await (const chunk of this.current().stream(options)) {
+      yield classifyCodexTransientError(chunk)
+    }
   }
 }

@@ -1,7 +1,7 @@
 {
   "name": "dsh-llm-codex",
   "description": "ChatGPT Codex login, sortable catalog, and Fast models for DeepSeek Harness",
-  "version": "0.2.2",
+  "version": "0.2.3",
   "publishConfig": {
     "access": "public"
   },
