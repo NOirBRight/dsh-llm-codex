@@ -11,7 +11,7 @@ The package root exposes the Cordis plugin contract. The same artifact exports `
 DeepSeek Harness 0.1.0-rc.6 or later is required. Install directly from GitHub:
 
 ~~~sh
-dsh plugin --profile web add github:NOirBRight/dsh-llm-codex#v0.2.3
+dsh plugin --profile web add github:NOirBRight/dsh-llm-codex#v0.2.4
 dsh web
 ~~~
 
@@ -69,7 +69,7 @@ Search and `view_image` are implemented but default off. Enabling either one and
         jitterRatio: 0.1
 ~~~
 
-The bundle retries eligible model-request failures up to eight times by default. Abnormal ChatGPT WebSocket closures other than message-too-large code 1009, bare WebSocket failures, and overload responses use retryable DSH failure codes.
+The bundle retries eligible model-request failures up to eight times by default. ChatGPT WebSocket closures, including code-and-reason variants other than message-too-large code 1009, connection limits, and overload responses use retryable DSH failure codes. Token-shape failures use non-retryable `AUTH`; ambiguous usage limits remain non-retryable.
 
 There is no `apiKeyEnv` and no user-editable base URL. `models` is the displayed conversation catalog.
 

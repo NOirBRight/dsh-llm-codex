@@ -13,7 +13,8 @@ function resolved(efforts: readonly string[]): LlmResolvedModelInfo {
 }
 
 describe('Codex retry policy', () => {
-  it('accepts an eight-retry provider policy', () => {
+  it('resolves the host default and an explicit eight-retry provider policy', () => {
+    expect(resolveAdapterOptions({}).retryPolicy).toMatchObject({ mode: 'normal', maxRetries: 2 })
     expect(resolveAdapterOptions({
       retryPolicy: { mode: 'normal', maxRetries: 8 },
     }).retryPolicy).toMatchObject({ mode: 'normal', maxRetries: 8 })
@@ -24,6 +25,8 @@ describe('classifyCodexTransientError', () => {
   it.each([
     'WebSocket closed',
     'WebSocket closed 1006',
+    'WebSocket closed 1006 abnormal closure',
+    'WebSocket closed 1011 internal error',
     'WebSocket error',
     'WebSocket stream closed before response.completed',
   ])(
@@ -41,7 +44,7 @@ describe('classifyCodexTransientError', () => {
     },
   )
 
-  it.each(['overloaded', 'Service unavailable'])(
+  it.each(['overloaded', 'Service unavailable', 'Codex error: websocket_connection_limit_reached'])(
     'classifies %s as SERVER',
     (message) => {
       const chunk: StreamChunk = {
@@ -56,7 +59,24 @@ describe('classifyCodexTransientError', () => {
     },
   )
 
-  it.each(['WebSocket closed 1009', 'unknown provider failure', 'You have hit your ChatGPT usage limit']) (
+  it.each([
+    'Failed to extract accountId from token',
+    'Invalid token',
+    'No account ID in token',
+    'OpenAI Codex token refresh failed',
+  ])('classifies %s as AUTH', (message) => {
+    const chunk: StreamChunk = {
+      type: 'finish',
+      reason: { kind: 'error', failure: { code: 'PI_AI_ERROR', message } },
+    }
+
+    expect(classifyCodexTransientError(chunk)).toMatchObject({
+      type: 'finish',
+      reason: { kind: 'error', failure: { code: 'AUTH', message } },
+    })
+  })
+
+  it.each(['WebSocket closed 1009', 'WebSocket closed 1009 message too big', 'unknown provider failure', 'You have hit your ChatGPT usage limit']) (
     'leaves non-transient or ambiguous %s unchanged',
     (message) => {
       const chunk: StreamChunk = {

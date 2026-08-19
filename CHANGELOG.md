@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.2.4
+
+- Classify WebSocket closures with provider reasons, connection-limit responses, and token-shape failures without retrying message-too-large or ambiguous usage limits
+
 ## 0.2.3
 
 - Retry model requests up to eight times by default; provider configuration can override the budget

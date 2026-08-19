@@ -83,14 +83,16 @@ export function classifyCodexTransientError(chunk: StreamChunk): StreamChunk {
     return chunk
   }
   const message = chunk.reason.failure.message
-  const closed = /^WebSocket closed(?: (\d+))?$/iu.exec(message)
+  const closed = /^WebSocket closed(?:\s+(\d+))?(?:\s+.*)?$/iu.exec(message)
   const transport = /^WebSocket (?:error|stream closed before response\.completed)$/iu.test(message)
     || (closed !== null && closed[1] !== '1009')
-  const code = transport
-    ? 'TRANSPORT'
-    : /overloaded|service unavailable/iu.test(message)
-      ? 'SERVER'
-      : undefined
+  const code = /failed to extract accountId from token|invalid token|no account ID in token|OpenAI Codex token refresh failed/iu.test(message)
+    ? 'AUTH'
+    : transport
+      ? 'TRANSPORT'
+      : /overloaded|service unavailable|websocket_connection_limit_reached/iu.test(message)
+        ? 'SERVER'
+        : undefined
   if (code === undefined) return chunk
   return {
     ...chunk,

@@ -11,7 +11,7 @@ DeepSeek Harness 的 ChatGPT Codex 集成。独立提供方路由是 `codex`，�
 需要 DeepSeek Harness 0.1.0-rc.6 或更新版本。可直接从 GitHub 安装：
 
 ~~~sh
-dsh plugin --profile web add github:NOirBRight/dsh-llm-codex#v0.2.3
+dsh plugin --profile web add github:NOirBRight/dsh-llm-codex#v0.2.4
 dsh web
 ~~~
 
@@ -69,7 +69,7 @@ Fast 和 1M 都是独立选择器行，不是复选框。聊天仍使用官方 w
         jitterRatio: 0.1
 ~~~
 
-bundle 默认对符合条件的模型请求失败最多重试八次。除消息过大 1009 外的 ChatGPT WebSocket 异常关闭、无附加状态的 WebSocket 失败和过载响应使用可重试的 DSH failure code。
+bundle 默认对符合条件的模型请求失败最多重试八次。除消息过大 1009 外，带 code/reason 的 ChatGPT WebSocket 关闭、连接上限和过载响应使用可重试的 DSH failure code。token 结构失败使用不可重试的 `AUTH`；含义不明确的 usage limit 仍不可重试。
 
 没有 `apiKeyEnv`，也没有用户可改的 base URL。`models` 是显示在对话选择器里的目录。
 

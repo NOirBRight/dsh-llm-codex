@@ -34,6 +34,10 @@ async function loadComposition(): Promise<{ ctx: Context }> {
     "  name: 'test-llm-service'",
     '- id: llm-codex',
     "  name: 'dsh-llm-codex'",
+    '  config:',
+    '    retryPolicy:',
+    '      mode: normal',
+    '      maxRetries: 8',
     '',
   ].join('\n'))
 
@@ -71,6 +75,7 @@ describe('llm-codex real composition', () => {
       { provider: 'codex', displayName: 'Codex', settingsNs: 'llm-codex', settingsPath: [] },
     ])
     expect(ctx.llm.listProviders()).toEqual([{ id: 'codex', name: 'Codex' }])
+    expect(ctx.llm.providerRetryPolicy('codex')).toMatchObject({ mode: 'normal', maxRetries: 8 })
 
     const schema = Config.toJSON() as { uid: number, refs: Record<string, { dict?: Record<string, unknown> }> }
     const dict = schema.refs[String(schema.uid)]?.dict
