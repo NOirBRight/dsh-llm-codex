@@ -7,3 +7,4 @@ node_modules/
 coverage/
 *.log
 docs/research-llm-claude.md
+docs/research-codex-image-generation.md

@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.2.5
+
+- Optional `codex_generate_image` tool (default off): ChatGPT OAuth hosted image generation via gpt-image-2, distinct from other providers' `generate_image` tools
+- Keep `enableImageTool` as `view_image` only; generation uses `enableImageGeneration` and a vision-capable official routing model (default `gpt-5.6-luna`)
+- Treat a blank `source` as a new image, not an edit
+- Decode megabyte-scale Codex image payloads without overflowing V8's call stack
+
 ## 0.2.4
 
 - Classify WebSocket closures with provider reasons, connection-limit responses, and token-shape failures without retrying message-too-large or ambiguous usage limits

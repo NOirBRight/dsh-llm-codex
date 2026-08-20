@@ -75,6 +75,8 @@ export declare function officialPickerCatalog(): CodexCatalogModel[];
 export declare function defaultDisplayedCatalog(): CodexCatalogModel[];
 /** Look up the official model that backs a picker id, if any. */
 export declare function officialModelFor(id: string): CodexOfficialModel | undefined;
+/** Official non-Fast wire ids that accept image input, used as generate_image routers. */
+export declare function officialImageGenerationModels(): readonly CodexOfficialModel[];
 /** Default reasoning effort for a displayed row. Fast / 1M rows share the base policy. */
 export declare function defaultCodexReasoningEffort(id: string): 'high' | 'xhigh' | 'max';
 /** Reasoning levels shown when Default thinking is available. */

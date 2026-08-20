@@ -35,6 +35,8 @@ export const DEFAULT_CODEX_SEARCH_MODE: CodexSearchMode = 'cached'
 export const DEFAULT_CODEX_SEARCH_CONTEXT_SIZE: CodexSearchContextSize = 'medium'
 /** Default output budget for the standalone search response. */
 export const DEFAULT_CODEX_SEARCH_MAX_OUTPUT_TOKENS = 10_000
+/** Default Codex routing model for `codex_generate_image`. */
+export const DEFAULT_CODEX_IMAGE_GENERATION_MODEL = 'gpt-5.6-luna'
 
 /** Settings fields presented by the package's Web configuration card. */
 export interface CodexSettingsView {
@@ -46,8 +48,12 @@ export interface CodexSettingsView {
   enableSearch: boolean
   /** Register the optional image-loading tool. */
   enableImageTool: boolean
+  /** Register the optional Codex image-generation tool. */
+  enableImageGeneration: boolean
   /** Model used for auxiliary standalone searches. */
   searchModel: string
+  /** Vision-capable official model that invokes hosted image_generation. */
+  imageGenerationModel: string
   /** Cached, indexed, or live web access. */
   searchMode: CodexSearchMode
   /** Amount of search context returned by the provider. */
@@ -61,7 +67,9 @@ export interface CodexSaveRequest {
   models: readonly CodexCatalogModel[]
   enableSearch: boolean
   enableImageTool: boolean
+  enableImageGeneration: boolean
   searchModel: string
+  imageGenerationModel: string
   searchMode: CodexSearchMode
   searchContextSize: CodexSearchContextSize
   searchMaxOutputTokens: number
@@ -138,7 +146,9 @@ export const DEFAULT_CODEX_SETTINGS: Readonly<CodexSettingsView> = Object.freeze
   models: Object.freeze(defaultDisplayedCatalog()),
   enableSearch: false,
   enableImageTool: false,
+  enableImageGeneration: false,
   searchModel: DEFAULT_CODEX_SEARCH_MODEL,
+  imageGenerationModel: DEFAULT_CODEX_IMAGE_GENERATION_MODEL,
   searchMode: DEFAULT_CODEX_SEARCH_MODE,
   searchContextSize: DEFAULT_CODEX_SEARCH_CONTEXT_SIZE,
   searchMaxOutputTokens: DEFAULT_CODEX_SEARCH_MAX_OUTPUT_TOKENS,
@@ -216,7 +226,9 @@ export function decodeCodexSettings(value: unknown): CodexSettingsView | undefin
   const streamIdleTimeoutMs = value['streamIdleTimeoutMs']
   const enableSearch = value['enableSearch']
   const enableImageTool = value['enableImageTool']
+  const enableImageGeneration = value['enableImageGeneration']
   const searchModel = value['searchModel']
+  const imageGenerationModel = value['imageGenerationModel']
   const searchMode = value['searchMode']
   const searchContextSize = value['searchContextSize']
   const searchMaxOutputTokens = value['searchMaxOutputTokens']
@@ -226,7 +238,9 @@ export function decodeCodexSettings(value: unknown): CodexSettingsView | undefin
   }
   if (enableSearch !== undefined && typeof enableSearch !== 'boolean') return undefined
   if (enableImageTool !== undefined && typeof enableImageTool !== 'boolean') return undefined
+  if (enableImageGeneration !== undefined && typeof enableImageGeneration !== 'boolean') return undefined
   if (searchModel !== undefined && (typeof searchModel !== 'string' || searchModel.trim().length === 0)) return undefined
+  if (imageGenerationModel !== undefined && (typeof imageGenerationModel !== 'string' || imageGenerationModel.trim().length === 0)) return undefined
   if (searchMode !== undefined && searchMode !== 'cached' && searchMode !== 'indexed' && searchMode !== 'live') {
     return undefined
   }
@@ -245,7 +259,9 @@ export function decodeCodexSettings(value: unknown): CodexSettingsView | undefin
     models,
     enableSearch: typeof enableSearch === 'boolean' ? enableSearch : DEFAULT_CODEX_SETTINGS.enableSearch,
     enableImageTool: typeof enableImageTool === 'boolean' ? enableImageTool : DEFAULT_CODEX_SETTINGS.enableImageTool,
+    enableImageGeneration: typeof enableImageGeneration === 'boolean' ? enableImageGeneration : DEFAULT_CODEX_SETTINGS.enableImageGeneration,
     searchModel: typeof searchModel === 'string' ? searchModel.trim() : DEFAULT_CODEX_SETTINGS.searchModel,
+    imageGenerationModel: typeof imageGenerationModel === 'string' ? imageGenerationModel.trim() : DEFAULT_CODEX_SETTINGS.imageGenerationModel,
     searchMode: searchMode === 'indexed' || searchMode === 'live' ? searchMode : DEFAULT_CODEX_SETTINGS.searchMode,
     searchContextSize: searchContextSize === 'low' || searchContextSize === 'high'
       ? searchContextSize
@@ -269,7 +285,9 @@ export function decodeCodexSaveRequest(value: unknown): CodexSaveRequest | undef
     models: settings.models,
     enableSearch: settings.enableSearch,
     enableImageTool: settings.enableImageTool,
+    enableImageGeneration: settings.enableImageGeneration,
     searchModel: settings.searchModel,
+    imageGenerationModel: settings.imageGenerationModel,
     searchMode: settings.searchMode,
     searchContextSize: settings.searchContextSize,
     searchMaxOutputTokens: settings.searchMaxOutputTokens,

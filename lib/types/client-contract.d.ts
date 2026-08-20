@@ -29,6 +29,8 @@ export declare const DEFAULT_CODEX_SEARCH_MODE: CodexSearchMode;
 export declare const DEFAULT_CODEX_SEARCH_CONTEXT_SIZE: CodexSearchContextSize;
 /** Default output budget for the standalone search response. */
 export declare const DEFAULT_CODEX_SEARCH_MAX_OUTPUT_TOKENS = 10000;
+/** Default Codex routing model for `codex_generate_image`. */
+export declare const DEFAULT_CODEX_IMAGE_GENERATION_MODEL = "gpt-5.6-luna";
 /** Settings fields presented by the package's Web configuration card. */
 export interface CodexSettingsView {
     /** Stream idle timeout in milliseconds. */
@@ -39,8 +41,12 @@ export interface CodexSettingsView {
     enableSearch: boolean;
     /** Register the optional image-loading tool. */
     enableImageTool: boolean;
+    /** Register the optional Codex image-generation tool. */
+    enableImageGeneration: boolean;
     /** Model used for auxiliary standalone searches. */
     searchModel: string;
+    /** Vision-capable official model that invokes hosted image_generation. */
+    imageGenerationModel: string;
     /** Cached, indexed, or live web access. */
     searchMode: CodexSearchMode;
     /** Amount of search context returned by the provider. */
@@ -53,7 +59,9 @@ export interface CodexSaveRequest {
     models: readonly CodexCatalogModel[];
     enableSearch: boolean;
     enableImageTool: boolean;
+    enableImageGeneration: boolean;
     searchModel: string;
+    imageGenerationModel: string;
     searchMode: CodexSearchMode;
     searchContextSize: CodexSearchContextSize;
     searchMaxOutputTokens: number;

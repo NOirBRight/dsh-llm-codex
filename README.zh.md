@@ -11,7 +11,7 @@ DeepSeek Harness 的 ChatGPT Codex 集成。独立提供方路由是 `codex`，�
 需要 DeepSeek Harness 0.1.0-rc.6 或更新版本。可直接从 GitHub 安装：
 
 ~~~sh
-dsh plugin --profile web add github:NOirBRight/dsh-llm-codex#v0.2.4
+dsh plugin --profile web add github:NOirBRight/dsh-llm-codex#v0.2.5
 dsh web
 ~~~
 
@@ -39,13 +39,15 @@ Fast 和 1M 都是独立选择器行，不是复选框。聊天仍使用官方 w
 
 ### 可选能力
 
-搜索和 `view_image` 都实现了，但默认关闭。勾选后点保存会立刻注册或卸载，无需重启。打开搜索会注册独立的 Codex `WebSearchProvider`（`POST /codex/alpha/search`）。**不会**写入 `web.searchProvider` 或 `agent-default-model`。搜索模型是官方非 Fast 模型的下拉框，默认 `gpt-5.6-luna`。本插件还会注册 `web/openai-codex-search-llm-request`，以便卸载 `dsh-codex-connect` 后仍能打开它写下的会话日志。搜索模式与官方 Codex 一致：
+搜索、`view_image` 和 `codex_generate_image` 都实现了，但默认关闭。勾选后点保存会立刻注册或卸载，无需重启。打开搜索会注册独立的 Codex `WebSearchProvider`（`POST /codex/alpha/search`）。**不会**写入 `web.searchProvider` 或 `agent-default-model`。搜索模型是官方非 Fast 模型的下拉框，默认 `gpt-5.6-luna`。本插件还会注册 `web/openai-codex-search-llm-request`，以便卸载 `dsh-codex-connect` 后仍能打开它写下的会话日志。搜索模式与官方 Codex 一致：
 
 - `cached`（默认）：只用 OpenAI 维护的索引，不抓当前页面
 - `indexed`：仅当搜索索引放行时才 live fetch
 - `live`：无限制实时抓取
 
 `view_image` 是模型调用的工具，可读本地文件和公网 HTTP(S) 图片。Spark 只有文本。
+
+`codex_generate_image` 是另一个模型调用工具。任意会话模型都能调用；它使用本插件的 ChatGPT 登录和 Codex 额度（大约是普通一轮的 3–5 倍），后端用 `gpt-image-2` 画画。路由模型下拉列出官方视觉模型，默认 `gpt-5.6-luna`。工具名故意不是 `generate_image`，以免和其它供应商插件撞名。生成文件默认写到 `generated-images/`，也可用 `path` 指定。
 
 ![可选的 Codex 搜索与 view_image 能力](docs/images/plugin-card-capabilities.png)
 
@@ -59,6 +61,7 @@ Fast 和 1M 都是独立选择器行，不是复选框。聊天仍使用官方 w
   config:
     enableSearch: false
     enableImageTool: false
+    enableImageGeneration: false
     streamIdleTimeoutMs: 300000
     retryPolicy:
       mode: normal

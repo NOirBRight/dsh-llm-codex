@@ -85,8 +85,12 @@ export declare const en: {
     readonly searchMaxOutputTokens: "Maximum search output tokens";
     readonly enableImageTool: "Enable view_image tool";
     readonly enableImageToolHelp: "Allows approved local reads and public-network image fetches for vision-capable models.";
+    readonly enableImageGeneration: "Enable codex_generate_image tool";
+    readonly enableImageGenerationHelp: "Lets any conversation model draw via ChatGPT Codex (gpt-image-2). Uses this login and Codex usage, typically 3–5× a text turn. Distinct from other generate_image tools.";
+    readonly imageGenerationModel: "Image generation model";
     readonly invalidSearchModel: "Enter a search model.";
     readonly invalidSearchTokens: "Maximum search output tokens must be a positive whole number.";
+    readonly invalidImageGenerationModel: "Enter an image generation model.";
 };
 export type CodexSettingsKey = keyof typeof en;
 export declare const zh: Record<CodexSettingsKey, string>;

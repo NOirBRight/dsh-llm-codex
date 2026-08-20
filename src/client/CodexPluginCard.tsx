@@ -10,6 +10,7 @@ import {
   CODEX_OFFICIAL_MODELS,
   defaultCodexReasoningEffort,
   effortsForCodexModel,
+  officialImageGenerationModels,
   officialModelFor,
 } from '../catalog.ts'
 import type { CodexCatalogModel } from '../catalog.ts'
@@ -62,7 +63,7 @@ interface ModelDraft {
 
 type CapabilityDraft = Pick<
   CodexSettingsView,
-  'enableSearch' | 'enableImageTool' | 'searchModel' | 'searchMode' | 'searchContextSize' | 'searchMaxOutputTokens'
+  'enableSearch' | 'enableImageTool' | 'enableImageGeneration' | 'searchModel' | 'imageGenerationModel' | 'searchMode' | 'searchContextSize' | 'searchMaxOutputTokens'
 >
 
 const cardStyle: CSSProperties = {
@@ -218,11 +219,19 @@ function modelSettingsOf(draft: ModelDraft): CodexCatalogModel {
   }
 }
 
+function imageGenerationPickerModels(selected: string): readonly { id: string, name: string }[] {
+  const models = officialImageGenerationModels()
+  if (selected.length === 0 || models.some(model => model.id === selected)) return models
+  return [...models, { id: selected, name: selected }]
+}
+
 function capabilityOf(value: CodexSettingsView): CapabilityDraft {
   return {
     enableSearch: value.enableSearch,
     enableImageTool: value.enableImageTool,
+    enableImageGeneration: value.enableImageGeneration,
     searchModel: value.searchModel,
+    imageGenerationModel: value.imageGenerationModel,
     searchMode: value.searchMode,
     searchContextSize: value.searchContextSize,
     searchMaxOutputTokens: value.searchMaxOutputTokens,
@@ -400,6 +409,7 @@ export function CodexPluginCard(props: CodexPluginCardProps): ReactNode {
   const invalidModels = draft !== undefined && modelFailure(draft)
   const invalidCaps = capabilities !== undefined && (
     capabilities.searchModel.trim().length === 0
+    || capabilities.imageGenerationModel.trim().length === 0
     || !Number.isInteger(capabilities.searchMaxOutputTokens)
     || capabilities.searchMaxOutputTokens < 1
   )
@@ -953,11 +963,36 @@ export function CodexPluginCard(props: CodexPluginCardProps): ReactNode {
                 onChange={(checked) => { setCapabilities({ ...capabilities, enableImageTool: checked }); setNotice(undefined) }}
               />
               <p style={hintStyle}>{t('enableImageToolHelp')}</p>
+              <Capability
+                label={t('enableImageGeneration')}
+                checked={capabilities.enableImageGeneration}
+                disabled={disabled}
+                onChange={(checked) => { setCapabilities({ ...capabilities, enableImageGeneration: checked }); setNotice(undefined) }}
+              />
+              <p style={hintStyle}>{t('enableImageGenerationHelp')}</p>
+              {capabilities.enableImageGeneration
+                ? (
+                  <label style={labelStyle}>
+                    {t('imageGenerationModel')}
+                    <select
+                      style={inputStyle}
+                      value={capabilities.imageGenerationModel}
+                      disabled={disabled}
+                      onChange={(event) => { setCapabilities({ ...capabilities, imageGenerationModel: event.target.value }); setNotice(undefined) }}
+                    >
+                      {imageGenerationPickerModels(capabilities.imageGenerationModel).map(model => (
+                        <option key={model.id} value={model.id}>{model.name}</option>
+                      ))}
+                    </select>
+                  </label>
+                )
+                : null}
             </section>
 
             {invalidModels ? <p style={errorStyle}>{t('invalidModel')}</p> : null}
             {invalidCaps && capabilities.searchModel.trim().length === 0 ? <p style={errorStyle}>{t('invalidSearchModel')}</p> : null}
-            {invalidCaps && (capabilities.searchModel.trim().length > 0) ? <p style={errorStyle}>{t('invalidSearchTokens')}</p> : null}
+            {invalidCaps && capabilities.imageGenerationModel.trim().length === 0 ? <p style={errorStyle}>{t('invalidImageGenerationModel')}</p> : null}
+            {invalidCaps && capabilities.searchModel.trim().length > 0 && capabilities.imageGenerationModel.trim().length > 0 ? <p style={errorStyle}>{t('invalidSearchTokens')}</p> : null}
             {failure !== undefined ? <p style={errorStyle}>{failure}</p> : null}
             {notice !== undefined ? <p style={hintStyle}>{notice}</p> : null}
             <div style={actionsStyle}>

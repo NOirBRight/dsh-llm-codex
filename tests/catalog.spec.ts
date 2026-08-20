@@ -4,12 +4,21 @@ import {
   defaultCodexReasoningEffort,
   defaultDisplayedCatalog,
   hydrateCatalogModel,
+  officialImageGenerationModels,
   officialPickerCatalog,
   resolveWireModel,
 } from '../src/catalog.ts'
 import { decodeCodexSettings, DEFAULT_CODEX_SETTINGS } from '../src/client-contract.ts'
 
 describe('official Codex catalog', () => {
+  it('lists vision official models for image generation and excludes Spark', () => {
+    const ids = officialImageGenerationModels().map(model => model.id)
+    expect(ids).toContain('gpt-5.6-luna')
+    expect(ids).toContain('gpt-5.5')
+    expect(ids).not.toContain('gpt-5.3-codex-spark')
+    expect(ids.some(id => id.endsWith('-fast'))).toBe(false)
+  })
+
   it('defaults to Sol / Terra / Luna x normal + Fast', () => {
     expect(defaultDisplayedCatalog().map(model => model.id)).toEqual([...CODEX_DEFAULT_MODEL_IDS])
   })
@@ -91,6 +100,8 @@ describe('official Codex catalog', () => {
     expect(decoded?.searchModel).toBe('gpt-5.6-luna')
     expect(decoded?.enableSearch).toBe(false)
     expect(decoded?.enableImageTool).toBe(false)
+    expect(decoded?.enableImageGeneration).toBe(false)
+    expect(decoded?.imageGenerationModel).toBe('gpt-5.6-luna')
   })
 
   it('rejects duplicate catalog ids', () => {

@@ -269,6 +269,11 @@ export function officialModelFor(id: string): CodexOfficialModel | undefined {
   return officialByWireId(parseCodexPickerId(id).wireId)
 }
 
+/** Official non-Fast wire ids that accept image input, used as generate_image routers. */
+export function officialImageGenerationModels(): readonly CodexOfficialModel[] {
+  return CODEX_OFFICIAL_MODELS.filter(model => model.vision)
+}
+
 /** Default reasoning effort for a displayed row. Fast / 1M rows share the base policy. */
 export function defaultCodexReasoningEffort(id: string): 'high' | 'xhigh' | 'max' {
   switch (officialModelFor(id)?.id) {

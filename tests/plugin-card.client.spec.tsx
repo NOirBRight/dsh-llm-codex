@@ -130,4 +130,22 @@ describe('CodexPluginCard', () => {
     expect(optionValues).toContain('gpt-5.6-luna')
     expect(optionValues).not.toContain('gpt-5.6-luna-fast')
   })
+
+  it('uses official vision models in the image-generation dropdown and defaults to Luna', async () => {
+    render(<CodexPluginCard {...props({
+      useCodexSettings: selector => selector(snapshot({
+        value: { ...settings, enableImageGeneration: true },
+      })),
+    })} />)
+    expand()
+    await waitFor(() => { expect(screen.getByText(en.signedOut)).toBeTruthy() })
+
+    const select = screen.getByLabelText(en.imageGenerationModel) as HTMLSelectElement
+    expect(select.value).toBe('gpt-5.6-luna')
+    const optionValues = [...select.options].map(option => option.value)
+    expect(optionValues).toContain('gpt-5.6-luna')
+    expect(optionValues).toContain('gpt-5.5')
+    expect(optionValues).not.toContain('gpt-5.6-luna-fast')
+    expect(optionValues).not.toContain('gpt-5.3-codex-spark')
+  })
 })

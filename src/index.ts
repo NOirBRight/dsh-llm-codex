@@ -1,6 +1,6 @@
 /**
  * Register the `codex` provider, ChatGPT OAuth, sortable catalog, and
- * optional search / view_image capabilities.
+ * optional search / view_image / codex_generate_image capabilities.
  * @module dsh-llm-codex
  */
 
@@ -24,6 +24,7 @@ import type {} from '@deepseek-ai/dsh-fs'
 import { CodexAdapter, resolveCodexAccessToken } from './adapter.ts'
 import type { CodexConnectionOptions } from './adapter.ts'
 import { registerCodexAuthRoutes } from './auth-routes.ts'
+import { generateImageTool } from './generate-image.ts'
 import { viewImageTool } from './view-image.ts'
 import { installCodexSearchEvent, installHostCodexSearchEvents, recordCodexSearchRequest } from './search-event.ts'
 import { CodexSearchProvider } from './search.ts'
@@ -35,6 +36,7 @@ import {
   CODEX_RPC_CHANNEL,
   CODEX_SAVE_ENDPOINT,
   CODEX_SETTINGS_NAMESPACE,
+  DEFAULT_CODEX_IMAGE_GENERATION_MODEL,
   DEFAULT_CODEX_SEARCH_CONTEXT_SIZE,
   DEFAULT_CODEX_SEARCH_MAX_OUTPUT_TOKENS,
   DEFAULT_CODEX_SEARCH_MODE,
@@ -61,6 +63,7 @@ export {
   DEFAULT_CODEX_SETTINGS,
   DEFAULT_CODEX_SEARCH_CONTEXT_SIZE,
   DEFAULT_CODEX_SEARCH_MAX_OUTPUT_TOKENS,
+  DEFAULT_CODEX_IMAGE_GENERATION_MODEL,
   DEFAULT_CODEX_SEARCH_MODE,
   DEFAULT_CODEX_SEARCH_MODEL,
   decodeCodexSettings,
@@ -83,6 +86,7 @@ export {
   CODEX_LARGE_CONTEXT_WINDOW,
   CODEX_OFFICIAL_MODELS,
   defaultDisplayedCatalog,
+  officialImageGenerationModels,
   officialPickerCatalog,
   resolveWireModel,
   hydrateCatalogModel,
@@ -119,6 +123,7 @@ export {
   mapCodexSearchResponse,
 } from './search.ts'
 export { VIEW_IMAGE_TOOL_NAME } from './view-image.ts'
+export { GENERATE_IMAGE_TOOL_NAME, generateImageTool } from './generate-image.ts'
 export { createCodexPiAiProfile, CODEX_CHAT_BASE_URL, codexResponsesApi } from './pi-ai-profile.ts'
 export { registerCodexAuthRoutes, trustedRequest, CodexWebAuth } from './auth-routes.ts'
 
@@ -132,7 +137,9 @@ export interface Config {
   models?: CodexCatalogModel[]
   enableSearch?: boolean
   enableImageTool?: boolean
+  enableImageGeneration?: boolean
   searchModel?: string
+  imageGenerationModel?: string
   searchMode?: CodexSearchMode
   searchContextSize?: CodexSearchContextSize
   searchMaxOutputTokens?: number
@@ -159,7 +166,9 @@ export const Config: z<Config> = z.object({
   models: z.array(catalogModel),
   enableSearch: z.boolean().default(false),
   enableImageTool: z.boolean().default(false),
+  enableImageGeneration: z.boolean().default(false),
   searchModel: z.string().default(DEFAULT_CODEX_SEARCH_MODEL),
+  imageGenerationModel: z.string().default(DEFAULT_CODEX_IMAGE_GENERATION_MODEL),
   searchMode: z.union(['cached', 'indexed', 'live'] as const).default(DEFAULT_CODEX_SEARCH_MODE),
   searchContextSize: z.union(['low', 'medium', 'high'] as const).default(DEFAULT_CODEX_SEARCH_CONTEXT_SIZE),
   searchMaxOutputTokens: z.number().step(1).min(1).default(DEFAULT_CODEX_SEARCH_MAX_OUTPUT_TOKENS),
@@ -226,8 +235,14 @@ async function saveConfiguration(ctx: Context, payload: unknown) {
     if (current.enableImageTool !== request.enableImageTool) {
       ops.push({ op: 'set', path: ['enableImageTool'], value: request.enableImageTool })
     }
+    if (current.enableImageGeneration !== request.enableImageGeneration) {
+      ops.push({ op: 'set', path: ['enableImageGeneration'], value: request.enableImageGeneration })
+    }
     if (current.searchModel !== request.searchModel) {
       ops.push({ op: 'set', path: ['searchModel'], value: request.searchModel })
+    }
+    if (current.imageGenerationModel !== request.imageGenerationModel) {
+      ops.push({ op: 'set', path: ['imageGenerationModel'], value: request.imageGenerationModel })
     }
     if (current.searchMode !== request.searchMode) {
       ops.push({ op: 'set', path: ['searchMode'], value: request.searchMode })
@@ -318,6 +333,8 @@ export function apply(ctx: Context, config: Config): void {
   let searchTail = Promise.resolve()
   let imageFiber: Fiber | undefined
   let imageTail = Promise.resolve()
+  let generateFiber: Fiber | undefined
+  let generateTail = Promise.resolve()
 
   const resolvedSettings = (): ReturnType<typeof decodeCodexSettings> => {
     return decodeCodexSettings({ ...DEFAULT_CODEX_SETTINGS, ...current() })
@@ -384,6 +401,30 @@ export function apply(ctx: Context, config: Config): void {
     })
   }
 
+  const reconcileGenerateImage = async (): Promise<void> => {
+    if (stopped) return
+    const resolved = resolvedSettings()
+    const enabled = resolved?.enableImageGeneration === true
+    if (enabled === (generateFiber !== undefined)) return
+    const previous = generateFiber
+    generateFiber = undefined
+    if (previous !== undefined) await previous.dispose()
+    if (stopped || !enabled) return
+    const fiber = ctx.inject(
+      ['tools', 'fs', 'attachments'],
+      toolCtx => toolCtx.tools.register(generateImageTool(toolCtx, {
+        resolveAccessToken: () => resolveCodexAccessToken(credentials),
+        routingModel: () => resolvedSettings()?.imageGenerationModel ?? DEFAULT_CODEX_IMAGE_GENERATION_MODEL,
+      })),
+    )
+    generateFiber = fiber
+    void Promise.resolve(fiber).catch((error: unknown) => {
+      if (generateFiber === fiber) generateFiber = undefined
+      ctx.logger.error('dsh-llm-codex: optional codex_generate_image tool failed to activate')
+      ctx.logger.error(error)
+    })
+  }
+
   const scheduleCapabilities = (): void => {
     ensureRegistrationFacts()
     searchTail = searchTail.then(reconcileSearch, reconcileSearch).catch((error: unknown) => {
@@ -394,18 +435,25 @@ export function apply(ctx: Context, config: Config): void {
       ctx.logger.error('dsh-llm-codex: could not apply the updated image-tool configuration')
       ctx.logger.error(error)
     })
+    generateTail = generateTail.then(reconcileGenerateImage, reconcileGenerateImage).catch((error: unknown) => {
+      ctx.logger.error('dsh-llm-codex: could not apply the updated image-generation configuration')
+      ctx.logger.error(error)
+    })
   }
 
   ctx.effect(() => async () => {
     stopped = true
-    await Promise.all([searchTail, imageTail])
+    await Promise.all([searchTail, imageTail, generateTail])
     const search = searchFiber
     const image = imageFiber
+    const generate = generateFiber
     searchFiber = undefined
     imageFiber = undefined
+    generateFiber = undefined
     await Promise.allSettled([
       search?.dispose() ?? Promise.resolve(),
       image?.dispose() ?? Promise.resolve(),
+      generate?.dispose() ?? Promise.resolve(),
     ])
   }, 'dsh-llm-codex: optional capability lifecycle')
 

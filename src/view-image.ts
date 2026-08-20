@@ -9,6 +9,7 @@ import type { ContentBlock } from '@deepseek-ai/dsh-llm'
 import { defineTool } from '@deepseek-ai/dsh-tools'
 import type { ToolDefinition, ToolExecution } from '@deepseek-ai/dsh-tools'
 import type {} from '@deepseek-ai/dsh-fs'
+import { mediaTypeOf } from './image-bytes.ts'
 import { fetchPublicHttpResource } from './public-http.ts'
 
 export const VIEW_IMAGE_TOOL_NAME = 'view_image'
@@ -44,20 +45,6 @@ function contentOf(value: ViewImageValue): ContentBlock[] {
     },
     { type: 'image', attachment: refOf(value.image) },
   ]
-}
-
-function mediaTypeOf(data: Uint8Array): ImageMediaType | undefined {
-  if (data.length >= 8 && data[0] === 0x89 && data[1] === 0x50 && data[2] === 0x4e && data[3] === 0x47
-    && data[4] === 0x0d && data[5] === 0x0a && data[6] === 0x1a && data[7] === 0x0a) return 'image/png'
-  if (data.length >= 3 && data[0] === 0xff && data[1] === 0xd8 && data[2] === 0xff) return 'image/jpeg'
-  if (data.length >= 6) {
-    const signature = String.fromCharCode(...data.subarray(0, 6))
-    if (signature === 'GIF87a' || signature === 'GIF89a') return 'image/gif'
-  }
-  if (data.length >= 12
-    && String.fromCharCode(...data.subarray(0, 4)) === 'RIFF'
-    && String.fromCharCode(...data.subarray(8, 12)) === 'WEBP') return 'image/webp'
-  return undefined
 }
 
 async function assertImageCapable(ctx: Context, exec: ToolExecution, source: string): Promise<void> {

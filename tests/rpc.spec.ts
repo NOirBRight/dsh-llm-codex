@@ -47,7 +47,9 @@ describe('createCodexRpcHandler', () => {
       models: current.models,
       enableSearch: true,
       enableImageTool: true,
+      enableImageGeneration: true,
       searchModel: 'gpt-5.6-luna',
+      imageGenerationModel: 'gpt-5.6-luna',
       searchMode: 'live',
       searchContextSize: 'medium',
       searchMaxOutputTokens: 10_000,
@@ -58,7 +60,9 @@ describe('createCodexRpcHandler', () => {
       settings: {
         enableSearch: true,
         enableImageTool: true,
+        enableImageGeneration: true,
         searchModel: 'gpt-5.6-luna',
+        imageGenerationModel: 'gpt-5.6-luna',
         searchMode: 'live',
       },
       revision: 2,
@@ -67,6 +71,7 @@ describe('createCodexRpcHandler', () => {
     expect(mutate.mock.calls[0]?.[1]).toEqual([
       { op: 'set', path: ['enableSearch'], value: true },
       { op: 'set', path: ['enableImageTool'], value: true },
+      { op: 'set', path: ['enableImageGeneration'], value: true },
       { op: 'set', path: ['searchMode'], value: 'live' },
     ])
     expect(JSON.stringify(result)).not.toMatch(/accessToken|refreshToken|Bearer/u)

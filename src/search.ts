@@ -12,6 +12,7 @@ import type {
   WebSearchResult,
   WebSearchSource,
 } from '@deepseek-ai/dsh-web'
+import { chatgptAccountIdFromToken } from './chatgpt-account.ts'
 import type { CodexCredentialStore } from './store.ts'
 import { OPENAI_CODEX_PROVIDER } from './store.ts'
 import {
@@ -79,14 +80,7 @@ export function externalWebAccess(mode: CodexSearchMode): boolean | 'indexed' {
 
 function accountIdFromToken(access: string): string {
   try {
-    const parts = access.split('.')
-    if (parts.length !== 3 || parts[1] === undefined) throw new Error('invalid JWT')
-    const payload = JSON.parse(Buffer.from(parts[1], 'base64url').toString('utf8')) as Record<string, unknown>
-    const auth = payload['https://api.openai.com/auth']
-    if (typeof auth !== 'object' || auth === null || Array.isArray(auth)) throw new Error('missing auth claim')
-    const accountId = (auth as Record<string, unknown>)['chatgpt_account_id']
-    if (typeof accountId !== 'string' || accountId.length === 0) throw new Error('missing account id')
-    return accountId
+    return chatgptAccountIdFromToken(access)
   } catch (error: unknown) {
     throw new WebError('Codex search credential has no usable account id; sign in again', 'WEB_PROVIDER_CREDENTIAL_MISSING', { cause: error })
   }

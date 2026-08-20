@@ -86,8 +86,12 @@ export const en = {
   searchMaxOutputTokens: 'Maximum search output tokens',
   enableImageTool: 'Enable view_image tool',
   enableImageToolHelp: 'Allows approved local reads and public-network image fetches for vision-capable models.',
+  enableImageGeneration: 'Enable codex_generate_image tool',
+  enableImageGenerationHelp: 'Lets any conversation model draw via ChatGPT Codex (gpt-image-2). Uses this login and Codex usage, typically 3–5× a text turn. Distinct from other generate_image tools.',
+  imageGenerationModel: 'Image generation model',
   invalidSearchModel: 'Enter a search model.',
   invalidSearchTokens: 'Maximum search output tokens must be a positive whole number.',
+  invalidImageGenerationModel: 'Enter an image generation model.',
 } as const
 
 export type CodexSettingsKey = keyof typeof en
@@ -178,6 +182,10 @@ export const zh: Record<CodexSettingsKey, string> = {
   searchMaxOutputTokens: '搜索最大输出 Tokens',
   enableImageTool: '启用 view_image 工具',
   enableImageToolHelp: '允许具备视觉能力的模型在审批后读取本地图片或获取公网图片。',
+  enableImageGeneration: '启用 codex_generate_image 工具',
+  enableImageGenerationHelp: '让任意会话模型通过 ChatGPT Codex（gpt-image-2）生图。使用本卡登录和 Codex 额度，大约是普通一轮的 3–5 倍。与其它 generate_image 工具不同名。',
+  imageGenerationModel: '生图路由模型',
   invalidSearchModel: '请输入搜索模型。',
   invalidSearchTokens: '搜索最大输出 Tokens 必须是正整数。',
+  invalidImageGenerationModel: '请输入生图路由模型。',
 }
