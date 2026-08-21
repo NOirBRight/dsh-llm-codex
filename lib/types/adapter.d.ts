@@ -29,6 +29,7 @@ export declare function classifyCodexTransientError(chunk: StreamChunk): StreamC
 /** ChatGPT subscription adapter backed by pi-ai Codex Responses. */
 export declare class CodexAdapter extends LlmAdapter {
     private readonly config;
+    private readonly auth;
     private snapshot;
     constructor(config: CodexAdapterOptions);
     private current;

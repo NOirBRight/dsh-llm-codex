@@ -48,6 +48,9 @@ import {
 import type { CodexCatalogModel, CodexSearchContextSize, CodexSearchMode } from './client-contract.ts'
 import { hydrateCatalogModel } from './catalog.ts'
 
+/** Preserve Codex's historical normal retry count across host-line default changes. */
+const DEFAULT_MAX_RETRIES = 2
+
 export { CodexAdapter, resolveCodexAccessToken } from './adapter.ts'
 export type { CodexAdapterOptions, CodexConnectionOptions } from './adapter.ts'
 export {
@@ -200,7 +203,10 @@ export function resolveAdapterOptions(config: Config): CodexConnectionOptions {
   return {
     models: resolveModels(config.models),
     streamIdleTimeoutMs,
-    retryPolicy: resolveRetryPolicy(config.retryPolicy, 'llm-codex: retryPolicy'),
+    retryPolicy: resolveRetryPolicy(
+      config.retryPolicy ?? { mode: 'normal', maxRetries: DEFAULT_MAX_RETRIES },
+      'llm-codex: retryPolicy',
+    ),
   }
 }
 

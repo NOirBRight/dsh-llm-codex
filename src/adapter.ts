@@ -21,6 +21,7 @@ import { CODEX_PROVIDER } from './client-contract.ts'
 import { defaultCodexReasoningEffort } from './catalog.ts'
 import { createCodexPiAiProfile } from './pi-ai-profile.ts'
 import type { CodexConnectionOptions } from './pi-ai-profile.ts'
+import { createPiAiAuth } from './pi-ai-auth.ts'
 import type { CodexCredentialStore } from './store.ts'
 import { OPENAI_CODEX_PROVIDER } from './store.ts'
 
@@ -105,6 +106,7 @@ export function classifyCodexTransientError(chunk: StreamChunk): StreamChunk {
 
 /** ChatGPT subscription adapter backed by pi-ai Codex Responses. */
 export class CodexAdapter extends LlmAdapter {
+  private readonly auth = createPiAiAuth()
   private snapshot: { options: CodexConnectionOptions, adapter: PiAiAdapter } | undefined
 
   constructor(private readonly config: CodexAdapterOptions) {
@@ -116,13 +118,15 @@ export class CodexAdapter extends LlmAdapter {
     if (this.snapshot?.options === options) return this.snapshot.adapter
     const profile = createCodexPiAiProfile(options)
     const profiles = new Map<string, ResolvedPiAiProviderProfile>([[CODEX_PROVIDER, profile]])
-    const adapter = new PiAiAdapter({
+    const adapterOptions = {
       profiles: () => profiles,
       resolveApiKey: () => this.config.resolveApiKey(),
+      auth: this.auth,
       ...this.config.resolveAttachments === undefined
         ? {}
         : { resolveAttachments: this.config.resolveAttachments },
-    })
+    }
+    const adapter = new PiAiAdapter(adapterOptions)
     this.snapshot = { options, adapter }
     return adapter
   }

@@ -120,16 +120,19 @@ export function createCodexPiAiProfile(connection: CodexConnectionOptions): Reso
     models,
     api: codexResponsesApi(),
   })
-  return {
+  const profile = {
     provider: CODEX_PROVIDER,
     displayName: 'Codex',
     baseURL: CODEX_CHAT_BASE_URL,
     defaultContextWindow: CODEX_DEFAULT_CONTEXT_WINDOW,
     defaultMaxTokens: CODEX_DEFAULT_MODEL_MAX_TOKENS,
-    defaultInput: ['text'],
+    defaultInput: ['text'] as ('text' | 'image')[],
+    /** Mirrors the RC1 official default for total base64 image payload per request. */
+    maxRequestImageBytes: 20 * 1024 * 1024,
     streamIdleTimeoutMs: connection.streamIdleTimeoutMs,
     retryPolicy: connection.retryPolicy,
     piProvider,
     configuredMaxTokens: new Map(),
   }
+  return profile
 }
