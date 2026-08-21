@@ -80,4 +80,36 @@ describe('parseCodexUsage', () => {
       ],
     })
   })
+
+  it('merges multiple windows for the same additional metered feature', () => {
+    expect(parseCodexUsage({
+      additional_rate_limits: [
+        {
+          metered_feature: 'codex_bengalfox',
+          limit_name: 'GPT-5.3-Codex-Spark',
+          rate_limit: {
+            primary_window: { used_percent: 0, limit_window_seconds: 18_000 },
+          },
+        },
+        {
+          metered_feature: 'codex_bengalfox',
+          limit_name: 'GPT-5.3-Codex-Spark',
+          rate_limit: {
+            primary_window: { used_percent: 0, limit_window_seconds: 604_800 },
+          },
+        },
+      ],
+    })).toEqual({
+      rateLimits: [
+        {
+          id: 'codex_bengalfox',
+          name: 'GPT-5.3-Codex-Spark',
+          windows: [
+            { remainingPercent: 100, windowSeconds: 18_000 },
+            { remainingPercent: 100, windowSeconds: 604_800 },
+          ],
+        },
+      ],
+    })
+  })
 })

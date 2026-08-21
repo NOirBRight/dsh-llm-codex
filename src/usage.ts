@@ -137,9 +137,26 @@ function parseIndividualLimit(value: unknown): CodexIndividualLimit | undefined 
 /** Convert the provider response into the small secret-free object sent to the browser. */
 export function parseCodexUsage(value: unknown, now = Date.now()): CodexUsage {
   if (!isRecord(value)) throw new Error('Codex returned a malformed usage response')
-  const limits: CodexRateLimit[] = []
+  const limitsById = new Map<string, CodexRateLimit>()
+  const appendLimit = (limit: CodexRateLimit): void => {
+    const existing = limitsById.get(limit.id)
+    if (existing === undefined) {
+      limitsById.set(limit.id, limit)
+      return
+    }
+    const knownWindowSeconds = new Set(existing.windows.map(window => window.windowSeconds))
+    const windows = [
+      ...existing.windows,
+      ...limit.windows.filter(window => !knownWindowSeconds.has(window.windowSeconds)),
+    ]
+    limitsById.set(limit.id, {
+      ...existing,
+      ...existing.name === undefined && limit.name !== undefined ? { name: limit.name } : {},
+      windows,
+    })
+  }
   const primary = parseLimit('codex', 'Codex', value['rate_limit'], now)
-  if (primary !== undefined) limits.push(primary)
+  if (primary !== undefined) appendLimit(primary)
   const additional = value['additional_rate_limits']
   if (additional !== undefined && additional !== null && !Array.isArray(additional)) {
     throw new Error('Codex returned malformed additional rate limits')
@@ -160,8 +177,9 @@ export function parseCodexUsage(value: unknown, now = Date.now()): CodexUsage {
       item['rate_limit'],
       now,
     )
-    if (limit !== undefined) limits.push(limit)
+    if (limit !== undefined) appendLimit(limit)
   }
+  const limits = [...limitsById.values()]
   const credits = parseCredits(value['credits'])
   const individualLimit = parseIndividualLimit(value['spend_control'])
   return {

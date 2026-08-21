@@ -114,6 +114,28 @@ describe('CodexPluginCard', () => {
     await waitFor(() => { expect(screen.getByRole('button', { name: en.signIn })).toBeTruthy() })
   })
 
+  it('labels named multi-window quotas by their window', async () => {
+    const readAuthStatus = vi.fn(async (): Promise<CodexAccountStatus> => ({
+      status: 'signed-in',
+      usage: {
+        rateLimits: [{
+          id: 'codex_bengalfox',
+          name: 'GPT-5.3-Codex-Spark',
+          windows: [
+            { remainingPercent: 100, windowSeconds: 18_000 },
+            { remainingPercent: 100, windowSeconds: 604_800 },
+          ],
+        }],
+      },
+    }))
+    render(<CodexPluginCard {...props({ readAuthStatus })} />)
+    expand()
+    await waitFor(() => {
+      expect(screen.getByText(`GPT-5.3-Codex-Spark · ${en.fiveHourLimit}`)).toBeTruthy()
+    })
+    expect(screen.getByText(`GPT-5.3-Codex-Spark · ${en.weeklyLimit}`)).toBeTruthy()
+  })
+
   it('uses official non-Fast models in the search dropdown and defaults to Luna', async () => {
     render(<CodexPluginCard {...props({
       useCodexSettings: selector => selector(snapshot({

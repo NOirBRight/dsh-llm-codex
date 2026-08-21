@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.2.6
+
+- Merge duplicate ChatGPT Codex quota buckets for one metered feature while preserving its 5-hour and weekly windows
+- Distinguish named multi-window quota bars by their duration in the provider card
+
 ## 0.2.5
 
 - Optional `codex_generate_image` tool (default off): ChatGPT OAuth hosted image generation via gpt-image-2, distinct from other providers' `generate_image` tools

@@ -327,13 +327,16 @@ function UsageLimits({ usage, quotaError, t }: {
           {limit.windows.map(window => {
             const remaining = Math.max(0, Math.min(100, window.remainingPercent))
             const label = windowLabel(window.windowSeconds, t)
+            const displayLabel = limit.name === undefined || limit.windows.length === 1
+              ? limit.name ?? label
+              : limit.name + ' · ' + label
             return (
               <div key={label + String(window.windowSeconds)} style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10 }}>
-                  <span style={labelStyle}>{limit.name ?? label}</span>
+                  <span style={labelStyle}>{displayLabel}</span>
                   <span style={hintStyle}>{interpolate(t('percentRemaining'), { percent: formatPercent(remaining) })}</span>
                 </div>
-                <div style={barTrackStyle} role="progressbar" aria-label={limit.name ?? label} aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(remaining)}>
+                <div style={barTrackStyle} role="progressbar" aria-label={displayLabel} aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(remaining)}>
                   <span
                     data-usage-fill="true"
                     style={{
