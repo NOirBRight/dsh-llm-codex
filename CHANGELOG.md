@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.2.8
+
+- Own `prepareCall` so dsh 0.1.1-rc.2 Host can snapshot provider options before streaming
+- Widen Host peer ranges to `>=0.1.0-rc.6 <0.1.1 || >=0.1.1-rc.1 <1.0.0`
+
 ## 0.2.6
 
 - Merge duplicate ChatGPT Codex quota buckets for one metered feature while preserving its 5-hour and weekly windows

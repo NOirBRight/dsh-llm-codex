@@ -38,5 +38,10 @@ export declare class CodexAdapter extends LlmAdapter {
     listModels(provider: string): Promise<readonly LlmModelInfo[]>;
     resolveModel(provider: string, model: string, signal?: AbortSignal): Promise<LlmResolvedModelInfo>;
     stream(options: GenerateOptions): AsyncIterable<StreamChunk>;
+    /** Own the method so rc.2 Host can call it even when this class extends an older LlmAdapter. */
+    prepareCall(provider: string, model: string, signal?: AbortSignal): Promise<{
+        model: LlmResolvedModelInfo;
+        stream: (options: GenerateOptions) => AsyncGenerator<StreamChunk, void, unknown>;
+    }>;
 }
 //# sourceMappingURL=adapter.d.ts.map

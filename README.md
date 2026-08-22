@@ -11,7 +11,7 @@ The package root exposes the Cordis plugin contract. The same artifact exports `
 DeepSeek Harness 0.1.0-rc.6 or later is required. Install directly from GitHub:
 
 ~~~sh
-dsh plugin --profile web add github:NOirBRight/dsh-llm-codex#v0.2.6
+dsh plugin --profile web add github:NOirBRight/dsh-llm-codex#v0.2.8
 dsh web
 ~~~
 
