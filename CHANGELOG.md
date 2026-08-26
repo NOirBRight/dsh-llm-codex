@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.2.9
+
+- Preserve ordinary chat image attachments on DSH 0.1.1-rc.2 by declaring its resolved request-image budgets
+- Validate the adapter profile against the rc.2 `dsh-llm-pi-ai` contract during development
+
 ## 0.2.8
 
 - Own `prepareCall` so dsh 0.1.1-rc.2 Host can snapshot provider options before streaming

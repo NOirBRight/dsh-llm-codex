@@ -127,8 +127,11 @@ export function createCodexPiAiProfile(connection: CodexConnectionOptions): Reso
     defaultContextWindow: CODEX_DEFAULT_CONTEXT_WINDOW,
     defaultMaxTokens: CODEX_DEFAULT_MODEL_MAX_TOKENS,
     defaultInput: ['text'] as ('text' | 'image')[],
-    /** Mirrors the RC1 official default for total base64 image payload per request. */
+    /** Mirrors the official total base64 image payload limit per request. */
     maxRequestImageBytes: 20 * 1024 * 1024,
+    /** Required by the RC2 resolved-profile contract for deterministic request images. */
+    requestImagePixelBudget: 2048 * 2048,
+    requestImageMaxBytes: 1024 * 1024,
     streamIdleTimeoutMs: connection.streamIdleTimeoutMs,
     retryPolicy: connection.retryPolicy,
     piProvider,

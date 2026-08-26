@@ -161,7 +161,7 @@ export class CodexAdapter extends LlmAdapter {
   }
 
   /** Own the method so rc.2 Host can call it even when this class extends an older LlmAdapter. */
-  async prepareCall(provider: string, model: string, signal?: AbortSignal) {
+  override async prepareCall(provider: string, model: string, signal?: AbortSignal) {
     const delegate = this.current()
     const inner = typeof (delegate as { prepareCall?: unknown }).prepareCall === 'function'
       ? await (delegate as unknown as { prepareCall: (provider: string, model: string, signal?: AbortSignal) => Promise<{
