@@ -29,6 +29,7 @@ import { viewImageTool } from './view-image.ts'
 import { installCodexSearchEvent, installHostCodexSearchEvents, recordCodexSearchRequest } from './search-event.ts'
 import { CodexSearchProvider } from './search.ts'
 import { CodexCredentialStore } from './store.ts'
+import { installCodexModelSwitchAdapters } from './model-switch-adapter.ts'
 import {
   CODEX_CATALOG,
   CODEX_DEFAULT_STREAM_IDLE_TIMEOUT_MS,
@@ -345,6 +346,8 @@ export function apply(ctx: Context, config: Config): void {
   const resolvedSettings = (): ReturnType<typeof decodeCodexSettings> => {
     return decodeCodexSettings({ ...DEFAULT_CODEX_SETTINGS, ...current() })
   }
+
+  installCodexModelSwitchAdapters(ctx, credentials, resolvedSettings)
 
   const reconcileSearch = async (): Promise<void> => {
     if (stopped) return

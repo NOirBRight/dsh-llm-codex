@@ -11,7 +11,7 @@ The package root exposes the Cordis plugin contract. The same artifact exports `
 DeepSeek Harness 0.1.0-rc.6 or later is required. Install directly from GitHub:
 
 ~~~sh
-dsh plugin --profile web add github:NOirBRight/dsh-llm-codex#v0.2.8
+dsh plugin --profile web add github:NOirBRight/dsh-llm-codex#v0.3.0
 dsh web
 ~~~
 
@@ -36,6 +36,10 @@ Fast and 1M are first-class picker rows, not checkboxes. Chat still uses the off
 Default reasoning effort is per model and editable on the row: Luna uses `max`, Terra `xhigh`, Sol `high`, and every other official Codex model `xhigh`. Fast and 1M rows use their base model's default. A reasoning effort explicitly selected in a conversation takes precedence.
 
 Chat goes through pi-ai `openai-codex-responses` against `https://chatgpt.com/backend-api`. Chat without a session fails `MISSING_CREDENTIAL`. A stored session whose refresh fails is reported as `AUTH`.
+
+### Model Switch integration
+
+When `dsh-model-switch` v0.2+ is present, Codex registers optional Search and Image adapters that reuse this plugin's authenticated clients. Model Switch keeps official `web_search` ownership and leaves `view_image` / `codex_generate_image` unchanged. No Vision adapter is registered.
 
 ### Optional capabilities
 

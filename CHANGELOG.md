@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.3.0
+
+- Register optional Model Switch v0.2 Search and Image adapters through the provider's existing ChatGPT OAuth clients.
+- Preserve the standalone Codex Web provider, `view_image`, and `codex_generate_image` behavior. No Vision adapter is registered.
+
+
 ## 0.2.9
 
 - Preserve ordinary chat image attachments on DSH 0.1.1-rc.2 by declaring its resolved request-image budgets
