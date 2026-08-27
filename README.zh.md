@@ -11,7 +11,7 @@ DeepSeek Harness 的 ChatGPT Codex 集成。独立提供方路由是 `codex`，�
 需要 DeepSeek Harness 0.1.0-rc.6 或更新版本。可直接从 GitHub 安装：
 
 ~~~sh
-dsh plugin --profile web add github:NOirBRight/dsh-llm-codex#v0.2.8
+dsh plugin --profile web add github:NOirBRight/dsh-llm-codex#v0.3.0
 dsh web
 ~~~
 
@@ -36,6 +36,10 @@ Fast 和 1M 都是独立选择器行，不是复选框。聊天仍使用官方 w
 思考等级默认按模型设置，并可在行上改：Luna 用 `max`，Terra 用 `xhigh`，Sol 用 `high`，其他官方 Codex 模型用 `xhigh`。Fast / 1M 行沿用基础型号；会话中用户手动选择的等级优先。
 
 聊天走 pi-ai `openai-codex-responses`，目标是 `https://chatgpt.com/backend-api`。未登录聊天会失败为 `MISSING_CREDENTIAL`。已存会话刷新失败则报 `AUTH`。
+
+### Model Switch 集成
+
+安装 `dsh-model-switch` v0.2+ 后，Codex 会注册复用本插件认证客户端的 Search 与 Image Adapter。Model Switch 保留官方 `web_search` 所有权，也不改变 `view_image` / `codex_generate_image`；不会注册 Vision Adapter。
 
 ### 可选能力
 

@@ -2,14 +2,14 @@
 
 import type { ClientContext } from '@deepseek-ai/dsh-client-runtime/client'
 import { installProvidersNavIcon } from './provider-chrome.tsx'
-import { ProvidersSection } from './ProvidersSection.tsx'
+import { bindProvidersSection } from './ProvidersSection.tsx'
 
 export const PROVIDERS_SECTION_ID = 'providers'
 export const PROVIDERS_ITEM_SLOT = 'settings.provider.item'
 export const PROVIDERS_LOCALE_NS = 'settings.providers'
 
 /** Display order for installed provider cards. Absent plugins render nothing. */
-export const PROVIDER_ITEM_ORDER = ['llm-cursor', 'llm-grok', 'llm-codex', 'llm-ollama'] as const
+export const PROVIDER_ITEM_ORDER = ['llm-cursor', 'llm-grok', 'llm-codex', 'llm-ollama', 'llm-commandcode', 'llm-opencode-go'] as const
 
 const copy = {
   zh: {
@@ -38,7 +38,7 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
 interface SlotsFace {
   inject(name: string, factory: () => (() => void) | void): void
   register(options: Record<string, unknown>, component: unknown): () => void
-  entries(name: string): readonly { options: { id?: string } }[]
+  entries(name: string): readonly { options: { id?: string; key?: string } }[]
   subscribe?(name: string, listener: () => void): () => void
 }
 
@@ -81,7 +81,12 @@ export function ensureProviderSection(ctx: ClientContext): void {
           label: () => t('nav'),
           locale: PROVIDERS_LOCALE_NS,
           children: { [PROVIDERS_ITEM_SLOT]: { kind: 'keyed', scope: 'root' } },
-        }, ProvidersSection)
+        }, bindProvidersSection(
+          () => slots.entries(PROVIDERS_ITEM_SLOT)
+            .map(entry => entry.options.key)
+            .filter((key): key is string => typeof key === 'string' && key.length > 0),
+          listener => slots.subscribe?.(PROVIDERS_ITEM_SLOT, listener),
+        ))
         disposeIcon ??= installProvidersNavIcon()
       } catch (error) {
         if (!duplicateSection(error)) throw error

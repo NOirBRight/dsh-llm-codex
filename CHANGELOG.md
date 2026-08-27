@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.3.1
+
+- Render Command Code and other new keyed providers in the shared LLM Providers section instead of a fixed four-plugin list.
+
+## 0.3.0
+
+- Register optional Model Switch v0.2 Search and Image adapters through the provider's existing ChatGPT OAuth clients.
+- Preserve the standalone Codex Web provider, `view_image`, and `codex_generate_image` behavior. No Vision adapter is registered.
+
+
+## 0.2.9
+
+- Preserve ordinary chat image attachments on DSH 0.1.1-rc.2 by declaring its resolved request-image budgets
+- Validate the adapter profile against the rc.2 `dsh-llm-pi-ai` contract during development
+
 ## 0.2.8
 
 - Own `prepareCall` so dsh 0.1.1-rc.2 Host can snapshot provider options before streaming

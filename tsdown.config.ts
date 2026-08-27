@@ -33,6 +33,7 @@ const host: UserConfig = {
       '@deepseek-ai/dsh-tools',
       '@deepseek-ai/dsh-web',
       '@earendil-works/pi-ai',
+      'dsh-model-switch',
     ],
   },
 }
