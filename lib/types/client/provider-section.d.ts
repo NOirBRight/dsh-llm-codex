@@ -4,7 +4,7 @@ export declare const PROVIDERS_SECTION_ID = "providers";
 export declare const PROVIDERS_ITEM_SLOT = "settings.provider.item";
 export declare const PROVIDERS_LOCALE_NS = "settings.providers";
 /** Display order for installed provider cards. Absent plugins render nothing. */
-export declare const PROVIDER_ITEM_ORDER: readonly ["llm-cursor", "llm-grok", "llm-codex", "llm-ollama"];
+export declare const PROVIDER_ITEM_ORDER: readonly ["llm-cursor", "llm-grok", "llm-codex", "llm-ollama", "llm-commandcode", "llm-opencode-go"];
 declare const copy: {
     zh: {
         nav: string;

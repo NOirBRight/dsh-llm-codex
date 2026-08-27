@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.3.1
+
+- Render Command Code and other new keyed providers in the shared LLM Providers section instead of a fixed four-plugin list.
+
 ## 0.3.0
 
 - Register optional Model Switch v0.2 Search and Image adapters through the provider's existing ChatGPT OAuth clients.
