@@ -20,8 +20,14 @@ export type CodexWebAuthStatus = {
     status: 'error';
     message: string;
 };
-interface LoginChallenge {
-    url: string;
+export interface LoginChallenge {
+    /** Browser OAuth URL, when the provider uses browser authorization. */
+    url?: string;
+    /** Headless device verification URI and user code. */
+    verificationUri?: string;
+    userCode?: string;
+    expiresAt?: number;
+    attemptId?: string;
 }
 export interface CodexWebAuthOptions {
     challengeTimeoutMs?: number;
@@ -37,19 +43,26 @@ export declare class CodexWebAuth {
     private challengeTimer;
     private readonly challengeTimeoutMs;
     private readonly openBrowser;
+    private loginMethod;
+    private attemptId;
+    private usageRefresh;
+    private readonly attempts;
     constructor(store: CodexCredentialStore, options?: CodexWebAuthOptions);
     status(): Promise<CodexWebAuthStatus>;
-    signIn(): Promise<LoginChallenge>;
+    signIn(method?: 'browser' | 'device_code'): Promise<LoginChallenge>;
+    attemptStatus(attemptId: string): 'pending' | 'succeeded' | 'failed' | 'cancelled' | 'missing';
+    cancel(attemptId?: string): boolean;
     signOut(): Promise<void>;
     dispose(): Promise<void>;
     private start;
     private onEvent;
     private readStoredStatus;
+    private refreshUsage;
+    private rememberAttempt;
     private rejectChallenge;
     private clearChallengeTimer;
     private cancelSignIn;
 }
 export declare function trustedRequest(req: IncomingMessage): boolean;
-export declare function registerCodexAuthRoutes(ctx: Context, store: CodexCredentialStore): void;
-export {};
+export declare function registerCodexAuthRoutes(ctx: Context, store: CodexCredentialStore, sharedAuth?: CodexWebAuth): void;
 //# sourceMappingURL=auth-routes.d.ts.map

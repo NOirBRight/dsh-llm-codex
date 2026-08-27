@@ -91,7 +91,10 @@ describe('CodexWebAuth.status', () => {
   it('lets a later client cancel an abandoned browser login and start again', async () => {
     root = await mkdtemp(join(tmpdir(), 'dsh-llm-codex-auth-'))
     const auth = hangingAuth()
-    await expect(auth.signIn()).resolves.toEqual({ url: 'https://auth.openai.com/oauth/authorize?attempt=1' })
+    await expect(auth.signIn()).resolves.toEqual({
+      url: 'https://auth.openai.com/oauth/authorize?attempt=1',
+      attemptId: expect.any(String),
+    })
     await expect(auth.status()).resolves.toEqual({ status: 'signing-in' })
 
     await expect(auth.signOut()).resolves.toBeUndefined()
@@ -99,9 +102,43 @@ describe('CodexWebAuth.status', () => {
 
     await expect(auth.signIn()).resolves.toEqual({
       url: 'https://auth.openai.com/oauth/authorize?attempt=2',
+      attemptId: expect.any(String),
     })
     await auth.signOut()
     await auth.dispose()
+  })
+
+  it('selects device-code login and returns a secret-free remote challenge', async () => {
+    root = await mkdtemp(join(tmpdir(), 'dsh-llm-codex-auth-'))
+    let selected: string | undefined
+    loginCodex.mockImplementation(async (interaction: AuthInteraction) => {
+      selected = await interaction.prompt({
+        type: 'select',
+        message: 'method',
+        options: [{ id: 'browser', label: 'Browser' }, { id: 'device_code', label: 'Device' }],
+      })
+      interaction.notify({
+        type: 'device_code',
+        verificationUri: 'https://auth.openai.com/codex/device',
+        userCode: 'ABCD-EFGH',
+        intervalSeconds: 5,
+        expiresInSeconds: 900,
+      })
+      await interaction.prompt({ type: 'manual_code', message: 'wait' })
+    })
+    const auth = new CodexWebAuth(authStore())
+    const challenge = await auth.signIn('device_code')
+    expect(selected).toBe('device_code')
+    expect(challenge).toMatchObject({
+      verificationUri: 'https://auth.openai.com/codex/device',
+      userCode: 'ABCD-EFGH',
+      attemptId: expect.any(String),
+    })
+    expect(JSON.stringify(challenge)).not.toMatch(/access|refresh|token|Bearer/iu)
+    expect(auth.cancel('stale-attempt')).toBe(false)
+    expect(auth.cancel(challenge.attemptId)).toBe(true)
+    await auth.dispose()
+    expect(auth.attemptStatus(challenge.attemptId!)).toBe('cancelled')
   })
 
   it('opens the system browser with the authorization URL', async () => {
@@ -110,6 +147,7 @@ describe('CodexWebAuth.status', () => {
     const auth = hangingAuth(async url => { opened.push(url) })
     await expect(auth.signIn()).resolves.toEqual({
       url: 'https://auth.openai.com/oauth/authorize?attempt=1',
+      attemptId: expect.any(String),
     })
     expect(opened).toEqual(['https://auth.openai.com/oauth/authorize?attempt=1'])
     await auth.signOut()

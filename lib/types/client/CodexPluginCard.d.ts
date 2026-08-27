@@ -13,9 +13,17 @@ export interface CodexPluginCardFace {
     };
     readAuthStatus: (signal?: AbortSignal) => Promise<CodexAccountStatus>;
     startAuth: () => Promise<{
-        url: string;
+        url?: string;
+        verificationUri?: string;
+        userCode?: string;
+        expiresAt?: number;
+        attemptId?: string;
     }>;
     logout: () => Promise<void>;
+    cancelAuth: (attemptId?: string) => Promise<void>;
+    readAuthAttemptStatus: (attemptId: string) => Promise<{
+        status: 'pending' | 'succeeded' | 'failed' | 'cancelled' | 'missing';
+    }>;
     fetchModels: () => Promise<readonly CodexCatalogModel[]>;
     saveConfiguration: (settings: CodexSettingsView) => Promise<CodexSaveResult>;
     beginModelPicker: (initiallyPicked: ReadonlySet<string>, onAdopt: (models: readonly CodexCatalogModel[]) => void) => void;

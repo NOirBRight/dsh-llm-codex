@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   decodeCodexAuthLoginReply,
+  decodeCodexAuthAttemptStatus,
   decodeCodexAuthLogoutReply,
   decodeCodexAuthStatus,
   decodeCodexSaveRequest,
@@ -44,6 +45,14 @@ describe('decodeCodexAuthLoginReply', () => {
       url: 'https://chatgpt.com/oauth',
       refresh_token: 'secret',
     })).toBeUndefined()
+  })
+})
+
+describe('decodeCodexAuthAttemptStatus', () => {
+  it('accepts terminal states and rejects secrets', () => {
+    expect(decodeCodexAuthAttemptStatus({ status: 'pending' })).toEqual({ status: 'pending' })
+    expect(decodeCodexAuthAttemptStatus({ status: 'missing' })).toEqual({ status: 'missing' })
+    expect(decodeCodexAuthAttemptStatus({ status: 'succeeded', accessToken: 'secret' })).toBeUndefined()
   })
 })
 

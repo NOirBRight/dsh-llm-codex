@@ -82,6 +82,10 @@ The bundle retries eligible model-request failures up to eight times by default.
 
 There is no `apiKeyEnv` and no user-editable base URL. `models` is the displayed conversation catalog.
 
+### Remote management and headless login
+
+Management RPC is loopback-only by default. Behind authentication you control, set `remoteManagement: true`, restart the Host, and start DSH with the external authority explicitly trusted (for example, `dsh web --trusted-host dsh.example.com`). `trusted-host` is reachability/DNS-rebinding protection, not authentication. Remote cards read and revision-save settings through `/codex`; credentials and tokens remain Host-only. Non-loopback clients use headless device-code authorization and receive only the verification URI, one-time code, expiry, and attemptId. Local browser OAuth returns a URL for the client to open; only that optional browser flow needs callback port 1455 (forward it when using SSH).
+
 ## License
 
 MIT

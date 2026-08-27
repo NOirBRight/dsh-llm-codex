@@ -9,7 +9,12 @@ export declare const en: {
     readonly signIn: "Sign in with ChatGPT";
     readonly signInAgain: "Sign in again";
     readonly signOut: "Sign out";
-    readonly signingIn: "Waiting for browser sign-in…";
+    readonly signingIn: "Waiting for ChatGPT authorization…";
+    readonly deviceInstructions: "Open the ChatGPT device page in any browser and enter this one-time code.";
+    readonly openDevicePage: "Open ChatGPT device page";
+    readonly openChatGPT: "Open ChatGPT authorization";
+    readonly copyCode: "Copy code";
+    readonly copied: "Copied";
     readonly reauthRequired: "Sign in again";
     readonly signInFailed: "Sign-in did not complete. You can try again.";
     readonly signOutFailed: "Could not sign out. Try again.";

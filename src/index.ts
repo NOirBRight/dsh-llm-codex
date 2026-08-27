@@ -23,7 +23,7 @@ import type {} from '@deepseek-ai/dsh-tools'
 import type {} from '@deepseek-ai/dsh-fs'
 import { CodexAdapter, resolveCodexAccessToken } from './adapter.ts'
 import type { CodexConnectionOptions } from './adapter.ts'
-import { registerCodexAuthRoutes } from './auth-routes.ts'
+import { CodexWebAuth, registerCodexAuthRoutes } from './auth-routes.ts'
 import { generateImageTool } from './generate-image.ts'
 import { viewImageTool } from './view-image.ts'
 import { installCodexSearchEvent, installHostCodexSearchEvents, recordCodexSearchRequest } from './search-event.ts'
@@ -36,6 +36,12 @@ import {
   CODEX_PROVIDER,
   CODEX_RPC_CHANNEL,
   CODEX_SAVE_ENDPOINT,
+  CODEX_SETTINGS_READ_ENDPOINT,
+  CODEX_AUTH_STATUS_ENDPOINT,
+  CODEX_AUTH_BEGIN_ENDPOINT,
+  CODEX_AUTH_CANCEL_ENDPOINT,
+  CODEX_AUTH_ATTEMPT_STATUS_ENDPOINT,
+  CODEX_AUTH_LOGOUT_ENDPOINT,
   CODEX_SETTINGS_NAMESPACE,
   DEFAULT_CODEX_IMAGE_GENERATION_MODEL,
   DEFAULT_CODEX_SEARCH_CONTEXT_SIZE,
@@ -60,6 +66,12 @@ export {
   CODEX_PROVIDER,
   CODEX_RPC_CHANNEL,
   CODEX_SAVE_ENDPOINT,
+  CODEX_SETTINGS_READ_ENDPOINT,
+  CODEX_AUTH_STATUS_ENDPOINT,
+  CODEX_AUTH_BEGIN_ENDPOINT,
+  CODEX_AUTH_CANCEL_ENDPOINT,
+  CODEX_AUTH_ATTEMPT_STATUS_ENDPOINT,
+  CODEX_AUTH_LOGOUT_ENDPOINT,
   CODEX_SETTINGS_NAMESPACE,
   CODEX_AUTH_STATUS_PATH,
   CODEX_AUTH_LOGIN_PATH,
@@ -151,6 +163,8 @@ export interface Config {
   retryPolicy?: RetryPolicyConfig
   /** Set false when Model Switch owns stable tool names, preventing legacy duplicates. */
   registerLegacyTools?: boolean
+  /** Expose /codex to configured trusted hosts; disabled keeps loopback-only RPC. */
+  remoteManagement?: boolean
 }
 
 const catalogModel = z.object({
@@ -181,6 +195,7 @@ export const Config: z<Config> = z.object({
   searchMaxOutputTokens: z.number().step(1).min(1).default(DEFAULT_CODEX_SEARCH_MAX_OUTPUT_TOKENS),
   retryPolicy: RetryPolicySchema,
   registerLegacyTools: z.boolean().default(true),
+  remoteManagement: z.boolean().default(false),
 })
 
 function resolveModels(models: readonly CodexCatalogModel[] | undefined): CodexCatalogModel[] {
@@ -279,9 +294,41 @@ async function saveConfiguration(ctx: Context, payload: unknown) {
   }
 }
 
+async function readConfiguration(ctx: Context) {
+  const descriptor = ctx.get('settings')?.describe().find(item => item.ns === NS)
+  const settings = decodeCodexSettings(descriptor?.value)
+  return descriptor === undefined || settings === undefined ? internalError('Codex settings are unavailable') : { ok: true as const, value: { settings, revision: descriptor.revision } }
+}
+
 export function createCodexRpcHandler(ctx: Context): ConnectionRpcHandler {
   return async (endpoint, payload) => {
     if (endpoint === CODEX_SAVE_ENDPOINT) return saveConfiguration(ctx, payload)
+    if (endpoint === CODEX_SETTINGS_READ_ENDPOINT) return readConfiguration(ctx)
+    return internalError(`unknown Codex endpoint: ${endpoint}`)
+  }
+}
+
+export function createCodexManagementRpcHandler(ctx: Context, auth: CodexWebAuth): ConnectionRpcHandler {
+  return async (endpoint, payload) => {
+    if (endpoint === CODEX_SETTINGS_READ_ENDPOINT) return readConfiguration(ctx)
+    if (endpoint === CODEX_SAVE_ENDPOINT) return saveConfiguration(ctx, payload)
+    if (endpoint === CODEX_AUTH_STATUS_ENDPOINT) return { ok: true as const, value: await auth.status() }
+    if (endpoint === CODEX_AUTH_BEGIN_ENDPOINT) {
+      const method = typeof payload === 'object' && payload !== null && (payload as { method?: unknown }).method === 'device_code'
+        ? 'device_code'
+        : 'browser'
+      return { ok: true as const, value: await auth.signIn(method) }
+    }
+    if (endpoint === CODEX_AUTH_ATTEMPT_STATUS_ENDPOINT) {
+      const attemptId = typeof payload === 'object' && payload !== null && typeof (payload as { attemptId?: unknown }).attemptId === 'string' ? (payload as { attemptId: string }).attemptId : ''
+      return { ok: true as const, value: { status: auth.attemptStatus(attemptId) } }
+    }
+    if (endpoint === CODEX_AUTH_CANCEL_ENDPOINT) {
+      const attemptId = typeof payload === 'object' && payload !== null && typeof (payload as { attemptId?: unknown }).attemptId === 'string' ? (payload as { attemptId: string }).attemptId : undefined
+      if (!auth.cancel(attemptId)) return internalError('stale Codex sign-in attempt')
+      return { ok: true as const, value: { ok: true } }
+    }
+    if (endpoint === CODEX_AUTH_LOGOUT_ENDPOINT) { await auth.signOut(); return { ok: true as const, value: { ok: true } } }
     return internalError(`unknown Codex endpoint: ${endpoint}`)
   }
 }
@@ -311,6 +358,7 @@ export function apply(ctx: Context, config: Config): void {
   options()
 
   const credentials = new CodexCredentialStore()
+  const auth = new CodexWebAuth(credentials)
   const adapter = new CodexAdapter({
     options,
     resolveApiKey: () => resolveCodexAccessToken(credentials),
@@ -329,12 +377,12 @@ export function apply(ctx: Context, config: Config): void {
     registeredPolicy = policy
   }
 
-  ctx.inject(['webServer'], webCtx => registerCodexAuthRoutes(webCtx, credentials))
+  ctx.inject(['webServer'], webCtx => registerCodexAuthRoutes(webCtx, credentials, auth))
   ctx.inject(['connection'], (connectionCtx) => {
     connectionCtx.connection.rpc.handle(
       CODEX_RPC_CHANNEL,
-      createCodexRpcHandler(ctx),
-      { authority: 'loopback' },
+      createCodexManagementRpcHandler(ctx, auth),
+      { authority: config.remoteManagement === true ? 'trusted-host' : 'loopback' },
     )
   })
 

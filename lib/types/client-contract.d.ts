@@ -11,6 +11,13 @@ export declare const CODEX_DEFAULT_STREAM_IDLE_TIMEOUT_MS = 300000;
 export declare const CODEX_RPC_CHANNEL = "/codex";
 /** Atomic settings-save endpoint. */
 export declare const CODEX_SAVE_ENDPOINT = "settings/save";
+/** Authoritative settings snapshot endpoint. */
+export declare const CODEX_SETTINGS_READ_ENDPOINT = "settings/read";
+export declare const CODEX_AUTH_STATUS_ENDPOINT = "auth/status";
+export declare const CODEX_AUTH_BEGIN_ENDPOINT = "auth/begin";
+export declare const CODEX_AUTH_CANCEL_ENDPOINT = "auth/cancel";
+export declare const CODEX_AUTH_ATTEMPT_STATUS_ENDPOINT = "auth/attempt-status";
+export declare const CODEX_AUTH_LOGOUT_ENDPOINT = "auth/logout";
 /** Plugin-owned status endpoint consumed by its browser half. */
 export declare const CODEX_AUTH_STATUS_PATH = "/plugins/dsh-llm-codex/auth/status";
 /** Plugin-owned browser-login endpoint consumed by its browser half. */
@@ -125,12 +132,21 @@ export type CodexAccountStatus = {
 } | CodexHostAuthStatus;
 /** Host reply after Sign in with ChatGPT opens the system browser. */
 export interface CodexAuthLoginReply {
-    url: string;
+    url?: string;
+    verificationUri?: string;
+    userCode?: string;
+    expiresAt?: number;
+    attemptId?: string;
 }
 /** Host reply after sign-out. */
 export interface CodexAuthLogoutReply {
     ok: true;
 }
+export type CodexAuthAttemptStatus = {
+    status: 'pending' | 'succeeded' | 'failed' | 'cancelled';
+} | {
+    status: 'missing';
+};
 export declare const DEFAULT_CODEX_SETTINGS: Readonly<CodexSettingsView>;
 /** Decode one catalog row; unknown extra fields are ignored. */
 export declare function decodeCodexCatalogModel(value: unknown): CodexCatalogModel | undefined;
@@ -146,6 +162,8 @@ export declare function decodeCodexUsage(value: unknown): CodexUsage | undefined
 export declare function decodeCodexAuthStatus(value: unknown): CodexHostAuthStatus | undefined;
 /** Narrow the Host login reply. Only an http(s) system-browser URL is accepted. */
 export declare function decodeCodexAuthLoginReply(value: unknown): CodexAuthLoginReply | undefined;
+/** Narrow secret-free auth attempt status. */
+export declare function decodeCodexAuthAttemptStatus(value: unknown): CodexAuthAttemptStatus | undefined;
 /** Narrow the Host logout reply. */
 export declare function decodeCodexAuthLogoutReply(value: unknown): CodexAuthLogoutReply | undefined;
 /** Frozen default catalog exported for tests and the picker. */

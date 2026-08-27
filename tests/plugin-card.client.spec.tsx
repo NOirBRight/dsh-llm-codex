@@ -43,6 +43,8 @@ function props(overrides: Partial<CodexPluginCardProps> = {}): CodexPluginCardPr
     readAuthStatus: vi.fn(() => Promise.resolve({ status: 'signed-out' } satisfies CodexAccountStatus)),
     startAuth: vi.fn(() => Promise.resolve({ url: 'https://chatgpt.com/oauth' })),
     logout: vi.fn(() => Promise.resolve()),
+    cancelAuth: vi.fn(() => Promise.resolve()),
+    readAuthAttemptStatus: vi.fn(() => Promise.resolve({ status: 'pending' as const })),
     fetchModels: vi.fn(() => Promise.resolve([])),
     saveConfiguration: vi.fn(next => Promise.resolve({ settings: next, revision: 2 })),
     beginModelPicker: vi.fn((_picked, onAdopt) => { adopt = onAdopt }),
@@ -62,6 +64,75 @@ function openCatalog(): void {
 }
 
 describe('CodexPluginCard', () => {
+  it('shows a browser challenge link when the popup is blocked', async () => {
+    render(<CodexPluginCard {...props({ startAuth: vi.fn(() => Promise.resolve({ url: 'https://chatgpt.com/oauth' })) })} />)
+    expand()
+    await waitFor(() => { expect(screen.getByText(en.signedOut)).toBeTruthy() })
+    fireEvent.click(screen.getByRole('button', { name: en.signIn }))
+    await waitFor(() => { expect((screen.getByRole('link', { name: en.openChatGPT }) as HTMLAnchorElement).href).toBe('https://chatgpt.com/oauth') })
+  })
+
+  it('copies a device code and shows Copied', async () => {
+    const writeText = vi.fn(() => Promise.resolve())
+    Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText } })
+    render(<CodexPluginCard {...props({ startAuth: vi.fn(() => Promise.resolve({ verificationUri: 'https://chatgpt.com/device', userCode: 'ABCD-EFGH' })) })} />)
+    expand()
+    await waitFor(() => { expect(screen.getByText(en.signedOut)).toBeTruthy() })
+    fireEvent.click(screen.getByRole('button', { name: en.signIn }))
+    await waitFor(() => { expect(screen.getByRole('button', { name: en.copyCode })).toBeTruthy() })
+    fireEvent.click(screen.getByRole('button', { name: en.copyCode }))
+    await waitFor(() => { expect(screen.getByRole('button', { name: en.copied })).toBeTruthy() })
+    expect(writeText).toHaveBeenCalledWith('ABCD-EFGH')
+  })
+
+  it('falls back to textarea copy when Clipboard API rejects', async () => {
+    const writeText = vi.fn(() => Promise.reject(new Error('denied')))
+    Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText } })
+    const execCommand = vi.fn(() => true)
+    Object.defineProperty(document, 'execCommand', { configurable: true, value: execCommand })
+    render(<CodexPluginCard {...props({ startAuth: vi.fn(() => Promise.resolve({ verificationUri: 'https://chatgpt.com/device', userCode: 'REJECTED-CODE' })) })} />)
+    expand()
+    await waitFor(() => { expect(screen.getByText(en.signedOut)).toBeTruthy() })
+    fireEvent.click(screen.getByRole('button', { name: en.signIn }))
+    await waitFor(() => { expect(screen.getByRole('button', { name: en.copyCode })).toBeTruthy() })
+    fireEvent.click(screen.getByRole('button', { name: en.copyCode }))
+    await waitFor(() => { expect(screen.getByRole('button', { name: en.copied })).toBeTruthy() })
+    expect(execCommand).toHaveBeenCalledWith('copy')
+    execCommand.mockRestore()
+  })
+
+  it('resets copied state for a new auth attempt', async () => {
+    Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText: vi.fn(() => Promise.resolve()) } })
+    let attempt = 0
+    const startAuth = vi.fn(() => Promise.resolve({ verificationUri: 'https://chatgpt.com/device', userCode: ++attempt === 1 ? 'FIRST-CODE' : 'SECOND-CODE' }))
+    const logout = vi.fn(() => Promise.resolve())
+    render(<CodexPluginCard {...props({ startAuth, logout })} />)
+    expand()
+    await waitFor(() => { expect(screen.getByText(en.signedOut)).toBeTruthy() })
+    fireEvent.click(screen.getByRole('button', { name: en.signIn }))
+    await waitFor(() => { expect(screen.getByRole('button', { name: en.copyCode })).toBeTruthy() })
+    fireEvent.click(screen.getByRole('button', { name: en.copyCode }))
+    await waitFor(() => { expect(screen.getByRole('button', { name: en.copied })).toBeTruthy() })
+    fireEvent.click(screen.getByRole('button', { name: en.cancel }))
+    await waitFor(() => { expect(screen.getByRole('button', { name: en.signIn })).toBeTruthy() })
+    fireEvent.click(screen.getByRole('button', { name: en.signIn }))
+    await waitFor(() => { expect(screen.getByRole('button', { name: en.copyCode })).toBeTruthy() })
+    expect(screen.queryByRole('button', { name: en.copied })).toBeNull()
+  })
+
+  it('cancels only the active auth attempt without logging out', async () => {
+    const cancelAuth = vi.fn(() => Promise.resolve())
+    const logout = vi.fn(() => Promise.resolve())
+    render(<CodexPluginCard {...props({ cancelAuth, logout, startAuth: vi.fn(() => Promise.resolve({ url: 'https://chatgpt.com/oauth', attemptId: 'attempt-1' })) })} />)
+    expand()
+    await waitFor(() => { expect(screen.getByText(en.signedOut)).toBeTruthy() })
+    fireEvent.click(screen.getByRole('button', { name: en.signIn }))
+    await waitFor(() => { expect(screen.getByRole('button', { name: en.cancel })).toBeTruthy() })
+    fireEvent.click(screen.getByRole('button', { name: en.cancel }))
+    await waitFor(() => { expect(cancelAuth).toHaveBeenCalledWith('attempt-1') })
+    expect(logout).not.toHaveBeenCalled()
+  })
+
   it('keeps the model catalog and row details collapsed by default', async () => {
     render(<CodexPluginCard {...props()} />)
     expand()
@@ -104,13 +175,15 @@ describe('CodexPluginCard', () => {
   it('lets the user cancel an abandoned host sign-in and try again', async () => {
     const readAuthStatus = vi.fn(async (): Promise<CodexAccountStatus> => ({ status: 'signing-in' }))
     const logout = vi.fn(async () => undefined)
-    render(<CodexPluginCard {...props({ readAuthStatus, logout })} />)
+    const cancelAuth = vi.fn(async () => undefined)
+    render(<CodexPluginCard {...props({ readAuthStatus, logout, cancelAuth })} />)
     expand()
 
     await waitFor(() => { expect(screen.getByText(en.signingIn)).toBeTruthy() })
     expect(screen.queryByRole('button', { name: en.signIn })).toBeNull()
     fireEvent.click(screen.getByRole('button', { name: en.cancel }))
-    await waitFor(() => { expect(logout).toHaveBeenCalledTimes(1) })
+    await waitFor(() => { expect(cancelAuth).toHaveBeenCalledTimes(1) })
+    expect(logout).not.toHaveBeenCalled()
     await waitFor(() => { expect(screen.getByRole('button', { name: en.signIn })).toBeTruthy() })
   })
 

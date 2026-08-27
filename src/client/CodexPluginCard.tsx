@@ -36,8 +36,10 @@ export interface CodexPluginCardFace {
     codexSettings: SettingsScope<CodexSettingsView>
   }
   readAuthStatus: (signal?: AbortSignal) => Promise<CodexAccountStatus>
-  startAuth: () => Promise<{ url: string }>
+  startAuth: () => Promise<{ url?: string; verificationUri?: string; userCode?: string; expiresAt?: number; attemptId?: string }>
   logout: () => Promise<void>
+  cancelAuth: (attemptId?: string) => Promise<void>
+  readAuthAttemptStatus: (attemptId: string) => Promise<{ status: 'pending' | 'succeeded' | 'failed' | 'cancelled' | 'missing' }>
   fetchModels: () => Promise<readonly CodexCatalogModel[]>
   saveConfiguration: (settings: CodexSettingsView) => Promise<CodexSaveResult>
   beginModelPicker: (initiallyPicked: ReadonlySet<string>, onAdopt: (models: readonly CodexCatalogModel[]) => void) => void
@@ -314,6 +316,35 @@ function IconTrash(): ReactNode {
   )
 }
 
+function DeviceCodeRow({ code, t }: { code: string; t: CodexPluginCardFace['t'] }): ReactNode {
+  const [copied, setCopied] = useState(false)
+  const timeout = useRef<number | undefined>(undefined)
+  useEffect(() => () => {
+    if (timeout.current !== undefined) window.clearTimeout(timeout.current)
+  }, [])
+  const fallbackCopy = (): void => {
+    const textarea = document.createElement('textarea')
+    textarea.value = code
+    textarea.setAttribute('readonly', '')
+    textarea.style.position = 'fixed'
+    textarea.style.opacity = '0'
+    document.body.appendChild(textarea)
+    textarea.select()
+    document.execCommand('copy')
+    textarea.remove()
+  }
+  const copy = async (): Promise<void> => {
+    try { await navigator.clipboard?.writeText(code) } catch { fallbackCopy() }
+    if (timeout.current !== undefined) window.clearTimeout(timeout.current)
+    setCopied(true)
+    timeout.current = window.setTimeout(() => setCopied(false), 1800)
+  }
+  return <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+    <code style={{ fontSize: 20, fontWeight: 700, letterSpacing: 2 }}>{code}</code>
+    <button type="button" style={buttonStyle} onClick={() => { void copy() }}>{copied ? t('copied') : t('copyCode')}</button>
+  </div>
+}
+
 function UsageLimits({ usage, quotaError, t }: {
   usage: CodexUsage
   quotaError?: string
@@ -375,7 +406,7 @@ function UsageLimits({ usage, quotaError, t }: {
 }
 
 export function CodexPluginCard(props: CodexPluginCardProps): ReactNode {
-  const { t, readAuthStatus, startAuth, logout, fetchModels } = props
+  const { t, readAuthStatus, readAuthAttemptStatus, startAuth, logout, cancelAuth, fetchModels } = props
   const snapshot = props.useCodexSettings(value => value)
   const [open, setOpen] = useState(false)
   const initial = useMemo(
@@ -389,6 +420,7 @@ export function CodexPluginCard(props: CodexPluginCardProps): ReactNode {
   )
   const [sourceRevision, setSourceRevision] = useState<number | undefined>(snapshot.revision)
   const [auth, setAuth] = useState<CodexAccountStatus>({ status: 'loading' })
+  const [authChallenge, setAuthChallenge] = useState<{ url?: string; verificationUri?: string; userCode?: string; attemptId?: string } | undefined>()
   const [catalogOpen, setCatalogOpen] = useState(false)
   const [expandedModels, setExpandedModels] = useState<ReadonlySet<string>>(new Set())
   const [quotaRefreshing, setQuotaRefreshing] = useState(false)
@@ -489,6 +521,24 @@ export function CodexPluginCard(props: CodexPluginCardProps): ReactNode {
     }
   }, [open, auth.status, refreshAuth])
 
+  useEffect(() => {
+    if (!open || auth.status !== 'signing-in' || authChallenge?.attemptId === undefined) return
+    const attemptId = authChallenge.attemptId
+    let stopped = false
+    const poll = async (): Promise<void> => {
+      try {
+        const result = await readAuthAttemptStatus(attemptId)
+        if (stopped || !mounted.current) return
+        if (result.status === 'succeeded') { await refreshAuth(); return }
+        if (result.status === 'failed') setAuth({ status: 'error', message: t('signInFailed') })
+        else if (result.status === 'cancelled' || result.status === 'missing') setAuth({ status: 'signed-out' })
+      } catch { /* generic status polling remains the safe fallback */ }
+    }
+    void poll()
+    const timer = window.setInterval(() => { void poll() }, 1000)
+    return () => { stopped = true; window.clearInterval(timer) }
+  }, [auth.status, authChallenge?.attemptId, open, readAuthAttemptStatus, refreshAuth, t])
+
   const patchDraft = (models: ModelDraft[]): void => {
     setDraft(models)
     setFailure(undefined)
@@ -505,9 +555,34 @@ export function CodexPluginCard(props: CodexPluginCardProps): ReactNode {
   const onSignIn = async (): Promise<void> => {
     const attempt = nextAuthAttempt()
     setAuthBusy(true)
+    setAuthChallenge(undefined)
     setAuth({ status: 'signing-in' })
     try {
-      await startAuth()
+      const challenge = await startAuth()
+      if (liveAuthAttempt(attempt)) {
+        setAuthChallenge({
+          ...(challenge.url === undefined ? {} : { url: challenge.url }),
+          ...(challenge.verificationUri === undefined ? {} : { verificationUri: challenge.verificationUri }),
+          ...(challenge.userCode === undefined ? {} : { userCode: challenge.userCode }),
+          ...(challenge.attemptId === undefined ? {} : { attemptId: challenge.attemptId }),
+        })
+      }
+    } catch (error: unknown) {
+      if (liveAuthAttempt(attempt)) setAuth({ status: 'error', message: messageOf(error, t('signInFailed')) })
+    } finally {
+      if (liveAuthAttempt(attempt)) setAuthBusy(false)
+    }
+  }
+
+  const onCancelAuth = async (): Promise<void> => {
+    const attempt = nextAuthAttempt()
+    setAuthBusy(true)
+    try {
+      await cancelAuth(authChallenge?.attemptId)
+      if (liveAuthAttempt(attempt)) {
+        setAuth({ status: 'signed-out' })
+        setAuthChallenge(undefined)
+      }
     } catch (error: unknown) {
       if (liveAuthAttempt(attempt)) setAuth({ status: 'error', message: messageOf(error, t('signInFailed')) })
     } finally {
@@ -522,6 +597,7 @@ export function CodexPluginCard(props: CodexPluginCardProps): ReactNode {
       await logout()
       if (liveAuthAttempt(attempt)) {
         setAuth({ status: 'signed-out' })
+        setAuthChallenge(undefined)
         setLastUsage(undefined)
         setUsageUpdatedAt(undefined)
         setRefreshError(undefined)
@@ -672,13 +748,25 @@ export function CodexPluginCard(props: CodexPluginCardProps): ReactNode {
                   : auth.status === 'loading'
                     ? null
                     : auth.status === 'signing-in'
-                      ? <button type="button" style={buttonStyle} disabled={authBusy} onClick={() => { void onSignOut() }}>{t('cancel')}</button>
+                      ? <button type="button" style={buttonStyle} disabled={authBusy} onClick={() => { void onCancelAuth() }}>{t('cancel')}</button>
                       : <button type="button" style={primaryButtonStyle} disabled={authBusy} onClick={() => { void onSignIn() }}>
                           {auth.status === 'error' || auth.status === 'reauth-required' ? t('signInAgain') : t('signIn')}
                         </button>}
               />
               {auth.status === 'error' || auth.status === 'reauth-required'
                 ? <p style={errorStyle}>{auth.message}</p>
+                : null}
+              {authChallenge !== undefined
+                ? (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                      {authChallenge.userCode === undefined
+                        ? null
+                        : <><p style={hintStyle}>{t('deviceInstructions')}</p><DeviceCodeRow key={authChallenge.userCode} code={authChallenge.userCode} t={t} /></>}
+                      {authChallenge.verificationUri === undefined
+                        ? authChallenge.url === undefined ? null : <a href={authChallenge.url} target="_blank" rel="noreferrer">{t('openChatGPT')}</a>
+                        : <a href={authChallenge.verificationUri} target="_blank" rel="noreferrer">{t('openDevicePage')}</a>}
+                    </div>
+                  )
                 : null}
               {auth.status === 'signed-in' || auth.status === 'loading'
                 ? (

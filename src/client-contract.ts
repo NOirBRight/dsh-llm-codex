@@ -15,6 +15,13 @@ export const CODEX_DEFAULT_STREAM_IDLE_TIMEOUT_MS = 300_000
 export const CODEX_RPC_CHANNEL = '/codex'
 /** Atomic settings-save endpoint. */
 export const CODEX_SAVE_ENDPOINT = 'settings/save'
+/** Authoritative settings snapshot endpoint. */
+export const CODEX_SETTINGS_READ_ENDPOINT = 'settings/read'
+export const CODEX_AUTH_STATUS_ENDPOINT = 'auth/status'
+export const CODEX_AUTH_BEGIN_ENDPOINT = 'auth/begin'
+export const CODEX_AUTH_CANCEL_ENDPOINT = 'auth/cancel'
+export const CODEX_AUTH_ATTEMPT_STATUS_ENDPOINT = 'auth/attempt-status'
+export const CODEX_AUTH_LOGOUT_ENDPOINT = 'auth/logout'
 /** Plugin-owned status endpoint consumed by its browser half. */
 export const CODEX_AUTH_STATUS_PATH = '/plugins/dsh-llm-codex/auth/status'
 /** Plugin-owned browser-login endpoint consumed by its browser half. */
@@ -133,13 +140,21 @@ export type CodexAccountStatus =
 
 /** Host reply after Sign in with ChatGPT opens the system browser. */
 export interface CodexAuthLoginReply {
-  url: string
+  url?: string
+  verificationUri?: string
+  userCode?: string
+  expiresAt?: number
+  attemptId?: string
 }
 
 /** Host reply after sign-out. */
 export interface CodexAuthLogoutReply {
   ok: true
 }
+
+export type CodexAuthAttemptStatus =
+  | { status: 'pending' | 'succeeded' | 'failed' | 'cancelled' }
+  | { status: 'missing' }
 
 export const DEFAULT_CODEX_SETTINGS: Readonly<CodexSettingsView> = Object.freeze({
   streamIdleTimeoutMs: CODEX_DEFAULT_STREAM_IDLE_TIMEOUT_MS,
@@ -423,14 +438,28 @@ export function decodeCodexAuthStatus(value: unknown): CodexHostAuthStatus | und
 export function decodeCodexAuthLoginReply(value: unknown): CodexAuthLoginReply | undefined {
   if (!isRecord(value) || hasTokenFields(value)) return undefined
   const url = value['url']
-  if (typeof url !== 'string' || url.length === 0) return undefined
-  try {
-    const parsed = new URL(url)
-    if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') return undefined
-  } catch {
-    return undefined
+  const verificationUri = value['verificationUri']
+  const userCode = value['userCode']
+  const attemptId = value['attemptId']
+  if (attemptId !== undefined && (typeof attemptId !== 'string' || attemptId.length === 0)) return undefined
+  if (url !== undefined) {
+    if (typeof url !== 'string' || url.length === 0) return undefined
+    try { const parsed = new URL(url); if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') return undefined } catch { return undefined }
   }
-  return { url }
+  if (verificationUri !== undefined && (typeof verificationUri !== 'string' || verificationUri.length === 0)) return undefined
+  if (userCode !== undefined && (typeof userCode !== 'string' || userCode.length === 0)) return undefined
+  const expiresAt = value['expiresAt']
+  if (expiresAt !== undefined && (typeof expiresAt !== 'number' || !Number.isFinite(expiresAt))) return undefined
+  if (url === undefined && (verificationUri === undefined || userCode === undefined)) return undefined
+  return { ...(url === undefined ? {} : { url }), ...(verificationUri === undefined ? {} : { verificationUri }), ...(userCode === undefined ? {} : { userCode }), ...(expiresAt === undefined ? {} : { expiresAt }), ...(attemptId === undefined ? {} : { attemptId }) }
+}
+
+/** Narrow secret-free auth attempt status. */
+export function decodeCodexAuthAttemptStatus(value: unknown): CodexAuthAttemptStatus | undefined {
+  if (!isRecord(value) || hasTokenFields(value)) return undefined
+  const status = value['status']
+  return status === 'pending' || status === 'succeeded' || status === 'failed' || status === 'cancelled' || status === 'missing'
+    ? { status } : undefined
 }
 
 /** Narrow the Host logout reply. */

@@ -82,6 +82,10 @@ bundle 默认对符合条件的模型请求失败最多重试八次。除消息�
 
 没有 `apiKeyEnv`，也没有用户可改的 base URL。`models` 是显示在对话选择器里的目录。
 
+### 远程管理与无头登录
+
+默认管理 RPC 仅限回环地址。请先用你自己的反向代理、VPN、SSO 或 mTLS 保护 DSH，再设置 `remoteManagement: true`、重启 Host，并显式信任外部 authority（例如 `dsh web --trusted-host dsh.example.com`）。`trusted-host` 只负责可达性与 DNS 重绑定防护，不是认证。远程卡片通过 `/codex` 读取并按 revision 保存设置；凭据和 token 始终只在 Host。非 loopback 客户端使用 device-code，仅收到授权地址、一次性代码、有效期和 attemptId。本机 browser OAuth 也由客户端打开 URL；只有这个可选流程需要 1455 回调端口（SSH 使用时需转发）。
+
 ## 许可证
 
 MIT
