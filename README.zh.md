@@ -33,6 +33,8 @@ dsh web
 
 Fast 和 1M 都是独立选择器行，不是复选框。聊天仍使用官方 wire id；Fast 行发送 `service_tier: "priority"`。1M 行（`gpt-5.6-sol-1m`、`gpt-5.6-sol-1m-fast` 以及 Terra/Luna 对应行）把 `contextWindow` 设为 1,000,000，DSH 压缩仍按默认 80%（800k）触发。它们不在默认 6 行里，需从官方选择器添加。覆盖层还可以加入 `gpt-5.5`、`gpt-5.4`、`gpt-5.4-mini`、`gpt-5.3-codex-spark` 以及 Fast 行。也可以手动添加自定义 id。
 
+选择器 id 还可以用通用上下文后缀 `-<n>k` 或 `-<n>m`（例如 `gpt-5.6-sol-272k` 或 `gpt-5.6-sol-272k-fast`）。插件在发给 ChatGPT 前剥掉该后缀，并用 `n×1000` / `n×1,000,000` 作为 DSH 压缩预算，所以 272K 行会比 1M 行更早开始压缩。`kimi-k3-max` 这类产品名不算档位。Composer picker 按剥后缀后的 base 把兄弟行收成一个家族。
+
 思考等级默认按模型设置，并可在行上改：Luna 用 `max`，Terra 用 `xhigh`，Sol 用 `high`，其他官方 Codex 模型用 `xhigh`。Fast / 1M 行沿用基础型号；会话中用户手动选择的等级优先。
 
 聊天走 pi-ai `openai-codex-responses`，目标是 `https://chatgpt.com/backend-api`。未登录聊天会失败为 `MISSING_CREDENTIAL`。已存会话刷新失败则报 `AUTH`。

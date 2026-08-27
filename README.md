@@ -33,6 +33,8 @@ The conversation picker uses the displayed catalog stored as `settings.models`. 
 
 Fast and 1M are first-class picker rows, not checkboxes. Chat still uses the official wire id; Fast rows send `service_tier: "priority"`. 1M rows (`gpt-5.6-sol-1m`, `gpt-5.6-sol-1m-fast`, and the Terra/Luna equivalents) set `contextWindow` to 1,000,000 so DSH compaction waits until 80% of that budget (800k). They are not in the default six-row catalog; add them from the official picker. The overlay can also add `gpt-5.5`, `gpt-5.4`, `gpt-5.4-mini`, `gpt-5.3-codex-spark`, and Fast variants. Custom ids can be added manually.
 
+Picker ids may also use a generic context suffix `-<n>k` or `-<n>m` (for example `gpt-5.6-sol-272k` or `gpt-5.6-sol-272k-fast`). The plugin peels that suffix before talking to ChatGPT and uses `n×1000` / `n×1,000,000` as the DSH compaction budget, so a 272K row starts compacting earlier than a 1M row. Product names such as `kimi-k3-max` are not treated as a context tier. The composer picker groups sibling rows that share a base id.
+
 Default reasoning effort is per model and editable on the row: Luna uses `max`, Terra `xhigh`, Sol `high`, and every other official Codex model `xhigh`. Fast and 1M rows use their base model's default. A reasoning effort explicitly selected in a conversation takes precedence.
 
 Chat goes through pi-ai `openai-codex-responses` against `https://chatgpt.com/backend-api`. Chat without a session fails `MISSING_CREDENTIAL`. A stored session whose refresh fails is reported as `AUTH`.

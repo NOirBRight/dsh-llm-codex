@@ -33,7 +33,7 @@ export declare const CODEX_LARGE_CONTEXT_SUFFIX = "-1m";
 export declare const CODEX_FAST_SERVICE_TIER: "priority";
 /** Documented 1M context budget for official 5.6 large rows. */
 export declare const CODEX_LARGE_CONTEXT_WINDOW = 1000000;
-/** Parsed picker id after stripping official Fast / 1M suffixes. */
+/** Parsed picker id after stripping official Fast / context suffixes. */
 export interface CodexPickerVariant {
     /** Wire model id sent to ChatGPT. */
     wireId: string;
@@ -41,7 +41,14 @@ export interface CodexPickerVariant {
     fast: boolean;
     /** Whether this row uses the 1M context budget. */
     largeContext: boolean;
+    /** Compaction budget implied by `-<n>k` / `-<n>m`, when present. */
+    contextTokens?: number;
 }
+/** Peel a trailing `-<n>k` / `-<n>m` context tier. Product names like `-max` stay. */
+export declare function peelContextSuffix(id: string): {
+    base: string;
+    tokens?: number;
+};
 /** One official Codex model as shipped by the plugin snapshot. */
 export interface CodexOfficialModel {
     id: string;
@@ -65,8 +72,9 @@ export declare const CODEX_EFFORT_ORDER: readonly ["minimal", "low", "medium", "
 /** Short labels for advertised Codex reasoning levels. */
 export declare const CODEX_EFFORT_LABELS: Readonly<Record<string, string>>;
 /**
- * Split a picker id into the ChatGPT wire id plus Fast / 1M flags.
- * Unknown ids keep historical `-fast` stripping and ignore `-1m`.
+ * Split a picker id into the ChatGPT wire id plus Fast / context flags.
+ * Generic `-<n>k` / `-<n>m` rows (including `-1m`) peel to the wire id and
+ * carry a compaction budget. Product names such as `-max` are not peeled.
  */
 export declare function parseCodexPickerId(id: string): CodexPickerVariant;
 /** Official catalog plus Fast and 1M rows where the model advertises them. */

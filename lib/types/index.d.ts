@@ -22,6 +22,7 @@ export { CODEX_USAGE_URL, parseCodexUsage, readCodexRateLimits, CodexReauthRequi
 export type { CodexCredits, CodexIndividualLimit, CodexRateLimit, CodexRateLimitWindow, CodexUsage, } from './usage.ts';
 export { CodexSearchProvider, CODEX_BASE_URL, CODEX_SEARCH_PROVIDER, CODEX_SEARCH_URL, externalWebAccess, mapCodexSearchResponse, } from './search.ts';
 export { VIEW_IMAGE_TOOL_NAME } from './view-image.ts';
+export { installCodexModelSwitchAdapters } from './model-switch-adapter.ts';
 export { GENERATE_IMAGE_TOOL_NAME, generateImageTool } from './generate-image.ts';
 export { createCodexPiAiProfile, CODEX_CHAT_BASE_URL, codexResponsesApi } from './pi-ai-profile.ts';
 export { registerCodexAuthRoutes, trustedRequest, CodexWebAuth } from './auth-routes.ts';
@@ -39,6 +40,8 @@ export interface Config {
     searchContextSize?: CodexSearchContextSize;
     searchMaxOutputTokens?: number;
     retryPolicy?: RetryPolicyConfig;
+    /** Set false when Model Switch owns stable tool names, preventing legacy duplicates. */
+    registerLegacyTools?: boolean;
 }
 export declare const Config: z<Config>;
 export declare function resolveAdapterOptions(config: Config): CodexConnectionOptions;

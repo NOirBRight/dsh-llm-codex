@@ -6,6 +6,7 @@ import {
   hydrateCatalogModel,
   officialImageGenerationModels,
   officialPickerCatalog,
+  parseCodexPickerId,
   resolveWireModel,
 } from '../src/catalog.ts'
 import { decodeCodexSettings, DEFAULT_CODEX_SETTINGS } from '../src/client-contract.ts'
@@ -108,5 +109,31 @@ describe('official Codex catalog', () => {
     expect(decodeCodexSettings({
       models: [{ id: 'gpt-5.6-sol' }, { id: 'gpt-5.6-sol' }],
     })).toBeUndefined()
+  })
+
+  it('peels generic -<n>k context tiers and leaves product -max alone', () => {
+    expect(parseCodexPickerId('gpt-5.6-sol-272k')).toEqual({
+      wireId: 'gpt-5.6-sol',
+      fast: false,
+      largeContext: false,
+      contextTokens: 272_000,
+    })
+    expect(parseCodexPickerId('gpt-5.6-sol-272k-fast')).toEqual({
+      wireId: 'gpt-5.6-sol',
+      fast: true,
+      largeContext: false,
+      contextTokens: 272_000,
+    })
+    expect(parseCodexPickerId('kimi-k3-max')).toEqual({
+      wireId: 'kimi-k3-max',
+      fast: false,
+      largeContext: false,
+    })
+    expect(hydrateCatalogModel({ id: 'gpt-5.6-sol-272k' }).contextWindow).toBe(272_000)
+    expect(hydrateCatalogModel({ id: 'custom-64k' }).contextWindow).toBe(64_000)
+    expect(resolveWireModel('gpt-5.6-sol-272k-fast')).toEqual({
+      wireId: 'gpt-5.6-sol',
+      serviceTier: 'priority',
+    })
   })
 })

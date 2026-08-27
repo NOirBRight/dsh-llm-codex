@@ -127,6 +127,7 @@ export {
   mapCodexSearchResponse,
 } from './search.ts'
 export { VIEW_IMAGE_TOOL_NAME } from './view-image.ts'
+export { installCodexModelSwitchAdapters } from './model-switch-adapter.ts'
 export { GENERATE_IMAGE_TOOL_NAME, generateImageTool } from './generate-image.ts'
 export { createCodexPiAiProfile, CODEX_CHAT_BASE_URL, codexResponsesApi } from './pi-ai-profile.ts'
 export { registerCodexAuthRoutes, trustedRequest, CodexWebAuth } from './auth-routes.ts'
@@ -148,6 +149,8 @@ export interface Config {
   searchContextSize?: CodexSearchContextSize
   searchMaxOutputTokens?: number
   retryPolicy?: RetryPolicyConfig
+  /** Set false when Model Switch owns stable tool names, preventing legacy duplicates. */
+  registerLegacyTools?: boolean
 }
 
 const catalogModel = z.object({
@@ -177,6 +180,7 @@ export const Config: z<Config> = z.object({
   searchContextSize: z.union(['low', 'medium', 'high'] as const).default(DEFAULT_CODEX_SEARCH_CONTEXT_SIZE),
   searchMaxOutputTokens: z.number().step(1).min(1).default(DEFAULT_CODEX_SEARCH_MAX_OUTPUT_TOKENS),
   retryPolicy: RetryPolicySchema,
+  registerLegacyTools: z.boolean().default(true),
 })
 
 function resolveModels(models: readonly CodexCatalogModel[] | undefined): CodexCatalogModel[] {
@@ -353,7 +357,7 @@ export function apply(ctx: Context, config: Config): void {
     if (stopped) return
     const resolved = resolvedSettings()
     if (resolved === undefined) return
-    const nextRegistration = resolved.enableSearch
+    const nextRegistration = current().registerLegacyTools !== false && resolved.enableSearch
       ? {
           model: resolved.searchModel,
           mode: resolved.searchMode,
@@ -392,7 +396,7 @@ export function apply(ctx: Context, config: Config): void {
   const reconcileImageTool = async (): Promise<void> => {
     if (stopped) return
     const resolved = resolvedSettings()
-    const enabled = resolved?.enableImageTool === true
+    const enabled = current().registerLegacyTools !== false && resolved?.enableImageTool === true
     if (enabled === (imageFiber !== undefined)) return
     const previous = imageFiber
     imageFiber = undefined
@@ -413,7 +417,7 @@ export function apply(ctx: Context, config: Config): void {
   const reconcileGenerateImage = async (): Promise<void> => {
     if (stopped) return
     const resolved = resolvedSettings()
-    const enabled = resolved?.enableImageGeneration === true
+    const enabled = current().registerLegacyTools !== false && resolved?.enableImageGeneration === true
     if (enabled === (generateFiber !== undefined)) return
     const previous = generateFiber
     generateFiber = undefined

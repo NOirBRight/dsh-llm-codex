@@ -36,7 +36,7 @@ export const CODEX_FAST_SERVICE_TIER = 'priority' as const
 /** Documented 1M context budget for official 5.6 large rows. */
 export const CODEX_LARGE_CONTEXT_WINDOW = 1_000_000
 
-/** Parsed picker id after stripping official Fast / 1M suffixes. */
+/** Parsed picker id after stripping official Fast / context suffixes. */
 export interface CodexPickerVariant {
   /** Wire model id sent to ChatGPT. */
   wireId: string
@@ -44,6 +44,20 @@ export interface CodexPickerVariant {
   fast: boolean
   /** Whether this row uses the 1M context budget. */
   largeContext: boolean
+  /** Compaction budget implied by `-<n>k` / `-<n>m`, when present. */
+  contextTokens?: number
+}
+
+/** Peel a trailing `-<n>k` / `-<n>m` context tier. Product names like `-max` stay. */
+export function peelContextSuffix(id: string): { base: string, tokens?: number } {
+  const match = /-(\d+)(k|m)$/iu.exec(id)
+  if (match === null || match.index === 0) return { base: id }
+  const n = Number(match[1])
+  const unit = match[2]!.toLowerCase()
+  return {
+    base: id.slice(0, match.index),
+    tokens: unit === 'm' ? n * 1_000_000 : n * 1_000,
+  }
 }
 
 /** One official Codex model as shipped by the plugin snapshot. */
@@ -196,29 +210,27 @@ function officialByWireId(id: string): CodexOfficialModel | undefined {
 }
 
 /**
- * Split a picker id into the ChatGPT wire id plus Fast / 1M flags.
- * Unknown ids keep historical `-fast` stripping and ignore `-1m`.
+ * Split a picker id into the ChatGPT wire id plus Fast / context flags.
+ * Generic `-<n>k` / `-<n>m` rows (including `-1m`) peel to the wire id and
+ * carry a compaction budget. Product names such as `-max` are not peeled.
  */
 export function parseCodexPickerId(id: string): CodexPickerVariant {
   let rest = id
   let fast = false
-  if (rest.endsWith(CODEX_FAST_SUFFIX)) {
+  if (rest.endsWith(CODEX_FAST_SUFFIX) && rest.length > CODEX_FAST_SUFFIX.length) {
     rest = rest.slice(0, -CODEX_FAST_SUFFIX.length)
     fast = true
   }
-  let largeContext = false
-  if (rest.endsWith(CODEX_LARGE_CONTEXT_SUFFIX)) {
-    rest = rest.slice(0, -CODEX_LARGE_CONTEXT_SUFFIX.length)
-    largeContext = true
-  }
+  const tier = peelContextSuffix(rest)
+  rest = tier.base
   const official = officialByWireId(rest)
-  if (official === undefined) {
-    if (id.endsWith(CODEX_FAST_SUFFIX)) {
-      return { wireId: id.slice(0, -CODEX_FAST_SUFFIX.length), fast: true, largeContext: false }
-    }
-    return { wireId: id, fast: false, largeContext: false }
+  const largeContext = tier.tokens === CODEX_LARGE_CONTEXT_WINDOW
+  return {
+    wireId: official?.id ?? rest,
+    fast,
+    largeContext,
+    ...tier.tokens === undefined ? {} : { contextTokens: tier.tokens },
   }
-  return { wireId: official.id, fast, largeContext }
 }
 
 function variantName(official: CodexOfficialModel, variant: { fast: boolean, largeContext: boolean }): string {
@@ -335,12 +347,15 @@ export function hydrateCatalogModel(model: CodexCatalogModel): CodexCatalogModel
   const official = officialByWireId(parsed.wireId)
   const fast = parsed.fast && (official === undefined || official.fast === true)
   const largeContext = parsed.largeContext && official?.largeContext === true
+  const impliedWindow = parsed.contextTokens
+    ?? (largeContext ? CODEX_LARGE_CONTEXT_WINDOW : undefined)
+  const contextWindow = model.contextWindow ?? impliedWindow
   if (official === undefined) {
     return {
       id: model.id,
       ...model.name === undefined ? {} : { name: model.name },
       ...model.description === undefined ? {} : { description: model.description },
-      ...model.contextWindow === undefined ? {} : { contextWindow: model.contextWindow },
+      ...contextWindow === undefined ? {} : { contextWindow },
       ...model.maxTokens === undefined ? {} : { maxTokens: model.maxTokens },
       ...model.thinking === undefined ? {} : { thinking: model.thinking },
       ...model.defaultEffort === undefined ? {} : { defaultEffort: model.defaultEffort },
@@ -355,7 +370,7 @@ export function hydrateCatalogModel(model: CodexCatalogModel): CodexCatalogModel
     thinking: model.thinking ?? official.thinking,
     vision: model.vision ?? official.vision,
     tools: model.tools ?? official.tools,
-    contextWindow: model.contextWindow ?? (largeContext ? CODEX_LARGE_CONTEXT_WINDOW : official.contextWindow),
+    contextWindow: model.contextWindow ?? impliedWindow ?? official.contextWindow,
     maxTokens: model.maxTokens ?? official.maxTokens,
     ...fast ? { fast: true } : {},
     ...model.defaultEffort === undefined ? {} : { defaultEffort: model.defaultEffort },
