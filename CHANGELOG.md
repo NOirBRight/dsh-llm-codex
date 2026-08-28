@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.3.2
+
+- Unify model catalog to opencode baseline (Context first row, Vision/Reasoning/Default thinking second row, 32/36px)
+
+
 ## 0.3.1
 
 - Render Command Code and other new keyed providers in the shared LLM Providers section instead of a fixed four-plugin list.
