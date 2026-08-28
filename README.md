@@ -17,6 +17,27 @@ dsh web
 
 The repository tracks release-ready lib artifacts, so GitHub installation needs no build-script allowlist. A source checkout can use a link installation after running `pnpm run build`.
 
+## Remote management
+
+By default the plugin's settings RPC is loopback-only. When you open DSH from a non-loopback host (e.g. https://dsh.noirbright.top or http://192.168.50.75:3080), the card shows “A remote browser cannot edit plugin settings”.
+
+To allow editing from a trusted host:
+
+1. Add to your profile patch (`~/.dsh/profiles/web/cordis.patch.yml` for production, `~/.dsh-lab/profiles/web/cordis.patch.yml` for lab):
+   ```yaml
+   - id: llm-codex
+     config:
+       remoteManagement: true
+   ```
+2. Restart DSH with the host allowlisted:
+   ```sh
+   dsh web --trusted-host 192.168.50.75 --trusted-host dsh.noirbright.top
+   ```
+   The current production launch already uses `--trusted-host 192.168.50.75 --trusted-host dsh.noirbright.top`; add any additional host you use.
+3. Refresh the browser. Settings saved on the host keep working for remote sessions.
+
+Without `remoteManagement: true`, use `ssh -L 3080:127.0.0.1:3080 user@host` and open `http://127.0.0.1:3080`.
+
 ## Web configuration
 
 Open Settings → LLM Providers → Codex. **Sign in with ChatGPT** starts the official ChatGPT OAuth flow, opens the system browser, and stores the session only on the Host at `$DSH_HOME/codex-oauth.json` (mode `0600`). The card then shows usage limits. Sign out deletes that file. The browser never receives tokens.
@@ -81,10 +102,6 @@ Search, `view_image`, and `codex_generate_image` are implemented but default off
 The bundle retries eligible model-request failures up to eight times by default. ChatGPT WebSocket closures, including code-and-reason variants other than message-too-large code 1009, connection limits, and overload responses use retryable DSH failure codes. Token-shape failures use non-retryable `AUTH`; ambiguous usage limits remain non-retryable.
 
 There is no `apiKeyEnv` and no user-editable base URL. `models` is the displayed conversation catalog.
-
-### Remote management and headless login
-
-Management RPC is loopback-only by default. Behind authentication you control, set `remoteManagement: true`, restart the Host, and start DSH with the external authority explicitly trusted (for example, `dsh web --trusted-host dsh.example.com`). `trusted-host` is reachability/DNS-rebinding protection, not authentication. Remote cards read and revision-save settings through `/codex`; credentials and tokens remain Host-only. Non-loopback clients use headless device-code authorization and receive only the verification URI, one-time code, expiry, and attemptId. Local browser OAuth returns a URL for the client to open; only that optional browser flow needs callback port 1455 (forward it when using SSH).
 
 ## License
 

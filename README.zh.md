@@ -17,6 +17,27 @@ dsh web
 
 仓库跟踪已构建的 `lib` 产物，GitHub 安装不需要放开 build script。源码检出则先 `pnpm run build`，再做 link 安装。
 
+## 远程管理
+
+默认插件设置 RPC 仅允许 loopback。通过非回环地址打开 DSH（如 https://dsh.noirbright.top 或 http://192.168.50.75:3080）时会显示“远程浏览器无法编辑插件设置”。
+
+如需在可信主机上远程编辑：
+
+1. 在 profile patch（生产 `~/.dsh/profiles/web/cordis.patch.yml`，lab `~/.dsh-lab/profiles/web/cordis.patch.yml`）中加入：
+   ```yaml
+   - id: llm-codex
+     config:
+       remoteManagement: true
+   ```
+2. 以可信主机重启 DSH：
+   ```sh
+   dsh web --trusted-host 192.168.50.75 --trusted-host dsh.noirbright.top
+   ```
+   当前生产已使用 `--trusted-host 192.168.50.75 --trusted-host dsh.noirbright.top`，新增主机需一并加入。
+3. 刷新浏览器。主机上保存的设置对远程会话依然有效。
+
+未启用 `remoteManagement: true` 时，请使用 `ssh -L 3080:127.0.0.1:3080 user@host` 后打开 `http://127.0.0.1:3080`。
+
 ## Web 配置
 
 打开「设置 → LLM 供应商 → Codex」。**用 ChatGPT 登录**会走官方 ChatGPT OAuth，用系统浏览器打开授权页，并把会话只存在 Host 的 `$DSH_HOME/codex-oauth.json`（权限 `0600`）。登录后卡片显示额度。退出登录会删除该文件。浏览器永远收不到 token。
@@ -81,10 +102,6 @@ Fast 和 1M 都是独立选择器行，不是复选框。聊天仍使用官方 w
 bundle 默认对符合条件的模型请求失败最多重试八次。除消息过大 1009 外，带 code/reason 的 ChatGPT WebSocket 关闭、连接上限和过载响应使用可重试的 DSH failure code。token 结构失败使用不可重试的 `AUTH`；含义不明确的 usage limit 仍不可重试。
 
 没有 `apiKeyEnv`，也没有用户可改的 base URL。`models` 是显示在对话选择器里的目录。
-
-### 远程管理与无头登录
-
-默认管理 RPC 仅限回环地址。请先用你自己的反向代理、VPN、SSO 或 mTLS 保护 DSH，再设置 `remoteManagement: true`、重启 Host，并显式信任外部 authority（例如 `dsh web --trusted-host dsh.example.com`）。`trusted-host` 只负责可达性与 DNS 重绑定防护，不是认证。远程卡片通过 `/codex` 读取并按 revision 保存设置；凭据和 token 始终只在 Host。非 loopback 客户端使用 device-code，仅收到授权地址、一次性代码、有效期和 attemptId。本机 browser OAuth 也由客户端打开 URL；只有这个可选流程需要 1455 回调端口（SSH 使用时需转发）。
 
 ## 许可证
 
