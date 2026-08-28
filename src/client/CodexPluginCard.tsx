@@ -27,6 +27,17 @@ import { BrandMark } from './BrandMark.tsx'
 import { AuthToolbar, ProviderCardHeader, UsageHeader, UsageResetAt, UsageSkeleton, UsageUpdatedAt, formatProviderSummary, formatUsageClock, providerHeaderStyle, resetLabelOf } from './provider-chrome.tsx'
 import type {} from './provider-section.ts'
 import { SortableList } from './SortableList.tsx'
+import {
+  ModelCatalogCapabilities,
+  ModelCatalogDetails,
+  ModelCatalogRow,
+  fieldStyle,
+  inputStyle,
+  labelStyle,
+  modelContentStyle,
+  rowInputStyle,
+  selectStyle,
+} from './model-catalog-ui.tsx'
 
 export type { CodexAccountStatus }
 
@@ -92,7 +103,7 @@ const sectionTitleStyle: CSSProperties = {
   color: 'var(--dsw-alias-label-primary)',
 }
 const hintStyle: CSSProperties = { margin: 0, fontSize: 12, color: 'var(--dsw-alias-label-tertiary)' }
-const labelStyle: CSSProperties = { fontSize: 13, color: 'var(--dsw-alias-label-secondary)' }
+
 const statusStyle: CSSProperties = { margin: 0, fontSize: 13, color: 'var(--dsw-alias-label-secondary)' }
 const errorStyle: CSSProperties = { ...statusStyle, color: 'var(--dsw-alias-state-error-primary)' }
 const buttonStyle: CSSProperties = {
@@ -112,18 +123,8 @@ const primaryButtonStyle: CSSProperties = {
   background: 'var(--dsw-alias-button-primary-fill)',
   color: 'var(--dsw-alias-label-primary-foreground)',
 }
-const inputStyle: CSSProperties = {
-  boxSizing: 'border-box',
-  width: '100%',
-  minHeight: 36,
-  border: '1px solid var(--dsw-alias-border-l2)',
-  borderRadius: 8,
-  padding: '7px 10px',
-  background: 'var(--dsw-alias-bg-layer-1)',
-  color: 'var(--dsw-alias-label-primary)',
-  font: 'inherit',
-}
-const rowInputStyle: CSSProperties = { ...inputStyle, minHeight: 32, padding: '4px 10px' }
+
+
 const actionsStyle: CSSProperties = { display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 10 }
 const iconButtonStyle: CSSProperties = {
   boxSizing: 'border-box',
@@ -154,21 +155,8 @@ const disclosureStyle: CSSProperties = {
   textAlign: 'left',
   cursor: 'pointer',
 }
-const modelContentStyle: CSSProperties = {
-  display: 'grid',
-  gridTemplateColumns: 'minmax(0, 1.4fr) minmax(0, 1fr) auto auto',
-  alignItems: 'center',
-  gap: 6,
-  padding: '6px 8px',
-}
-const modelDetailStyle: CSSProperties = {
-  display: 'flex',
-  alignItems: 'center',
-  flexWrap: 'wrap',
-  gap: 14,
-  borderTop: '1px solid var(--dsw-alias-border-l2)',
-  padding: '10px 4px 4px',
-}
+
+
 const checkboxStyle: CSSProperties = {
   accentColor: 'var(--dsw-alias-brand-primary)',
 }
@@ -888,66 +876,70 @@ export function CodexPluginCard(props: CodexPluginCardProps): ReactNode {
                             </button>
                             {expanded
                               ? (
-                                <div style={{ ...modelDetailStyle, gridColumn: '1 / -1' }}>
-                                  <Capability label={t('thinking')} checked={item.thinking === true} disabled={disabled} onChange={(checked) => {
-                                    patchDraft(draft.map((model, at) => {
-                                      if (at !== index) return model
-                                      const next = { ...model, thinking: checked }
-                                      if (!checked) delete next.defaultEffort
-                                      return next
-                                    }))
-                                  }} />
-                                  <Capability label={t('vision')} checked={item.vision === true} disabled={disabled} onChange={(checked) => {
-                                    patchDraft(draft.map((model, at) => at === index ? { ...model, vision: checked } : model))
-                                  }} />
-                                  {(() => {
-                                    const efforts = effortsForCodexModel(modelSettingsOf(item))
-                                    if (efforts.length === 0) return null
-                                    const suggested = officialModelFor(item.id.trim()) === undefined
-                                      ? efforts[0]
-                                      : defaultCodexReasoningEffort(item.id.trim())
-                                    return (
-                                      <label style={{ ...labelStyle, display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-                                        {t('defaultEffort')}
-                                        <select
-                                          style={rowInputStyle}
-                                          value={item.defaultEffort ?? suggested ?? ''}
-                                          disabled={disabled}
-                                          aria-label={t('defaultEffort')}
-                                          onChange={(event) => {
-                                            const effort = efforts.find(entry => entry === event.target.value)
-                                            patchDraft(draft.map((model, at) => {
-                                              if (at !== index) return model
-                                              const next = { ...model }
-                                              if (effort === undefined) delete next.defaultEffort
-                                              else next.defaultEffort = effort
-                                              return next
-                                            }))
-                                          }}
-                                        >
-                                          {efforts.map(effort => (
-                                            <option key={effort} value={effort}>{CODEX_EFFORT_LABELS[effort] ?? effort}</option>
-                                          ))}
-                                        </select>
-                                      </label>
-                                    )
-                                  })()}
-                                  <label style={{ ...labelStyle, display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-                                    {t('contextWindow')}
-                                    <input
-                                      style={{ ...rowInputStyle, width: 110 }}
-                                      inputMode="numeric"
-                                      placeholder={officialModelFor(item.id.trim()) === undefined ? t('contextWindowDefault') : undefined}
-                                      value={item.contextWindow}
-                                      disabled={disabled}
-                                      aria-label={t('contextWindow')}
-                                      onChange={(event) => {
-                                        const contextWindow = event.target.value
-                                        patchDraft(draft.map((model, at) => at === index ? { ...model, contextWindow } : model))
-                                      }}
-                                    />
-                                  </label>
-                                </div>
+                                <ModelCatalogDetails>
+                                  <ModelCatalogRow>
+                                    <label style={fieldStyle}>
+                                      <span style={labelStyle}>{t('contextWindow')}</span>
+                                      <input
+                                        style={inputStyle}
+                                        inputMode="numeric"
+                                        placeholder={officialModelFor(item.id.trim()) === undefined ? t('contextWindowDefault') : undefined}
+                                        value={item.contextWindow}
+                                        disabled={disabled}
+                                        aria-label={t('contextWindow')}
+                                        onChange={(event) => {
+                                          const contextWindow = event.target.value
+                                          patchDraft(draft.map((model, at) => at === index ? { ...model, contextWindow } : model))
+                                        }}
+                                      />
+                                    </label>
+                                  </ModelCatalogRow>
+                                  <ModelCatalogCapabilities>
+                                    <Capability label={t('vision')} checked={item.vision === true} disabled={disabled} onChange={(checked) => {
+                                      patchDraft(draft.map((model, at) => at === index ? { ...model, vision: checked } : model))
+                                    }} />
+                                    <Capability label={t('thinking')} checked={item.thinking === true} disabled={disabled} onChange={(checked) => {
+                                      patchDraft(draft.map((model, at) => {
+                                        if (at !== index) return model
+                                        const next = { ...model, thinking: checked }
+                                        if (!checked) delete next.defaultEffort
+                                        return next
+                                      }))
+                                    }} />
+                                    {(() => {
+                                      const efforts = effortsForCodexModel(modelSettingsOf(item))
+                                      if (efforts.length === 0) return null
+                                      const suggested = officialModelFor(item.id.trim()) === undefined
+                                        ? efforts[0]
+                                        : defaultCodexReasoningEffort(item.id.trim())
+                                      return (
+                                        <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6, ...labelStyle }}>
+                                          <span style={labelStyle}>{t('defaultEffort')}</span>
+                                          <select
+                                            style={selectStyle}
+                                            value={item.defaultEffort ?? suggested ?? ''}
+                                            disabled={disabled}
+                                            aria-label={t('defaultEffort')}
+                                            onChange={(event) => {
+                                              const effort = efforts.find(entry => entry === event.target.value)
+                                              patchDraft(draft.map((model, at) => {
+                                                if (at !== index) return model
+                                                const next = { ...model }
+                                                if (effort === undefined) delete next.defaultEffort
+                                                else next.defaultEffort = effort
+                                                return next
+                                              }))
+                                            }}
+                                          >
+                                            {efforts.map(effort => (
+                                              <option key={effort} value={effort}>{CODEX_EFFORT_LABELS[effort] ?? effort}</option>
+                                            ))}
+                                          </select>
+                                        </label>
+                                      )
+                                    })()}
+                                  </ModelCatalogCapabilities>
+                                </ModelCatalogDetails>
                               )
                               : null}
                           </div>

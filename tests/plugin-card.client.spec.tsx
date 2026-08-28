@@ -11,6 +11,7 @@ import {
   DEFAULT_CODEX_SETTINGS,
 } from '../src/client-contract.ts'
 import type { CodexCatalogModel, CodexSettingsView } from '../src/client-contract.ts'
+import { catalogStyles } from '../src/client/model-catalog-ui.tsx'
 
 afterEach(() => { cleanup() })
 
@@ -143,10 +144,27 @@ describe('CodexPluginCard', () => {
     expect(document.querySelector('[data-model-row="gpt-5.6-sol"]')).toBeTruthy()
     expect(screen.queryByLabelText(en.thinking)).toBeNull()
     fireEvent.click(screen.getByRole('button', { name: en.modelDetails + ': gpt-5.6-sol' }))
-    expect(screen.getByLabelText(en.thinking)).toBeTruthy()
-    expect(screen.getByLabelText(en.vision)).toBeTruthy()
-    expect(screen.getByLabelText(en.defaultEffort)).toBeTruthy()
-    expect(screen.getByLabelText(en.contextWindow)).toBeTruthy()
+    const contextInput = screen.getByLabelText(en.contextWindow) as HTMLInputElement
+    const visionBox = screen.getByLabelText(en.vision) as HTMLInputElement
+    const thinkingBox = screen.getByLabelText(en.thinking) as HTMLInputElement
+    const defaultEffort = screen.getByLabelText(en.defaultEffort) as HTMLSelectElement
+    // DOM order: Context first row then Vision -> Thinking -> Default thinking (opencode-go baseline)
+    const pos = (a: Element, b: Element) => a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING ? -1 : 1
+    expect(pos(contextInput, visionBox)).toBe(-1)
+    expect(pos(visionBox, thinkingBox)).toBe(-1)
+    expect(pos(thinkingBox, defaultEffort)).toBe(-1)
+    // Context uses 36h inputStyle full width, select uses 32h selectStyle with arrow
+    expect(catalogStyles.inputStyle.minHeight).toBe(36)
+    expect(catalogStyles.selectStyle.minHeight).toBe(32)
+    expect(contextInput.style.minHeight || getComputedStyle(contextInput).minHeight).toContain('36')
+    expect(defaultEffort.style.minHeight || getComputedStyle(defaultEffort).minHeight).toContain('32')
+    expect(defaultEffort.style.backgroundImage).toContain('svg')
+    expect(defaultEffort.style.appearance).toBe('none')
+    // shared tokens: rowInput 32h, modelDetail flex column, capabilities flex wrap
+    expect(catalogStyles.rowInputStyle.minHeight).toBe(32)
+    expect(catalogStyles.modelDetailStyle.flexDirection).toBe('column')
+    expect(catalogStyles.modelDetailStyle.gap).toBe(10)
+    expect(catalogStyles.capabilitiesStyle.display).toBe('flex')
     expect(screen.queryByLabelText(en.tools)).toBeNull()
     expect(screen.queryByLabelText('Fast')).toBeNull()
   })
