@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.3.5
+
+- Narrow sandbox escalation schemas to modes strictly wider than the latest DSH permission context
+- Prefer the newest DSH permission context injection over stale request system text
+
 ## 0.3.4
 
 - Support the DSH 0.1.2-alpha.1 Host image-pricing call with neutral heuristic pricing
