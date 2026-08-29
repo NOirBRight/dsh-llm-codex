@@ -49,7 +49,8 @@
     "build": "tsc -p tsconfig.json && tsdown",
     "test": "vitest run",
     "pack:check": "node scripts/check-pack.mjs",
-    "check": "pnpm run build && pnpm run test && pnpm run pack:check"
+    "check": "pnpm run build && pnpm run test && pnpm run pack:check && pnpm run check:alpha-adapter",
+    "check:alpha-adapter": "node scripts/check-alpha-adapter-compat.mjs"
   },
   "engines": {
     "node": "^22.19.0 || >=24.0.0"

@@ -106,3 +106,15 @@ describe('applyCodexDefaultReasoningMetadata', () => {
     expect(applyCodexDefaultReasoningMetadata(info, 'custom-model')).toBe(info)
   })
 })
+
+describe('CodexAdapter.imageRequestPricing', () => {
+  it('declares neutral request-image pricing', async () => {
+    const { CodexAdapter } = await import('../src/adapter.ts')
+    expect(Object.hasOwn(CodexAdapter.prototype, 'imageRequestPricing')).toBe(true)
+    const adapter = new CodexAdapter({
+      options: () => resolveAdapterOptions({}),
+      resolveApiKey: () => Promise.resolve('test-key'),
+    })
+    expect(adapter.imageRequestPricing('codex', 'any-model')).toBeUndefined()
+  })
+})

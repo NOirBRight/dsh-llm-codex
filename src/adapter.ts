@@ -139,6 +139,16 @@ export class CodexAdapter extends LlmAdapter {
     return this.current().providerRetryPolicy(provider)
   }
 
+  /**
+   * Declare neutral request-image pricing when a newer Host calls an adapter built against an older peer instance.
+   * @param _provider - provider route.
+   * @param _model - model id.
+   * @returns `undefined` so the Host uses heuristic image pricing.
+   */
+  imageRequestPricing(_provider: string, _model: string): undefined {
+    return undefined
+  }
+
   override async listModels(provider: string): Promise<readonly LlmModelInfo[]> {
     this.snapshot = undefined
     return this.current().listModels(provider)
