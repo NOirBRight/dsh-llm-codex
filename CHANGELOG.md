@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.3.4
+
+- Support the DSH 0.1.2-alpha.1 Host image-pricing call with neutral heuristic pricing
+- Restore published-RC and alpha1 client build compatibility
+- Add frozen-install CI and built-adapter release checks
+
 ## 0.3.2
 
 - Unify model catalog to opencode baseline (Context first row, Vision/Reasoning/Default thinking second row, 32/36px)
