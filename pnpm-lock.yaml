@@ -48,9 +48,6 @@ importers:
       '@deepseek-ai/dsh-client-locale':
         specifier: '>=0.1.0-rc.6 <0.1.1 || >=0.1.1-rc.1 <1.0.0 || >=0.1.2-alpha.1 <1.0.0'
         version: 0.1.1-rc.1(b5b419ef3e9fae65be3403092b7c9fe8)
-      '@deepseek-ai/dsh-client-runtime':
-        specifier: '>=0.1.0-rc.6 <0.1.1 || >=0.1.1-rc.1 <1.0.0 || >=0.1.2-alpha.1 <1.0.0'
-        version: 0.1.1-rc.1(1c9a5a7944570e145d5b52f2aa66f50a)
       '@deepseek-ai/dsh-client-ui-layout':
         specifier: '>=0.1.0-rc.6 <0.1.1 || >=0.1.1-rc.1 <1.0.0 || >=0.1.2-alpha.1 <1.0.0'
         version: 0.1.1-rc.1(@deepseek-ai/cordis@4.0.1)(@deepseek-ai/dsh-client-runtime@0.1.1-rc.1(1c9a5a7944570e145d5b52f2aa66f50a))(@deepseek-ai/dsh-client-ui-theme@0.1.0-rc.6(cba0c047409344bd54bc11c138690668))(@deepseek-ai/dsh-invariants@0.1.1-rc.1(@deepseek-ai/cordis@4.0.1))
