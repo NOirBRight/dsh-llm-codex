@@ -1,5 +1,5 @@
 /** Browser half: Codex setup inside Plugin configuration. */
-import type { ClientContext } from '@deepseek-ai/dsh-client-runtime/client';
+import type { ClientContext } from './shim.js';
 import type { CodexSettingsKey } from './locales.ts';
 declare module '@deepseek-ai/dsh-client-ui-slots' {
     interface LocaleNamespaceMap {

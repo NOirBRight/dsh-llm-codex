@@ -1,5 +1,5 @@
 /** Shared Settings > LLM 供应商 section. First installed provider plugin wins the nav row. */
-import type { ClientContext } from '@deepseek-ai/dsh-client-runtime/client';
+import type { ClientContext } from './shim.js';
 export declare const PROVIDERS_SECTION_ID = "providers";
 export declare const PROVIDERS_ITEM_SLOT = "settings.provider.item";
 export declare const PROVIDERS_LOCALE_NS = "settings.providers";

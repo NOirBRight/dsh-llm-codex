@@ -1,6 +1,6 @@
 /** Shared Settings > LLM 供应商 section. First installed provider plugin wins the nav row. */
 
-import type { ClientContext } from '@deepseek-ai/dsh-client-runtime/client'
+import type { ClientContext } from './shim.js'
 import { installProvidersNavIcon } from './provider-chrome.tsx'
 import { bindProvidersSection } from './ProvidersSection.tsx'
 
