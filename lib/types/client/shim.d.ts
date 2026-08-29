@@ -1,5 +1,4 @@
-import type { Context } from '@deepseek-ai/cordis';
-export type ClientContext = Context;
+export type { Context as ClientContext } from '@deepseek-ai/cordis';
 /** Settings snapshot fields shared by published RC and alpha1 client APIs. */
 export interface SettingsScopeSnapshot<T> {
     status: 'loading' | 'ready' | 'unavailable';
@@ -16,6 +15,5 @@ export interface SettingsScope<T> {
     subscribe(listener: () => void): () => void;
     set(field: string, value: unknown): Promise<void>;
     unset(field: string): Promise<void>;
-    mutate?(ops: readonly unknown[], expectedRevision?: number): Promise<void>;
 }
 //# sourceMappingURL=shim.d.ts.map
