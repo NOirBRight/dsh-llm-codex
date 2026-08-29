@@ -25,8 +25,8 @@ import type {
 import type { CodexSettingsKey } from './locales.ts'
 import { BrandMark } from './BrandMark.tsx'
 import { AuthToolbar, ProviderCardHeader, UsageHeader, UsageResetAt, UsageSkeleton, UsageUpdatedAt, formatProviderSummary, formatUsageClock, providerHeaderStyle, resetLabelOf } from './provider-chrome.tsx'
-import type {} from './provider-section.ts'
-import { SortableList } from './SortableList.tsx'
+import type {} from 'dsh-llm-providers-ui/client'
+import { SortableList } from 'dsh-llm-providers-ui/client'
 import {
   ModelCatalogCapabilities,
   ModelCatalogDetails,

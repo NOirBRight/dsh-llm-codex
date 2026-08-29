@@ -57,7 +57,8 @@
   },
   "license": "MIT",
   "dependencies": {
-    "@earendil-works/pi-ai": "^0.82.1"
+    "@earendil-works/pi-ai": "^0.82.1",
+    "dsh-llm-providers-ui": "link:../dsh-llm-providers-ui"
   },
   "dsh": {
     "bundle": {

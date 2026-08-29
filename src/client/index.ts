@@ -16,6 +16,7 @@ import {
   CODEX_AUTH_ATTEMPT_STATUS_ENDPOINT,
   CODEX_AUTH_LOGOUT_ENDPOINT,
   CODEX_SAVE_ENDPOINT,
+  CODEX_PROVIDER,
   CODEX_SETTINGS_NAMESPACE,
   decodeCodexAuthLoginReply,
   decodeCodexAuthLogoutReply,
@@ -25,7 +26,7 @@ import {
 } from '../client-contract.ts'
 import type { CodexSettingsView } from '../client-contract.ts'
 import { officialPickerCatalog } from '../catalog.ts'
-import { ensureProviderSection } from './provider-section.ts'
+import { ensureProviderSection } from 'dsh-llm-providers-ui/client'
 import { CodexPluginCard } from './CodexPluginCard.tsx'
 import type { CodexPluginCardFace } from './CodexPluginCard.tsx'
 import { CodexModelPicker, CodexModelPickerController } from './CodexModelPicker.tsx'
@@ -157,6 +158,7 @@ export function apply(ctx: ClientContext): void {
   ctx.slots.inject('settings.provider.item', () => ctx.slots.register({
     name: 'settings.provider.item',
     key: CODEX_SETTINGS_NAMESPACE,
+    provider: CODEX_PROVIDER,
     locale: localeNamespace,
     inject: (): CodexPluginCardFace => ({
       t,
