@@ -16,7 +16,6 @@ import {
   CODEX_AUTH_ATTEMPT_STATUS_ENDPOINT,
   CODEX_AUTH_LOGOUT_ENDPOINT,
   CODEX_SAVE_ENDPOINT,
-  CODEX_PROVIDER,
   CODEX_SETTINGS_NAMESPACE,
   decodeCodexAuthLoginReply,
   decodeCodexAuthLogoutReply,
@@ -34,6 +33,12 @@ import type { CodexModelPickerFace } from './CodexModelPicker.tsx'
 import { en, zh } from './locales.ts'
 import type { CodexSettingsKey } from './locales.ts'
 
+
+declare module '@deepseek-ai/dsh-client-ui-slots' {
+  interface SlotMap {
+    'settings.provider.item': { kind: 'keyed'; scope: 'root' }
+  }
+}
 declare module '@deepseek-ai/dsh-client-ui-slots' {
   interface LocaleNamespaceMap {
     /** Codex Plugin configuration copy. */
@@ -158,7 +163,6 @@ export function apply(ctx: ClientContext): void {
   ctx.slots.inject('settings.provider.item', () => ctx.slots.register({
     name: 'settings.provider.item',
     key: CODEX_SETTINGS_NAMESPACE,
-    provider: CODEX_PROVIDER,
     locale: localeNamespace,
     inject: (): CodexPluginCardFace => ({
       t,

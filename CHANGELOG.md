@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.3.6
+
+- Settings → LLM Providers: drag cards to reorder; chat picker follows `llm-providers.order` via dsh-llm-providers-ui.
+
+
 ## 0.3.5
 
 - Narrow sandbox escalation schemas to modes strictly wider than the latest DSH permission context

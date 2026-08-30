@@ -1,7 +1,7 @@
 {
   "name": "dsh-llm-codex",
   "description": "ChatGPT Codex login, sortable catalog, and Fast models for DeepSeek Harness",
-  "version": "0.3.5",
+  "version": "0.3.6",
   "publishConfig": {
     "access": "public"
   },
@@ -58,7 +58,7 @@
   "license": "MIT",
   "dependencies": {
     "@earendil-works/pi-ai": "^0.82.1",
-    "dsh-llm-providers-ui": "link:../dsh-llm-providers-ui"
+    "dsh-llm-providers-ui": "github:NOirBRight/dsh-llm-providers-ui#v0.1.0"
   },
   "dsh": {
     "bundle": {
