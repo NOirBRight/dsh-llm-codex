@@ -2,7 +2,7 @@
 
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import type { SettingsScopeSnapshot } from '@deepseek-ai/dsh-client-runtime/client'
+import type { SettingsScopeSnapshot } from '../src/client/shim.ts'
 import { CodexPluginCard } from '../src/client/CodexPluginCard.tsx'
 import type { CodexAccountStatus, CodexPluginCardProps } from '../src/client/CodexPluginCard.tsx'
 import { en } from '../src/client/locales.ts'
@@ -84,6 +84,28 @@ describe('CodexPluginCard', () => {
     fireEvent.click(screen.getByRole('button', { name: en.copyCode }))
     await waitFor(() => { expect(screen.getByRole('button', { name: en.copied })).toBeTruthy() })
     expect(writeText).toHaveBeenCalledWith('ABCD-EFGH')
+  })
+
+  it('clears a completed device challenge after sign-in succeeds', async () => {
+    let signedIn = false
+    const readAuthStatus = vi.fn(async () => signedIn
+      ? { status: 'signed-in', usage: { rateLimits: [] } } satisfies CodexAccountStatus
+      : { status: 'signed-out' } satisfies CodexAccountStatus)
+    render(<CodexPluginCard {...props({
+      readAuthStatus,
+      startAuth: vi.fn(() => Promise.resolve({
+        verificationUri: 'https://chatgpt.com/device',
+        userCode: 'DONE-CODE',
+        attemptId: 'attempt-done',
+      })),
+      readAuthAttemptStatus: vi.fn(async () => { signedIn = true; return { status: 'succeeded' as const } }),
+    })} />)
+    expand()
+    await waitFor(() => { expect(screen.getByText(en.signedOut)).toBeTruthy() })
+    fireEvent.click(screen.getByRole('button', { name: en.signIn }))
+    await waitFor(() => { expect(screen.getByRole('button', { name: en.signOut })).toBeTruthy() })
+    expect(screen.queryByText('DONE-CODE')).toBeNull()
+    expect(screen.queryByRole('link', { name: en.openDevicePage })).toBeNull()
   })
 
   it('falls back to textarea copy when Clipboard API rejects', async () => {

@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.3.6
+
+- Settings → LLM Providers: drag cards to reorder; chat picker follows `llm-providers.order` via dsh-llm-providers-ui.
+
+
+## 0.3.5
+
+- Narrow sandbox escalation schemas to modes strictly wider than the latest DSH permission context
+- Prefer the newest DSH permission context injection over stale request system text
+
+## 0.3.4
+
+- Support the DSH 0.1.2-alpha.1 Host image-pricing call with neutral heuristic pricing
+- Restore published-RC and alpha1 client build compatibility
+- Add frozen-install CI and built-adapter release checks
+
 ## 0.3.2
 
 - Unify model catalog to opencode baseline (Context first row, Vision/Reasoning/Default thinking second row, 32/36px)

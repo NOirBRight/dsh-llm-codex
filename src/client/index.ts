@@ -1,11 +1,12 @@
 /** Browser half: Codex setup inside Plugin configuration. */
 
-import type { ClientContext, SettingsScopeSnapshot } from '@deepseek-ai/dsh-client-runtime/client'
+import type { ClientContext, SettingsScopeSnapshot } from './shim.js'
 import type { ConnectionHandle } from '@deepseek-ai/dsh-client-connection/client'
 import type {} from '@deepseek-ai/dsh-client-locale/client'
 import type {} from '@deepseek-ai/dsh-client-ui-settings/client'
 import type {} from '@deepseek-ai/dsh-client-ui-settings-plugins/client'
 import type {} from '@deepseek-ai/dsh-client-ui-layout/client'
+import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
 import type {} from '@deepseek-ai/dsh-client-ui-slots'
 import {
   CODEX_RPC_CHANNEL,
@@ -25,7 +26,6 @@ import {
 } from '../client-contract.ts'
 import type { CodexSettingsView } from '../client-contract.ts'
 import { officialPickerCatalog } from '../catalog.ts'
-import { ensureProviderSection } from './provider-section.ts'
 import { CodexPluginCard } from './CodexPluginCard.tsx'
 import type { CodexPluginCardFace } from './CodexPluginCard.tsx'
 import { CodexModelPicker, CodexModelPickerController } from './CodexModelPicker.tsx'
@@ -33,6 +33,12 @@ import type { CodexModelPickerFace } from './CodexModelPicker.tsx'
 import { en, zh } from './locales.ts'
 import type { CodexSettingsKey } from './locales.ts'
 
+
+declare module '@deepseek-ai/dsh-client-ui-slots' {
+  interface SlotMap {
+    'settings.provider.item': { kind: 'keyed'; scope: 'root' }
+  }
+}
 declare module '@deepseek-ai/dsh-client-ui-slots' {
   interface LocaleNamespaceMap {
     /** Codex Plugin configuration copy. */
@@ -42,6 +48,7 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
 
 export const name = 'dsh-llm-codex-client'
 export const inject = ['slots', 'locale', 'connection']
+
 
 export function apply(ctx: ClientContext): void {
   const localeNamespace = 'settings.codex'
@@ -151,8 +158,6 @@ export function apply(ctx: ClientContext): void {
       adoptPickerModels: picker.adopt,
     }),
   }, CodexModelPicker))
-
-  ensureProviderSection(ctx)
   ctx.slots.inject('settings.provider.item', () => ctx.slots.register({
     name: 'settings.provider.item',
     key: CODEX_SETTINGS_NAMESPACE,
@@ -173,4 +178,5 @@ export function apply(ctx: ClientContext): void {
       closeModelPicker: picker.close,
     }),
   }, CodexPluginCard))
+
 }

@@ -11,32 +11,15 @@ DeepSeek Harness 的 ChatGPT Codex 集成。独立提供方路由是 `codex`，�
 需要 DeepSeek Harness 0.1.0-rc.6 或更新版本。可直接从 GitHub 安装：
 
 ~~~sh
-dsh plugin --profile web add github:NOirBRight/dsh-llm-codex#v0.3.0
+dsh plugin --profile web add github:NOirBRight/dsh-llm-codex#v0.3.7
 dsh web
 ~~~
 
 仓库跟踪已构建的 `lib` 产物，GitHub 安装不需要放开 build script。源码检出则先 `pnpm run build`，再做 link 安装。
 
-## 远程管理
+## 管理 RPC
 
-默认插件设置 RPC 仅允许 loopback。通过非回环地址打开 DSH（如 https://dsh.noirbright.top 或 http://192.168.50.75:3080）时会显示“远程浏览器无法编辑插件设置”。
-
-如需在可信主机上远程编辑：
-
-1. 在 profile patch（生产 `~/.dsh/profiles/web/cordis.patch.yml`，lab `~/.dsh-lab/profiles/web/cordis.patch.yml`）中加入：
-   ```yaml
-   - id: llm-codex
-     config:
-       remoteManagement: true
-   ```
-2. 以可信主机重启 DSH：
-   ```sh
-   dsh web --trusted-host 192.168.50.75 --trusted-host dsh.noirbright.top
-   ```
-   当前生产已使用 `--trusted-host 192.168.50.75 --trusted-host dsh.noirbright.top`，新增主机需一并加入。
-3. 刷新浏览器。主机上保存的设置对远程会话依然有效。
-
-未启用 `remoteManagement: true` 时，请使用 `ssh -L 3080:127.0.0.1:3080 user@host` 后打开 `http://127.0.0.1:3080`。
+设置和认证 RPC 使用 Connection 已认证的 `/codex` 通道。远程访问由 Host 的 trusted-host 与 Origin 策略控制；本插件没有单独的远程管理开关。
 
 ## Web 配置
 
@@ -106,3 +89,62 @@ bundle 默认对符合条件的模型请求失败最多重试八次。除消息�
 ## 许可证
 
 MIT
+
+## LLM Providers UI ownership
+
+**LLM 供应商**设置页（`settings.section` `id: providers` 及子槽 `settings.provider.item`）与共享的 `llm-providers` 排序存储完全由 `dsh-llm-providers-ui` 拥有。
+
+- 本插件仅贡献自己的卡片（`key: llm-codex`）和 Host 上的 `llm` 路由；不安装页面或共享命名空间。加载顺序不影响归属。
+- 未安装 owner 时（Headless 或 Web 未装 `dsh-llm-providers-ui`）：Host 侧模型路由 `codex` 仍可工作；Web 侧由 owner 决定 Providers 页面与本卡片是否挂载。正式 Web 发版的组合测试会拒绝缺少 owner 的图。
+- 导航地球图标为 ``alpha.1`` 临时 DOM 适配器，仅由 `dsh-llm-providers-ui` 持有；本插件不含该适配。
+
+请在 profile 中与 provider 插件一起显式安装 `dsh-llm-providers-ui`（见其 `cordis.patch.yml`）。
+
+
+## 正式版安装（Latest）
+
+ChatGPT Codex login, model catalog, usage, and optional search/image capabilities. 正式成品只支持 DeepSeek Harness 0.1.2-alpha.1；发布包只包含构建后的 Host/Client 产物，不包含兄弟仓库源码、本机路径或 link:/workspace: 依赖。
+
+LLM Providers 页面、导航和共享排序由 dsh-llm-providers-ui 独占；本插件只提供卡片、模型和 Host 路由。Web 必须先装 Owner，headless 只使用 Host 路由时可以不装 Owner。
+
+Owner（Latest）：
+
+~~~sh
+dsh plugin --profile web add --force \
+  https://github.com/NOirBRight/dsh-llm-providers-ui/releases/latest/download/dsh-llm-providers-ui.tgz
+~~~
+
+本 Provider（Latest）：
+
+~~~sh
+dsh plugin --profile web add --force \
+  https://github.com/NOirBRight/dsh-llm-codex/releases/latest/download/dsh-llm-codex.tgz
+~~~
+
+固定版本（可复现）：
+
+~~~sh
+dsh plugin --profile web add --force \
+  https://github.com/NOirBRight/dsh-llm-providers-ui/releases/download/v0.1.2/dsh-llm-providers-ui.tgz
+dsh plugin --profile web add --force \
+  https://github.com/NOirBRight/dsh-llm-codex/releases/download/v0.3.7/dsh-llm-codex.tgz
+~~~
+
+更新、卸载与验证：
+
+~~~sh
+# 更新到最新 Release
+dsh plugin --profile web add --force \
+  https://github.com/NOirBRight/dsh-llm-codex/releases/latest/download/dsh-llm-codex.tgz
+# 验证加载与版本
+dsh plugin --profile web list
+dsh plugin --profile web doctor
+# 只卸载本插件
+dsh plugin --profile web remove dsh-llm-codex
+~~~
+
+配置入口：Web 使用「设置」中的本插件页面；Host-only 插件使用 profile 的 dsh.profile.bundles 配置。先复制本 README 的最小 YAML/JSON 示例，再填写凭据或后端地址。
+
+回滚：重新执行固定版本 v0.3.7 命令，确认插件列表后只重启一次 Web 服务。失败时查看 journalctl --user -u dsh-web.service 与 dsh plugin --profile web doctor，不要把源码 checkout 写入 production profile。
+
+Release 与完整性：[v0.3.7](https://github.com/NOirBRight/dsh-llm-codex/releases/tag/v0.3.7) · [SHA256SUMS](https://github.com/NOirBRight/dsh-llm-codex/releases/download/v0.3.7/SHA256SUMS)。

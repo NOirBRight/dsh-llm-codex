@@ -26,6 +26,12 @@ export declare function applyCodexDefaultReasoningMetadata(info: LlmResolvedMode
  * @returns The original chunk, or a copy with a retryable transport code.
  */
 export declare function classifyCodexTransientError(chunk: StreamChunk): StreamChunk;
+/**
+ * Remove sandbox escalation choices that cannot be strictly wider than the
+ * current DSH policy. Core still validates every retained request; this only
+ * prevents Codex from selecting an impossible optional enum value.
+ */
+export declare function narrowCodexEscalationSchemas(options: GenerateOptions): GenerateOptions;
 /** ChatGPT subscription adapter backed by pi-ai Codex Responses. */
 export declare class CodexAdapter extends LlmAdapter {
     private readonly config;
@@ -35,6 +41,13 @@ export declare class CodexAdapter extends LlmAdapter {
     private current;
     providerInfo(provider: string): LlmProviderInfo;
     providerRetryPolicy(provider: string): ResolvedRetryPolicy | undefined;
+    /**
+     * Declare neutral request-image pricing when a newer Host calls this adapter.
+     * @param _provider - provider route.
+     * @param _model - model id.
+     * @returns `undefined` so the Host uses heuristic image pricing.
+     */
+    imageRequestPricing(_provider: string, _model: string): undefined;
     listModels(provider: string): Promise<readonly LlmModelInfo[]>;
     resolveModel(provider: string, model: string, signal?: AbortSignal): Promise<LlmResolvedModelInfo>;
     stream(options: GenerateOptions): AsyncIterable<StreamChunk>;

@@ -2,9 +2,10 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { CSSProperties, ReactNode } from 'react'
-import type { SettingsScope } from '@deepseek-ai/dsh-client-runtime/client'
+import type { SettingsScope, SettingsScopeSnapshot } from './shim.js'
 import type { InjectFace, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import type {} from '@deepseek-ai/dsh-client-ui-settings-plugins/client'
+import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
 import {
   CODEX_EFFORT_LABELS,
   CODEX_OFFICIAL_MODELS,
@@ -25,8 +26,7 @@ import type {
 import type { CodexSettingsKey } from './locales.ts'
 import { BrandMark } from './BrandMark.tsx'
 import { AuthToolbar, ProviderCardHeader, UsageHeader, UsageResetAt, UsageSkeleton, UsageUpdatedAt, formatProviderSummary, formatUsageClock, providerHeaderStyle, resetLabelOf } from './provider-chrome.tsx'
-import type {} from './provider-section.ts'
-import { SortableList } from './SortableList.tsx'
+import { SortableList } from 'dsh-llm-providers-ui/sortable'
 import {
   ModelCatalogCapabilities,
   ModelCatalogDetails,
@@ -395,7 +395,7 @@ function UsageLimits({ usage, quotaError, t }: {
 
 export function CodexPluginCard(props: CodexPluginCardProps): ReactNode {
   const { t, readAuthStatus, readAuthAttemptStatus, startAuth, logout, cancelAuth, fetchModels } = props
-  const snapshot = props.useCodexSettings(value => value)
+  const snapshot = props.useCodexSettings((value: SettingsScopeSnapshot<CodexSettingsView>) => value)
   const [open, setOpen] = useState(false)
   const initial = useMemo(
     () => snapshot.value === undefined ? undefined : snapshot.value.models.map(modelDraftOf),
@@ -463,6 +463,7 @@ export function CodexPluginCard(props: CodexPluginCardProps): ReactNode {
       const next = await readAuthStatus(signal)
       if (!mounted.current || signal?.aborted === true) return
       setAuth(next)
+      if (next.status !== 'signing-in') setAuthChallenge(undefined)
       if (next.status === 'signed-in') {
         if (next.quotaError === undefined) {
           setLastUsage(next.usage)

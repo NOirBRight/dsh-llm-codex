@@ -81,6 +81,7 @@ describe('llm-codex real composition', () => {
     const dict = schema.refs[String(schema.uid)]?.dict
     expect(dict).toBeDefined()
     expect(dict).not.toHaveProperty('apiKeyEnv')
+    expect(dict).not.toHaveProperty('remoteManagement')
     expect(dict).toHaveProperty('enableSearch')
     expect(dict).toHaveProperty('enableImageTool')
     expect(dict).toHaveProperty('enableImageGeneration')

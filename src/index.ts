@@ -26,7 +26,7 @@ import type { CodexConnectionOptions } from './adapter.ts'
 import { CodexWebAuth, registerCodexAuthRoutes } from './auth-routes.ts'
 import { generateImageTool } from './generate-image.ts'
 import { viewImageTool } from './view-image.ts'
-import { installCodexSearchEvent, installHostCodexSearchEvents, recordCodexSearchRequest } from './search-event.ts'
+import { CodexSearchAlpha1Adapter, recordCodexSearchRequest } from './search-event.ts'
 import { CodexSearchProvider } from './search.ts'
 import { CodexCredentialStore } from './store.ts'
 import { installCodexModelSwitchAdapters } from './model-switch-adapter.ts'
@@ -131,6 +131,12 @@ export type {
   CodexUsage,
 } from './usage.ts'
 export {
+  CODEX_SEARCH_MODEL_REQUEST_EVENT,
+  CODEX_CONNECT_SEARCH_MODEL_REQUEST_EVENT,
+  CodexSearchAlpha1Adapter,
+} from './search-event.ts'
+export type { CodexSearchAlpha1AdapterOptions, CodexSearchAlpha1AdapterResult } from './search-event.ts'
+export {
   CodexSearchProvider,
   CODEX_BASE_URL,
   CODEX_SEARCH_PROVIDER,
@@ -163,8 +169,6 @@ export interface Config {
   retryPolicy?: RetryPolicyConfig
   /** Set false when Model Switch owns stable tool names, preventing legacy duplicates. */
   registerLegacyTools?: boolean
-  /** Expose /codex to configured trusted hosts; disabled keeps loopback-only RPC. */
-  remoteManagement?: boolean
 }
 
 const catalogModel = z.object({
@@ -195,7 +199,6 @@ export const Config: z<Config> = z.object({
   searchMaxOutputTokens: z.number().step(1).min(1).default(DEFAULT_CODEX_SEARCH_MAX_OUTPUT_TOKENS),
   retryPolicy: RetryPolicySchema,
   registerLegacyTools: z.boolean().default(true),
-  remoteManagement: z.boolean().default(false),
 })
 
 function resolveModels(models: readonly CodexCatalogModel[] | undefined): CodexCatalogModel[] {
@@ -334,8 +337,8 @@ export function createCodexManagementRpcHandler(ctx: Context, auth: CodexWebAuth
 }
 
 export function apply(ctx: Context, config: Config): void {
-  installCodexSearchEvent()
-  void installHostCodexSearchEvents()
+  const searchAlpha1Adapter = new CodexSearchAlpha1Adapter({ context: ctx })
+  let searchAlpha1Available = false
   let current: () => Config = () => config
   let lastRaw: Config | undefined
   let lastGood: CodexConnectionOptions | undefined
@@ -379,11 +382,7 @@ export function apply(ctx: Context, config: Config): void {
 
   ctx.inject(['webServer'], webCtx => registerCodexAuthRoutes(webCtx, credentials, auth))
   ctx.inject(['connection'], (connectionCtx) => {
-    connectionCtx.connection.rpc.handle(
-      CODEX_RPC_CHANNEL,
-      createCodexManagementRpcHandler(ctx, auth),
-      { authority: config.remoteManagement === true ? 'trusted-host' : 'loopback' },
-    )
+    connectionCtx.effect(() => connectionCtx.connection.rpc.handle(CODEX_RPC_CHANNEL, createCodexManagementRpcHandler(ctx, auth)), 'dsh-llm-codex: management RPC')
   })
 
   let stopped = false
@@ -399,13 +398,17 @@ export function apply(ctx: Context, config: Config): void {
     return decodeCodexSettings({ ...DEFAULT_CODEX_SETTINGS, ...current() })
   }
 
-  installCodexModelSwitchAdapters(ctx, credentials, resolvedSettings)
+  installCodexModelSwitchAdapters(ctx, credentials, resolvedSettings, {
+    searchAvailable: () => searchAlpha1Available,
+  })
 
   const reconcileSearch = async (): Promise<void> => {
     if (stopped) return
     const resolved = resolvedSettings()
     if (resolved === undefined) return
-    const nextRegistration = current().registerLegacyTools !== false && resolved.enableSearch
+    const nextRegistration = searchAlpha1Available
+      && current().registerLegacyTools !== false
+      && resolved.enableSearch
       ? {
           model: resolved.searchModel,
           mode: resolved.searchMode,
@@ -419,7 +422,6 @@ export function apply(ctx: Context, config: Config): void {
     searchRegistration = undefined
     if (previous !== undefined) await previous.dispose()
     if (stopped || nextRegistration === undefined) return
-    installCodexSearchEvent()
     const fiber = ctx.inject(['web'], webCtx => webCtx.web.registerSearchProvider(new CodexSearchProvider({
       credentials,
       model: nextRegistration.model,
@@ -504,20 +506,32 @@ export function apply(ctx: Context, config: Config): void {
 
   ctx.effect(() => async () => {
     stopped = true
-    await Promise.all([searchTail, imageTail, generateTail])
-    const search = searchFiber
-    const image = imageFiber
-    const generate = generateFiber
+    let primaryFailed = false
+    let primaryError: unknown
+    try {
+      await Promise.all([searchTail, imageTail, generateTail])
+    } catch (error: unknown) {
+      primaryFailed = true
+      primaryError = error
+    }
+    const fibers = [searchFiber, imageFiber, generateFiber]
     searchFiber = undefined
     imageFiber = undefined
     generateFiber = undefined
-    await Promise.allSettled([
-      search?.dispose() ?? Promise.resolve(),
-      image?.dispose() ?? Promise.resolve(),
-      generate?.dispose() ?? Promise.resolve(),
-    ])
+    const cleanupErrors: unknown[] = []
+    for (const fiber of fibers) {
+      if (fiber === undefined) continue
+      try {
+        await fiber.dispose()
+      } catch (error: unknown) {
+        cleanupErrors.push(error)
+      }
+    }
+    if (primaryFailed || cleanupErrors.length > 0) {
+      const errors = primaryFailed ? [primaryError, ...cleanupErrors] : cleanupErrors
+      throw new AggregateError(errors, 'dsh-llm-codex: optional capability cleanup failed')
+    }
   }, 'dsh-llm-codex: optional capability lifecycle')
-
   installSettingsSection(ctx, NS, Config, config, {
     setSource: (source) => {
       current = source as () => Config
@@ -525,4 +539,8 @@ export function apply(ctx: Context, config: Config): void {
     onChange: scheduleCapabilities,
   })
   scheduleCapabilities()
+  void searchAlpha1Adapter.install().then(result => {
+    searchAlpha1Available = result.ok
+    scheduleCapabilities()
+  })
 }

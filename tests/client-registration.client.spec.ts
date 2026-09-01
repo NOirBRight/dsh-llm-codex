@@ -64,12 +64,12 @@ describe('Codex client plugin registration', () => {
     await ctx.fiber.dispose()
   })
 
-  it('registers the Providers section and card, then removes both with the plugin fiber', async () => {
+  it('registers only its provider card (Providers section owned by dsh-llm-providers-ui)', async () => {
     const { ctx, slots } = await bench()
     const fiber = ctx.plugin({ inject: [...inject], apply })
     await fiber.await()
 
-    expect(slots.entries('settings.section').map(e => e.options.id)).toEqual(['providers'])
+    expect(slots.entries('settings.section')).toHaveLength(0) // owned by dsh-llm-providers-ui
     const entries = slots.entries('settings.provider.item')
     expect(entries).toHaveLength(1)
     expect(entries[0]?.options).toMatchObject({ key: 'llm-codex' })
