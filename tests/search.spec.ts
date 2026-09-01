@@ -1,18 +1,24 @@
 import { readFile } from 'node:fs/promises'
-  import { describe, expect, it } from 'vitest'
-import { KNOWN_SESSION_EVENT_TYPES } from '@deepseek-ai/dsh-session'
+import { describe, expect, it } from 'vitest'
 import {
   CODEX_CONNECT_SEARCH_MODEL_REQUEST_EVENT,
   CODEX_SEARCH_MODEL_REQUEST_EVENT,
-  installCodexSearchEvent,
+  CodexSearchAlpha1Adapter,
 } from '../src/search-event.ts'
 import { externalWebAccess, mapCodexSearchResponse } from '../src/search.ts'
 
-describe('installCodexSearchEvent', () => {
-  it('registers this plugin event and dsh-codex-connect history events', () => {
-    installCodexSearchEvent()
-    expect(KNOWN_SESSION_EVENT_TYPES.has(CODEX_SEARCH_MODEL_REQUEST_EVENT)).toBe(true)
-    expect(KNOWN_SESSION_EVENT_TYPES.has(CODEX_CONNECT_SEARCH_MODEL_REQUEST_EVENT)).toBe(true)
+describe('CodexSearchAlpha1Adapter', () => {
+  it('registers current and legacy request events in both vocabularies', async () => {
+    const local = new Set<string>()
+    const host = new Set<string>()
+    const adapter = new CodexSearchAlpha1Adapter({
+      localVocabulary: local,
+      hostSessionModule: { KNOWN_SESSION_EVENT_TYPES: host, SESSION_FORMAT_VERSION: 0 },
+      log: () => {},
+    })
+    await expect(adapter.install()).resolves.toEqual({ ok: true })
+    expect([...local]).toEqual([CODEX_SEARCH_MODEL_REQUEST_EVENT, CODEX_CONNECT_SEARCH_MODEL_REQUEST_EVENT])
+    expect([...host]).toEqual([CODEX_SEARCH_MODEL_REQUEST_EVENT, CODEX_CONNECT_SEARCH_MODEL_REQUEST_EVENT])
   })
 })
 

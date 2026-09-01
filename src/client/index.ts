@@ -6,6 +6,7 @@ import type {} from '@deepseek-ai/dsh-client-locale/client'
 import type {} from '@deepseek-ai/dsh-client-ui-settings/client'
 import type {} from '@deepseek-ai/dsh-client-ui-settings-plugins/client'
 import type {} from '@deepseek-ai/dsh-client-ui-layout/client'
+import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
 import type {} from '@deepseek-ai/dsh-client-ui-slots'
 import {
   CODEX_RPC_CHANNEL,
@@ -25,7 +26,6 @@ import {
 } from '../client-contract.ts'
 import type { CodexSettingsView } from '../client-contract.ts'
 import { officialPickerCatalog } from '../catalog.ts'
-import { ensureProviderSection } from 'dsh-llm-providers-ui/client'
 import { CodexPluginCard } from './CodexPluginCard.tsx'
 import type { CodexPluginCardFace } from './CodexPluginCard.tsx'
 import { CodexModelPicker, CodexModelPickerController } from './CodexModelPicker.tsx'
@@ -158,8 +158,6 @@ export function apply(ctx: ClientContext): void {
       adoptPickerModels: picker.adopt,
     }),
   }, CodexModelPicker))
-
-  ensureProviderSection(ctx)
   ctx.slots.inject('settings.provider.item', () => ctx.slots.register({
     name: 'settings.provider.item',
     key: CODEX_SETTINGS_NAMESPACE,
@@ -180,4 +178,5 @@ export function apply(ctx: ClientContext): void {
       closeModelPicker: picker.close,
     }),
   }, CodexPluginCard))
+
 }

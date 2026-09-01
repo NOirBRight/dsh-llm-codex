@@ -3,6 +3,7 @@ lib/types/**/*.js.map
 lib/types/**/*.d.ts.map
 node_modules/
 *.tgz
+!fixtures/alpha1/tarballs/*.tgz
 *.tsbuildinfo
 coverage/
 *.log

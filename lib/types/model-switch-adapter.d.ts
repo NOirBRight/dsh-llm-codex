@@ -20,6 +20,8 @@ declare module '@deepseek-ai/cordis' {
     }
 }
 /** Optional Search/Image integration; standalone Codex behavior is unchanged when Model Switch is absent. */
-export declare function installCodexModelSwitchAdapters(ctx: Context, credentials: CodexCredentialStore, settings: () => CodexModelSwitchSettings | undefined): void;
+export declare function installCodexModelSwitchAdapters(ctx: Context, credentials: CodexCredentialStore, settings: () => CodexModelSwitchSettings | undefined, options?: {
+    readonly searchAvailable?: () => boolean;
+}): void;
 export {};
 //# sourceMappingURL=model-switch-adapter.d.ts.map

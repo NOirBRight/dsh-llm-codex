@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
 import LocalAttachmentStore from '@deepseek-ai/dsh-attachment-local'
 import LocalFileSystem from '@deepseek-ai/dsh-fs-local'
-import { CallId, LlmRuntime } from '@deepseek-ai/dsh-llm'
+import { LlmRuntime, ToolCallId } from '@deepseek-ai/dsh-llm'
 import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
 import ToolRuntime from '@deepseek-ai/dsh-tools'
 import WebRuntime from '@deepseek-ai/dsh-web'
@@ -105,7 +105,7 @@ describe('codex_generate_image execute', () => {
 
     const result = await context.tools.execute({
       signal,
-      callId: CallId('generate-image-' + String(++callCounter)),
+      callId: ToolCallId('generate-image-' + String(++callCounter)),
       name: Codex.GENERATE_IMAGE_TOOL_NAME,
       arguments: { prompt: 'a red pixel' },
       agent: agentOn() as never,
@@ -135,7 +135,7 @@ describe('codex_generate_image execute', () => {
 
     const result = await context.tools.execute({
       signal,
-      callId: CallId('generate-image-' + String(++callCounter)),
+      callId: ToolCallId('generate-image-' + String(++callCounter)),
       name: Codex.GENERATE_IMAGE_TOOL_NAME,
       arguments: { prompt: 'make it blue', source: 'pixel.png' },
       agent: agentOn() as never,
@@ -161,7 +161,7 @@ describe('codex_generate_image execute', () => {
 
     const result = await context.tools.execute({
       signal,
-      callId: CallId('generate-image-' + String(++callCounter)),
+      callId: ToolCallId('generate-image-' + String(++callCounter)),
       name: Codex.GENERATE_IMAGE_TOOL_NAME,
       arguments: { prompt: 'a red pixel', source: '   ' },
       agent: agentOn() as never,
@@ -181,7 +181,7 @@ describe('codex_generate_image execute', () => {
 
     const result = await context.tools.execute({
       signal,
-      callId: CallId('generate-image-' + String(++callCounter)),
+      callId: ToolCallId('generate-image-' + String(++callCounter)),
       name: Codex.GENERATE_IMAGE_TOOL_NAME,
       arguments: { prompt: 'a lamp' },
       agent: agentOn() as never,
@@ -203,7 +203,7 @@ describe('codex_generate_image execute', () => {
 
     const result = await context.tools.execute({
       signal,
-      callId: CallId('generate-image-' + String(++callCounter)),
+      callId: ToolCallId('generate-image-' + String(++callCounter)),
       name: Codex.GENERATE_IMAGE_TOOL_NAME,
       arguments: { prompt: 'a lamp' },
       agent: agentOn() as never,

@@ -220,13 +220,12 @@ export class CodexAdapter extends LlmAdapter {
   }
 
   /**
-   * Declare neutral request-image pricing when a newer Host calls an adapter built against an older peer instance.
-   * The method omits `override` so the same source compiles against pre-alpha peer types.
+   * Declare neutral request-image pricing when a newer Host calls this adapter.
    * @param _provider - provider route.
    * @param _model - model id.
    * @returns `undefined` so the Host uses heuristic image pricing.
    */
-  imageRequestPricing(_provider: string, _model: string): undefined {
+  override imageRequestPricing(_provider: string, _model: string): undefined {
     return undefined
   }
 

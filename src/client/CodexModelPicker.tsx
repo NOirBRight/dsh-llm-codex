@@ -5,6 +5,7 @@ import type { CSSProperties, ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import type { InjectFace, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import type {} from '@deepseek-ai/dsh-client-ui-layout/client'
+import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
 import type { CodexCatalogModel } from '../catalog.ts'
 import type { CodexSettingsKey } from './locales.ts'
 
@@ -231,7 +232,7 @@ const outlineButtonStyle: CSSProperties = {
 /** Render the Codex official-catalog picker in the frame overlay layer. */
 export function CodexModelPicker(props: CodexModelPickerProps): ReactNode {
   const { t } = props
-  const snapshot = props.useCodexModelPicker(value => value)
+  const snapshot = props.useCodexModelPicker((value: CodexModelPickerSnapshot) => value) as CodexModelPickerSnapshot
   useEffect(() => {
     if (!snapshot.open) return
     const onKeyDown = (event: KeyboardEvent): void => {
