@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.3.8
+
+- Document Alpha.4 as the only validated runtime; Alpha.5 is unverified and Alpha.1–Alpha.3 remain incompatible.
+- Declare Store `dsh.compatibility.dshReleases` for DSH `0.1.2-alpha.4`; Alpha.5 is unverified and Alpha.1–Alpha.3 remain incompatible.
+- Shrink the committed lockfile below the Store 256 KiB runtime-source cap so the 0.3.x line can replace the stalled 0.2.0 listing
+
 ## 0.3.6
 
 - Settings → LLM Providers: drag cards to reorder; chat picker follows `llm-providers.order` via dsh-llm-providers-ui.

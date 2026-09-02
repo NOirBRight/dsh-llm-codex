@@ -8,10 +8,10 @@ DeepSeek Harness 的 ChatGPT Codex 集成。独立提供方路由是 `codex`，�
 
 ## 安装
 
-需要 DeepSeek Harness 0.1.0-rc.6 或更新版本。可直接从 GitHub 安装：
+本版本严格要求 DeepSeek Harness 0.1.2-alpha.4；Alpha.1–Alpha.3 不兼容，Alpha.5 尚未验证。可直接从 GitHub 安装：
 
 ~~~sh
-dsh plugin --profile web add github:NOirBRight/dsh-llm-codex#v0.3.7
+dsh plugin --profile web add github:NOirBRight/dsh-llm-codex#v0.3.8
 dsh web
 ~~~
 
@@ -96,14 +96,14 @@ MIT
 
 - 本插件仅贡献自己的卡片（`key: llm-codex`）和 Host 上的 `llm` 路由；不安装页面或共享命名空间。加载顺序不影响归属。
 - 未安装 owner 时（Headless 或 Web 未装 `dsh-llm-providers-ui`）：Host 侧模型路由 `codex` 仍可工作；Web 侧由 owner 决定 Providers 页面与本卡片是否挂载。正式 Web 发版的组合测试会拒绝缺少 owner 的图。
-- 导航地球图标为 ``alpha.1`` 临时 DOM 适配器，仅由 `dsh-llm-providers-ui` 持有；本插件不含该适配。
+- 导航地球图标为 Alpha.4 临时 DOM 适配器，仅由 `dsh-llm-providers-ui` 持有；本插件不含该适配。
 
 请在 profile 中与 provider 插件一起显式安装 `dsh-llm-providers-ui`（见其 `cordis.patch.yml`）。
 
 
 ## 正式版安装（Latest）
 
-ChatGPT Codex login, model catalog, usage, and optional search/image capabilities. 正式成品只支持 DeepSeek Harness 0.1.2-alpha.1；发布包只包含构建后的 Host/Client 产物，不包含兄弟仓库源码、本机路径或 link:/workspace: 依赖。
+ChatGPT Codex login, model catalog, usage, and optional search/image capabilities. 正式成品只支持 DeepSeek Harness 0.1.2-alpha.4；发布包只包含构建后的 Host/Client 产物，不包含兄弟仓库源码、本机路径或 link:/workspace: 依赖。
 
 LLM Providers 页面、导航和共享排序由 dsh-llm-providers-ui 独占；本插件只提供卡片、模型和 Host 路由。Web 必须先装 Owner，headless 只使用 Host 路由时可以不装 Owner。
 
@@ -147,4 +147,4 @@ dsh plugin --profile web remove dsh-llm-codex
 
 回滚：重新执行固定版本 v0.3.7 命令，确认插件列表后只重启一次 Web 服务。失败时查看 journalctl --user -u dsh-web.service 与 dsh plugin --profile web doctor，不要把源码 checkout 写入 production profile。
 
-Release 与完整性：[v0.3.7](https://github.com/NOirBRight/dsh-llm-codex/releases/tag/v0.3.7) · [SHA256SUMS](https://github.com/NOirBRight/dsh-llm-codex/releases/download/v0.3.7/SHA256SUMS)。
+Release 与完整性：[v0.3.8](https://github.com/NOirBRight/dsh-llm-codex/releases/tag/v0.3.8) · [SHA256SUMS](https://github.com/NOirBRight/dsh-llm-codex/releases/download/v0.3.8/SHA256SUMS)。

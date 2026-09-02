@@ -6,7 +6,6 @@ import { resolveCodexAccessToken } from './adapter.ts'
 import type { CodexSearchContextSize, CodexSearchMode } from './client-contract.ts'
 import { generateImageTool } from './generate-image.ts'
 import { CodexSearchProvider } from './search.ts'
-import { recordCodexSearchRequest } from './search-event.ts'
 import type { CodexCredentialStore } from './store.ts'
 
 interface CodexModelSwitchSettings {
@@ -35,7 +34,6 @@ export function installCodexModelSwitchAdapters(
   ctx: Context,
   credentials: CodexCredentialStore,
   settings: () => CodexModelSwitchSettings | undefined,
-  options: { readonly searchAvailable?: () => boolean } = {},
 ): void {
   let imageContext: Context | undefined
   ctx.inject(['attachments', 'fs'], scope => { imageContext = scope; return () => { if (imageContext === scope) imageContext = undefined } })
@@ -43,10 +41,8 @@ export function installCodexModelSwitchAdapters(
     provider: 'codex',
     search: {
       provider: 'codex',
-      supportsModel: model => (options.searchAvailable?.() ?? true)
-        && settings()?.models.some(candidate => candidate.id === model && candidate.tools !== false) === true,
+      supportsModel: model => settings()?.models.some(candidate => candidate.id === model && candidate.tools !== false) === true,
       async search(model, request, signal) {
-        if (!(options.searchAvailable?.() ?? true)) throw new Error('Codex Search is unavailable')
         const current = settings()
         if (current === undefined) throw new Error('Codex settings are unavailable')
         return new CodexSearchProvider({
@@ -56,7 +52,6 @@ export function installCodexModelSwitchAdapters(
           contextSize: current.searchContextSize,
           maxOutputTokens: current.searchMaxOutputTokens,
           resolveRequestId: randomUUID,
-          recordRequest: value => { recordCodexSearchRequest(ctx, value) },
         }).search(request, signal)
       },
     },

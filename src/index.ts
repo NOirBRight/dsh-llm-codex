@@ -11,7 +11,7 @@ import type {} from '@deepseek-ai/dsh-client-connection'
 import type { ConnectionRpcHandler } from '@deepseek-ai/dsh-client-connection'
 import { resolveRetryPolicy, RetryPolicySchema } from '@deepseek-ai/dsh-llm'
 import type { RetryPolicyConfig } from '@deepseek-ai/dsh-llm'
-import { deepEqualJson, installSettingsSection, settingsNamespace } from '@deepseek-ai/dsh-settings'
+import { deepEqualJson } from '@deepseek-ai/dsh-util-values'
 import type { SettingsPathOp } from '@deepseek-ai/dsh-settings'
 import { MAX_TIMER_DELAY_MS } from '@deepseek-ai/dsh-timeout'
 import type {} from '@deepseek-ai/dsh-attachment'
@@ -26,7 +26,6 @@ import type { CodexConnectionOptions } from './adapter.ts'
 import { CodexWebAuth, registerCodexAuthRoutes } from './auth-routes.ts'
 import { generateImageTool } from './generate-image.ts'
 import { viewImageTool } from './view-image.ts'
-import { CodexSearchAlpha1Adapter, recordCodexSearchRequest } from './search-event.ts'
 import { CodexSearchProvider } from './search.ts'
 import { CodexCredentialStore } from './store.ts'
 import { installCodexModelSwitchAdapters } from './model-switch-adapter.ts'
@@ -131,12 +130,6 @@ export type {
   CodexUsage,
 } from './usage.ts'
 export {
-  CODEX_SEARCH_MODEL_REQUEST_EVENT,
-  CODEX_CONNECT_SEARCH_MODEL_REQUEST_EVENT,
-  CodexSearchAlpha1Adapter,
-} from './search-event.ts'
-export type { CodexSearchAlpha1AdapterOptions, CodexSearchAlpha1AdapterResult } from './search-event.ts'
-export {
   CodexSearchProvider,
   CODEX_BASE_URL,
   CODEX_SEARCH_PROVIDER,
@@ -153,7 +146,7 @@ export { registerCodexAuthRoutes, trustedRequest, CodexWebAuth } from './auth-ro
 export const name = 'llm-codex'
 export const inject = ['llm']
 
-const NS = settingsNamespace(CODEX_SETTINGS_NAMESPACE)
+const NS = CODEX_SETTINGS_NAMESPACE
 
 export interface Config {
   streamIdleTimeoutMs?: number
@@ -337,8 +330,6 @@ export function createCodexManagementRpcHandler(ctx: Context, auth: CodexWebAuth
 }
 
 export function apply(ctx: Context, config: Config): void {
-  const searchAlpha1Adapter = new CodexSearchAlpha1Adapter({ context: ctx })
-  let searchAlpha1Available = false
   let current: () => Config = () => config
   let lastRaw: Config | undefined
   let lastGood: CodexConnectionOptions | undefined
@@ -398,16 +389,13 @@ export function apply(ctx: Context, config: Config): void {
     return decodeCodexSettings({ ...DEFAULT_CODEX_SETTINGS, ...current() })
   }
 
-  installCodexModelSwitchAdapters(ctx, credentials, resolvedSettings, {
-    searchAvailable: () => searchAlpha1Available,
-  })
+  installCodexModelSwitchAdapters(ctx, credentials, resolvedSettings)
 
   const reconcileSearch = async (): Promise<void> => {
     if (stopped) return
     const resolved = resolvedSettings()
     if (resolved === undefined) return
-    const nextRegistration = searchAlpha1Available
-      && current().registerLegacyTools !== false
+    const nextRegistration = current().registerLegacyTools !== false
       && resolved.enableSearch
       ? {
           model: resolved.searchModel,
@@ -429,7 +417,6 @@ export function apply(ctx: Context, config: Config): void {
       contextSize: nextRegistration.contextSize,
       maxOutputTokens: nextRegistration.maxOutputTokens,
       resolveRequestId: () => String(webCtx.get('agents')?.currentInitiator()?.session.id ?? randomUUID()),
-      recordRequest: request => { recordCodexSearchRequest(webCtx, request) },
     })))
     searchFiber = fiber
     searchRegistration = nextRegistration
@@ -532,15 +519,13 @@ export function apply(ctx: Context, config: Config): void {
       throw new AggregateError(errors, 'dsh-llm-codex: optional capability cleanup failed')
     }
   }, 'dsh-llm-codex: optional capability lifecycle')
-  installSettingsSection(ctx, NS, Config, config, {
-    setSource: (source) => {
-      current = source as () => Config
-    },
-    onChange: scheduleCapabilities,
+  ctx.inject(['settings'], (settingsCtx) => {
+    settingsCtx.settings.installSection(ctx, NS, Config, config, {
+      setSource: (source) => {
+        current = source as () => Config
+      },
+      onChange: scheduleCapabilities,
+    })
   })
   scheduleCapabilities()
-  void searchAlpha1Adapter.install().then(result => {
-    searchAlpha1Available = result.ok
-    scheduleCapabilities()
-  })
 }

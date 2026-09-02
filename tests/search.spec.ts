@@ -1,26 +1,6 @@
 import { readFile } from 'node:fs/promises'
 import { describe, expect, it } from 'vitest'
-import {
-  CODEX_CONNECT_SEARCH_MODEL_REQUEST_EVENT,
-  CODEX_SEARCH_MODEL_REQUEST_EVENT,
-  CodexSearchAlpha1Adapter,
-} from '../src/search-event.ts'
 import { externalWebAccess, mapCodexSearchResponse } from '../src/search.ts'
-
-describe('CodexSearchAlpha1Adapter', () => {
-  it('registers current and legacy request events in both vocabularies', async () => {
-    const local = new Set<string>()
-    const host = new Set<string>()
-    const adapter = new CodexSearchAlpha1Adapter({
-      localVocabulary: local,
-      hostSessionModule: { KNOWN_SESSION_EVENT_TYPES: host, SESSION_FORMAT_VERSION: 0 },
-      log: () => {},
-    })
-    await expect(adapter.install()).resolves.toEqual({ ok: true })
-    expect([...local]).toEqual([CODEX_SEARCH_MODEL_REQUEST_EVENT, CODEX_CONNECT_SEARCH_MODEL_REQUEST_EVENT])
-    expect([...host]).toEqual([CODEX_SEARCH_MODEL_REQUEST_EVENT, CODEX_CONNECT_SEARCH_MODEL_REQUEST_EVENT])
-  })
-})
 
 describe('externalWebAccess', () => {
   it('maps official Codex search modes onto the standalone field', () => {

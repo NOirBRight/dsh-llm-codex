@@ -55,11 +55,6 @@ interface SearchRequestBody {
   readonly max_output_tokens: number
 }
 
-export interface CodexSearchRequestRecord {
-  readonly endpoint: typeof CODEX_SEARCH_URL
-  readonly body: SearchRequestBody
-}
-
 export interface CodexSearchProviderOptions {
   readonly credentials: CodexCredentialStore
   readonly model: string
@@ -67,7 +62,6 @@ export interface CodexSearchProviderOptions {
   readonly contextSize: CodexSearchContextSize
   readonly maxOutputTokens: number
   readonly resolveRequestId: () => string
-  readonly recordRequest?: (request: CodexSearchRequestRecord) => void
 }
 
 export function externalWebAccess(mode: CodexSearchMode): boolean | 'indexed' {
@@ -229,7 +223,6 @@ export class CodexSearchProvider implements WebSearchProvider {
       },
       max_output_tokens: this.options.maxOutputTokens,
     }
-    this.options.recordRequest?.({ endpoint: CODEX_SEARCH_URL, body })
     throwIfSearchAborted(signal)
 
     let response: Response

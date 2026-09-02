@@ -21,8 +21,6 @@ export { loginCodex, logoutCodex, codexAuthStatus } from './auth.ts';
 export type { CodexAuthStatus } from './auth.ts';
 export { CODEX_USAGE_URL, parseCodexUsage, readCodexRateLimits, CodexReauthRequiredError, isCodexReauthRequiredError, } from './usage.ts';
 export type { CodexCredits, CodexIndividualLimit, CodexRateLimit, CodexRateLimitWindow, CodexUsage, } from './usage.ts';
-export { CODEX_SEARCH_MODEL_REQUEST_EVENT, CODEX_CONNECT_SEARCH_MODEL_REQUEST_EVENT, CodexSearchAlpha1Adapter, } from './search-event.ts';
-export type { CodexSearchAlpha1AdapterOptions, CodexSearchAlpha1AdapterResult } from './search-event.ts';
 export { CodexSearchProvider, CODEX_BASE_URL, CODEX_SEARCH_PROVIDER, CODEX_SEARCH_URL, externalWebAccess, mapCodexSearchResponse, } from './search.ts';
 export { VIEW_IMAGE_TOOL_NAME } from './view-image.ts';
 export { installCodexModelSwitchAdapters } from './model-switch-adapter.ts';

@@ -1,6 +1,6 @@
 /** Browser half: Codex setup inside Plugin configuration. */
 
-import type { ClientContext, SettingsScopeSnapshot } from './shim.js'
+import type { ClientContext, SettingsScopeSnapshot } from './settings-scope.js'
 import type { ConnectionHandle } from '@deepseek-ai/dsh-client-connection/client'
 import type {} from '@deepseek-ai/dsh-client-locale/client'
 import type {} from '@deepseek-ai/dsh-client-ui-settings/client'

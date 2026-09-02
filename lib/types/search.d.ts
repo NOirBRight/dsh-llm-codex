@@ -10,35 +10,6 @@ export type { CodexSearchContextSize, CodexSearchMode };
 export declare const CODEX_SEARCH_PROVIDER = "codex";
 export declare const CODEX_BASE_URL = "https://chatgpt.com/backend-api/codex";
 export declare const CODEX_SEARCH_URL = "https://chatgpt.com/backend-api/codex/alpha/search";
-interface SearchRequestBody {
-    readonly id: string;
-    readonly model: string;
-    readonly input: readonly [
-        {
-            readonly type: 'message';
-            readonly role: 'user';
-            readonly content: readonly [{
-                readonly type: 'input_text';
-                readonly text: string;
-            }];
-        }
-    ];
-    readonly commands: {
-        readonly search_query: readonly [{
-            readonly q: string;
-        }];
-    };
-    readonly settings: {
-        readonly search_context_size: CodexSearchContextSize;
-        readonly allowed_callers: readonly ['direct'];
-        readonly external_web_access: boolean | 'indexed';
-    };
-    readonly max_output_tokens: number;
-}
-export interface CodexSearchRequestRecord {
-    readonly endpoint: typeof CODEX_SEARCH_URL;
-    readonly body: SearchRequestBody;
-}
 export interface CodexSearchProviderOptions {
     readonly credentials: CodexCredentialStore;
     readonly model: string;
@@ -46,7 +17,6 @@ export interface CodexSearchProviderOptions {
     readonly contextSize: CodexSearchContextSize;
     readonly maxOutputTokens: number;
     readonly resolveRequestId: () => string;
-    readonly recordRequest?: (request: CodexSearchRequestRecord) => void;
 }
 export declare function externalWebAccess(mode: CodexSearchMode): boolean | 'indexed';
 export declare function mapCodexSearchResponse(value: unknown): WebSearchResult;

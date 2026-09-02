@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest'
-import type { SettingsScope, SettingsScopeSnapshot } from '../src/client/shim.ts'
+import type { SettingsScope, SettingsScopeSnapshot } from '../src/client/settings-scope.ts'
 
-describe('SettingsScope shim structural compatibility', () => {
-  it('accepts published RC and alpha1 scope objects', () => {
+describe('SettingsScope structural contract', () => {
+  it('accepts the Alpha.4 host settings scope', () => {
     const snapshot: SettingsScopeSnapshot<string> = {
       status: 'ready', value: 'value', base: undefined, user: undefined,
       revision: 1, writable: true, mode: 'host',

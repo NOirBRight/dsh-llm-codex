@@ -8,10 +8,10 @@ The package root exposes the Cordis plugin contract. The same artifact exports `
 
 ## Installation
 
-DeepSeek Harness 0.1.0-rc.6 or later is required. Install directly from GitHub:
+DeepSeek Harness `0.1.2-alpha.4` is required exactly; Alpha.1–Alpha.3 are incompatible and Alpha.5 is unverified. Exact Store records are in `dsh.compatibility.dshReleases`. Users on older runtimes must keep the last compatible Codex tag. Install directly from GitHub:
 
 ~~~sh
-dsh plugin --profile web add github:NOirBRight/dsh-llm-codex#v0.3.7
+dsh plugin --profile web add github:NOirBRight/dsh-llm-codex#v0.3.8
 dsh web
 ~~~
 
@@ -93,7 +93,7 @@ The **LLM Providers** Settings page (`settings.section` `id: providers` with chi
 
 - This plugin contributes only its keyed card (`key: llm-codex`) and its Host ``llm`` route; it does not install the page or the shared `llm-providers` namespace. Load order with the owner does not matter.
 - Without the owner (Headless or Web without `dsh-llm-providers-ui`): the Host model route `codex` still works; in Web the owner controls whether the Providers page and this card are mounted. A Web release composition test rejects a bundle graph that ships provider cards without the owner.
-- The nav globe glyph is a temporary `alpha.1` DOM adapter owned only by `dsh-llm-providers-ui` (`src/client/nav-icon.ts`); this plugin does not ship that adapter.
+- The nav globe glyph is a temporary Alpha.4 DOM adapter owned only by `dsh-llm-providers-ui` (`src/client/nav-icon.ts`); this plugin does not ship that adapter.
 
 Install `dsh-llm-providers-ui` explicitly in the profile alongside provider plugins (see that package's `cordis.patch.yml`).
 
@@ -104,7 +104,7 @@ MIT
 
 ## Release installation (Latest)
 
-ChatGPT Codex login, model catalog, usage, and optional search/image capabilities. The release artifact targets DeepSeek Harness 0.1.2-alpha.1 and contains built Host/Client files only; it has no sibling-repository source, workstation path, link:, or workspace: dependency.
+ChatGPT Codex login, model catalog, usage, and optional search/image capabilities. The release artifact targets DeepSeek Harness 0.1.2-alpha.4 and contains built Host/Client files only; it has no sibling-repository source, workstation path, link:, or workspace: dependency.
 
 The dsh-llm-providers-ui package owns the LLM Providers page, navigation, and shared order store. This package owns only its provider card, models, credentials, and Host route. Install the Owner first for Web; headless Host routing works without the Owner.
 
@@ -148,4 +148,4 @@ Configuration: use the plugin section in Settings for Web UI plugins, or the pro
 
 Rollback: rerun the fixed v0.3.7 command, verify the profile list, then restart the Web service once. Inspect journalctl --user -u dsh-web.service and dsh plugin --profile web doctor; never put a source checkout in the production profile.
 
-Release and integrity: [v0.3.7](https://github.com/NOirBRight/dsh-llm-codex/releases/tag/v0.3.7) · [SHA256SUMS](https://github.com/NOirBRight/dsh-llm-codex/releases/download/v0.3.7/SHA256SUMS).
+Release and integrity: [v0.3.8](https://github.com/NOirBRight/dsh-llm-codex/releases/tag/v0.3.8) · [SHA256SUMS](https://github.com/NOirBRight/dsh-llm-codex/releases/download/v0.3.8/SHA256SUMS).
