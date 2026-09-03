@@ -199,7 +199,7 @@ const addDependency = (parent, field, name, rawRange) => {
   // Local development archives are deliberately copied into the fixture graph
   // instead of preserving a checkout-relative `file:` path.  Treat those
   // specs as an unconstrained request for the matching captured package.
-  const localArchive = typeof rawRange === 'string' && /^(?:file|link|workspace):/u.test(rawRange)
+  const localArchive = typeof rawRange === 'string' && (/^(?:file|link|workspace):/u.test(rawRange) || rawRange.startsWith('https://github.com/NOirBRight/'))
   const range = localArchive ? null : resolveWorkspace(name, rawRange)
   const candidates = choose(name, range)
   if (candidates.length === 0) {
