@@ -1,10 +1,17 @@
 # Changelog
+## [0.3.10] - 2026-09-04
+
+### Changed
+
+- Retry a content-less chat `AUTH` (HTTP 401) after forcing an OAuth refresh; include `AUTH` in the normal retryable set so remaining 401s follow the eight-retry policy.
+
 ## [0.3.9] - 2026-09-03
 
 ### Changed
 
 - DSH compatibility declarations cover the verified Alpha.4 and rc.1 runtimes.
 - Unknown runtimes warn once and use the normal best-effort mount path; only reproduced failures may be blocklisted.
+
 
 
 ## 0.3.8

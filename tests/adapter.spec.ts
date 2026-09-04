@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import { ReasoningEffortId } from '@deepseek-ai/dsh-llm'
 import type { LlmResolvedModelInfo, StreamChunk } from '@deepseek-ai/dsh-llm'
-import { applyCodexDefaultReasoningMetadata, classifyCodexTransientError, narrowCodexEscalationSchemas } from '../src/adapter.ts'
+import { applyCodexDefaultReasoningMetadata, classifyCodexTransientError, narrowCodexEscalationSchemas, streamWithAuthRetry } from '../src/adapter.ts'
+import type { GenerateOptions } from '@deepseek-ai/dsh-llm'
 import { resolveAdapterOptions } from '../src/index.ts'
 
 function resolved(efforts: readonly string[]): LlmResolvedModelInfo {
@@ -85,7 +86,75 @@ describe('Codex retry policy', () => {
     expect(resolveAdapterOptions({}).retryPolicy).toMatchObject({ mode: 'normal', maxRetries: 2 })
     expect(resolveAdapterOptions({
       retryPolicy: { mode: 'normal', maxRetries: 8 },
-    }).retryPolicy).toMatchObject({ mode: 'normal', maxRetries: 8 })
+    }).retryPolicy).toMatchObject({
+      mode: 'normal',
+      maxRetries: 8,
+      retryableCodes: expect.arrayContaining(['AUTH']),
+    })
+  })
+})
+
+describe('streamWithAuthRetry', () => {
+  const options = { provider: 'codex', model: 'gpt-5.6', messages: [] } as GenerateOptions
+  const identity = (chunk: StreamChunk) => chunk
+
+  it('refreshes and retries a usage-only AUTH finish', async () => {
+    let calls = 0
+    let refreshes = 0
+    const stream = async function* (): AsyncGenerator<StreamChunk> {
+      calls += 1
+      if (calls === 1) {
+        yield { type: 'usage', usage: { inputTokens: 1, outputTokens: 0 } }
+        yield { type: 'finish', reason: { kind: 'error', failure: { code: 'AUTH', message: '401' } } }
+        return
+      }
+      yield { type: 'text-delta', index: 0, text: 'ok' }
+      yield { type: 'finish', reason: { kind: 'stop' } }
+    }
+    const chunks: StreamChunk[] = []
+    for await (const chunk of streamWithAuthRetry(stream, options, identity, async () => {
+      refreshes += 1
+      return 'next'
+    })) {
+      chunks.push(chunk)
+    }
+    expect(calls).toBe(2)
+    expect(refreshes).toBe(1)
+    expect(chunks.some(chunk => chunk.type === 'usage')).toBe(false)
+    expect(chunks).toMatchObject([
+      { type: 'text-delta', text: 'ok' },
+      { type: 'finish', reason: { kind: 'stop' } },
+    ])
+  })
+
+  it('does not retry AUTH after model content', async () => {
+    let calls = 0
+    const stream = async function* (): AsyncGenerator<StreamChunk> {
+      calls += 1
+      yield { type: 'text-delta', index: 0, text: 'partial' }
+      yield { type: 'finish', reason: { kind: 'error', failure: { code: 'AUTH', message: '401' } } }
+    }
+    const chunks: StreamChunk[] = []
+    for await (const chunk of streamWithAuthRetry(stream, options, identity, async () => 'next')) {
+      chunks.push(chunk)
+    }
+    expect(calls).toBe(1)
+    expect(chunks).toMatchObject([
+      { type: 'text-delta', text: 'partial' },
+      { type: 'finish', reason: { kind: 'error', failure: { code: 'AUTH' } } },
+    ])
+  })
+
+  it('rethrows abort during AUTH refresh instead of yielding AUTH', async () => {
+    const stream = async function* (): AsyncGenerator<StreamChunk> {
+      yield { type: 'finish', reason: { kind: 'error', failure: { code: 'AUTH', message: '401' } } }
+    }
+    const run = streamWithAuthRetry(stream, options, identity, async () => {
+      throw Object.assign(new Error('stopped'), { name: 'AbortError' })
+    })
+    await expect(async () => {
+      for await (const _chunk of run) { /* drain */ }
+    }).rejects.toMatchObject({ name: 'AbortError' })
   })
 })
 

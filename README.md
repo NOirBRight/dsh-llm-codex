@@ -23,7 +23,7 @@ Install directly from GitHub:
 dsh plugin --profile web add --force \
   https://github.com/NOirBRight/dsh-llm-providers-ui/releases/download/v0.1.5/dsh-llm-providers-ui-0.1.5.tgz
 dsh plugin --profile web add --force \
-  https://github.com/NOirBRight/dsh-llm-codex/releases/download/v0.3.9/dsh-llm-codex-0.3.9.tgz
+  https://github.com/NOirBRight/dsh-llm-codex/releases/download/v0.3.10/dsh-llm-codex-0.3.10.tgz
 dsh web
 ~~~
 
@@ -53,7 +53,7 @@ Picker ids may also use a generic context suffix `-<n>k` or `-<n>m` (for example
 
 Default reasoning effort is per model and editable on the row: Luna uses `max`, Terra `xhigh`, Sol `high`, and every other official Codex model `xhigh`. Fast and 1M rows use their base model's default. A reasoning effort explicitly selected in a conversation takes precedence.
 
-Chat goes through pi-ai `openai-codex-responses` against `https://chatgpt.com/backend-api`. Chat without a session fails `MISSING_CREDENTIAL`. A stored session whose refresh fails is reported as `AUTH`.
+Chat goes through pi-ai `openai-codex-responses` against `https://chatgpt.com/backend-api`. Chat without a session fails `MISSING_CREDENTIAL`. A stored session whose refresh fails is reported as `AUTH`. A later content-less `AUTH` (HTTP 401) force-refreshes the session and retries the request once; remaining `AUTH` failures are eligible for the bundle's eight normal retries.
 
 ### Model Switch integration
 
@@ -94,7 +94,7 @@ Search, `view_image`, and `codex_generate_image` are implemented but default off
         jitterRatio: 0.1
 ~~~
 
-The bundle retries eligible model-request failures up to eight times by default. ChatGPT WebSocket closures, including code-and-reason variants other than message-too-large code 1009, connection limits, and overload responses use retryable DSH failure codes. Token-shape failures use non-retryable `AUTH`; ambiguous usage limits remain non-retryable.
+The bundle retries eligible model-request failures up to eight times by default, including `AUTH`. ChatGPT WebSocket closures, including code-and-reason variants other than message-too-large code 1009, connection limits, and overload responses use retryable DSH failure codes. Ambiguous usage limits remain non-retryable.
 
 There is no `apiKeyEnv` and no user-editable base URL. `models` is the displayed conversation catalog.
 
@@ -129,7 +129,7 @@ Provider (Latest):
 
 ~~~sh
 dsh plugin --profile web add --force \
-  https://github.com/NOirBRight/dsh-llm-codex/releases/latest/download/dsh-llm-codex-0.3.9.tgz
+  https://github.com/NOirBRight/dsh-llm-codex/releases/latest/download/dsh-llm-codex-0.3.10.tgz
 ~~~
 
 Fixed versions (reproducible):
@@ -138,7 +138,7 @@ Fixed versions (reproducible):
 dsh plugin --profile web add --force \
   https://github.com/NOirBRight/dsh-llm-providers-ui/releases/download/v0.1.5/dsh-llm-providers-ui-0.1.5.tgz
 dsh plugin --profile web add --force \
-  https://github.com/NOirBRight/dsh-llm-codex/releases/download/v0.3.9/dsh-llm-codex-0.3.9.tgz
+  https://github.com/NOirBRight/dsh-llm-codex/releases/download/v0.3.10/dsh-llm-codex-0.3.10.tgz
 ~~~
 
 Update, uninstall, and verify:
@@ -146,7 +146,7 @@ Update, uninstall, and verify:
 ~~~sh
 # Update to the latest Release
 dsh plugin --profile web add --force \
-  https://github.com/NOirBRight/dsh-llm-codex/releases/latest/download/dsh-llm-codex-0.3.9.tgz
+  https://github.com/NOirBRight/dsh-llm-codex/releases/latest/download/dsh-llm-codex-0.3.10.tgz
 # Verify the loaded version
 dsh plugin --profile web list
 dsh plugin --profile web doctor
@@ -158,4 +158,4 @@ Configuration: use the plugin section in Settings for Web UI plugins, or the pro
 
 Rollback: rerun the fixed v0.3.7 command, verify the profile list, then restart the Web service once. Inspect journalctl --user -u dsh-web.service and dsh plugin --profile web doctor; never put a source checkout in the production profile.
 
-Release and integrity: [v0.3.9](https://github.com/NOirBRight/dsh-llm-codex/releases/tag/v0.3.9) · [SHA256SUMS](https://github.com/NOirBRight/dsh-llm-codex/releases/download/v0.3.9/SHA256SUMS).
+Release and integrity: [v0.3.10](https://github.com/NOirBRight/dsh-llm-codex/releases/tag/v0.3.10) · [SHA256SUMS](https://github.com/NOirBRight/dsh-llm-codex/releases/download/v0.3.10/SHA256SUMS).

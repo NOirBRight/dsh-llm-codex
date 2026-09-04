@@ -75,7 +75,11 @@ describe('llm-codex real composition', () => {
       { provider: 'codex', displayName: 'Codex', settingsNs: 'llm-codex', settingsPath: [] },
     ])
     expect(ctx.llm.listProviders()).toEqual([{ id: 'codex', name: 'Codex' }])
-    expect(ctx.llm.providerRetryPolicy('codex')).toMatchObject({ mode: 'normal', maxRetries: 8 })
+    expect(ctx.llm.providerRetryPolicy('codex')).toMatchObject({
+      mode: 'normal',
+      maxRetries: 8,
+      retryableCodes: expect.arrayContaining(['AUTH']),
+    })
 
     const schema = Config.toJSON() as { uid: number, refs: Record<string, { dict?: Record<string, unknown> }> }
     const dict = schema.refs[String(schema.uid)]?.dict

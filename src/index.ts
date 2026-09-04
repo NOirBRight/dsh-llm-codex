@@ -10,7 +10,7 @@ import z from '@deepseek-ai/schemastery'
 import type {} from '@deepseek-ai/dsh-client-connection'
 import type { ConnectionRpcHandler } from '@deepseek-ai/dsh-client-connection'
 import { resolveRetryPolicy, RetryPolicySchema } from '@deepseek-ai/dsh-llm'
-import type { RetryPolicyConfig } from '@deepseek-ai/dsh-llm'
+import type { ResolvedRetryPolicy, RetryPolicyConfig } from '@deepseek-ai/dsh-llm'
 import { deepEqualJson } from '@deepseek-ai/dsh-util-values'
 import type { SettingsPathOp } from '@deepseek-ai/dsh-settings'
 import { MAX_TIMER_DELAY_MS } from '@deepseek-ai/dsh-timeout'
@@ -22,7 +22,7 @@ import type {} from '@deepseek-ai/dsh-web'
 import type {} from '@deepseek-ai/dsh-host-webserver'
 import type {} from '@deepseek-ai/dsh-tools'
 import type {} from '@deepseek-ai/dsh-fs'
-import { CodexAdapter, resolveCodexAccessToken } from './adapter.ts'
+import { CodexAdapter, refreshCodexAccessToken, resolveCodexAccessToken } from './adapter.ts'
 import type { CodexConnectionOptions } from './adapter.ts'
 import { CodexWebAuth, registerCodexAuthRoutes } from './auth-routes.ts'
 import { generateImageTool } from './generate-image.ts'
@@ -58,7 +58,13 @@ import { hydrateCatalogModel } from './catalog.ts'
 /** Preserve Codex's historical normal retry count across host-line default changes. */
 const DEFAULT_MAX_RETRIES = 2
 
-export { CodexAdapter, resolveCodexAccessToken } from './adapter.ts'
+function withAuthRetries(policy: ResolvedRetryPolicy): ResolvedRetryPolicy {
+  if (policy.mode !== 'normal') return policy
+  if (policy.retryableCodes.includes('AUTH')) return policy
+  return { ...policy, retryableCodes: Object.freeze([...policy.retryableCodes, 'AUTH']) }
+}
+
+export { CodexAdapter, refreshCodexAccessToken, resolveCodexAccessToken } from './adapter.ts'
 export type { CodexAdapterOptions, CodexConnectionOptions } from './adapter.ts'
 export {
   CODEX_CATALOG,
@@ -220,10 +226,10 @@ export function resolveAdapterOptions(config: Config): CodexConnectionOptions {
   return {
     models: resolveModels(config.models),
     streamIdleTimeoutMs,
-    retryPolicy: resolveRetryPolicy(
+    retryPolicy: withAuthRetries(resolveRetryPolicy(
       config.retryPolicy ?? { mode: 'normal', maxRetries: DEFAULT_MAX_RETRIES },
       'llm-codex: retryPolicy',
-    ),
+    )),
   }
 }
 
@@ -359,6 +365,7 @@ export function apply(ctx: Context, config: Config): void {
   const adapter = new CodexAdapter({
     options,
     resolveApiKey: () => resolveCodexAccessToken(credentials),
+    refreshApiKey: () => refreshCodexAccessToken(credentials),
     resolveAttachments: () => ctx.get('attachments'),
   })
   ctx.llm.registerConfigurableProviders([

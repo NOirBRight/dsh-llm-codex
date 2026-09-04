@@ -23,7 +23,7 @@ DeepSeek Harness 的 ChatGPT Codex 集成。独立提供方路由是 `codex`，�
 dsh plugin --profile web add --force \
   https://github.com/NOirBRight/dsh-llm-providers-ui/releases/download/v0.1.5/dsh-llm-providers-ui-0.1.5.tgz
 dsh plugin --profile web add --force \
-  https://github.com/NOirBRight/dsh-llm-codex/releases/download/v0.3.9/dsh-llm-codex-0.3.9.tgz
+  https://github.com/NOirBRight/dsh-llm-codex/releases/download/v0.3.10/dsh-llm-codex-0.3.10.tgz
 dsh web
 ~~~
 
@@ -53,7 +53,7 @@ Fast 和 1M 都是独立选择器行，不是复选框。聊天仍使用官方 w
 
 思考等级默认按模型设置，并可在行上改：Luna 用 `max`，Terra 用 `xhigh`，Sol 用 `high`，其他官方 Codex 模型用 `xhigh`。Fast / 1M 行沿用基础型号；会话中用户手动选择的等级优先。
 
-聊天走 pi-ai `openai-codex-responses`，目标是 `https://chatgpt.com/backend-api`。未登录聊天会失败为 `MISSING_CREDENTIAL`。已存会话刷新失败则报 `AUTH`。
+聊天走 pi-ai `openai-codex-responses`，目标是 `https://chatgpt.com/backend-api`。未登录聊天会失败为 `MISSING_CREDENTIAL`。已存会话刷新失败则报 `AUTH`。之后若在没有任何模型内容前收到 `AUTH`（HTTP 401），会强制 refresh 再打一次请求；仍失败的 `AUTH` 进入 bundle 默认的八次 normal 重试。
 
 ### Model Switch 集成
 
@@ -94,7 +94,7 @@ Fast 和 1M 都是独立选择器行，不是复选框。聊天仍使用官方 w
         jitterRatio: 0.1
 ~~~
 
-bundle 默认对符合条件的模型请求失败最多重试八次。除消息过大 1009 外，带 code/reason 的 ChatGPT WebSocket 关闭、连接上限和过载响应使用可重试的 DSH failure code。token 结构失败使用不可重试的 `AUTH`；含义不明确的 usage limit 仍不可重试。
+bundle 默认对符合条件的模型请求失败最多重试八次，包括 `AUTH`。除消息过大 1009 外，带 code/reason 的 ChatGPT WebSocket 关闭、连接上限和过载响应使用可重试的 DSH failure code。含义不明确的 usage limit 仍不可重试。
 
 没有 `apiKeyEnv`，也没有用户可改的 base URL。`models` 是显示在对话选择器里的目录。
 
@@ -129,7 +129,7 @@ dsh plugin --profile web add --force \
 
 ~~~sh
 dsh plugin --profile web add --force \
-  https://github.com/NOirBRight/dsh-llm-codex/releases/latest/download/dsh-llm-codex-0.3.9.tgz
+  https://github.com/NOirBRight/dsh-llm-codex/releases/latest/download/dsh-llm-codex-0.3.10.tgz
 ~~~
 
 固定版本（可复现）：
@@ -138,7 +138,7 @@ dsh plugin --profile web add --force \
 dsh plugin --profile web add --force \
   https://github.com/NOirBRight/dsh-llm-providers-ui/releases/download/v0.1.5/dsh-llm-providers-ui-0.1.5.tgz
 dsh plugin --profile web add --force \
-  https://github.com/NOirBRight/dsh-llm-codex/releases/download/v0.3.9/dsh-llm-codex-0.3.9.tgz
+  https://github.com/NOirBRight/dsh-llm-codex/releases/download/v0.3.10/dsh-llm-codex-0.3.10.tgz
 ~~~
 
 更新、卸载与验证：
@@ -146,7 +146,7 @@ dsh plugin --profile web add --force \
 ~~~sh
 # 更新到最新 Release
 dsh plugin --profile web add --force \
-  https://github.com/NOirBRight/dsh-llm-codex/releases/latest/download/dsh-llm-codex-0.3.9.tgz
+  https://github.com/NOirBRight/dsh-llm-codex/releases/latest/download/dsh-llm-codex-0.3.10.tgz
 # 验证加载与版本
 dsh plugin --profile web list
 dsh plugin --profile web doctor
@@ -158,4 +158,4 @@ dsh plugin --profile web remove dsh-llm-codex
 
 回滚：重新执行固定版本 v0.3.7 命令，确认插件列表后只重启一次 Web 服务。失败时查看 journalctl --user -u dsh-web.service 与 dsh plugin --profile web doctor，不要把源码 checkout 写入 production profile。
 
-Release 与完整性：[v0.3.9](https://github.com/NOirBRight/dsh-llm-codex/releases/tag/v0.3.9) · [SHA256SUMS](https://github.com/NOirBRight/dsh-llm-codex/releases/download/v0.3.9/SHA256SUMS)。
+Release 与完整性：[v0.3.10](https://github.com/NOirBRight/dsh-llm-codex/releases/tag/v0.3.10) · [SHA256SUMS](https://github.com/NOirBRight/dsh-llm-codex/releases/download/v0.3.10/SHA256SUMS)。

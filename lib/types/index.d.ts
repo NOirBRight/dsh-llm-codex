@@ -10,7 +10,7 @@ import type { RetryPolicyConfig } from '@deepseek-ai/dsh-llm';
 import type { CodexConnectionOptions } from './adapter.ts';
 import { CodexWebAuth } from './auth-routes.ts';
 import type { CodexCatalogModel, CodexSearchContextSize, CodexSearchMode } from './client-contract.ts';
-export { CodexAdapter, resolveCodexAccessToken } from './adapter.ts';
+export { CodexAdapter, refreshCodexAccessToken, resolveCodexAccessToken } from './adapter.ts';
 export type { CodexAdapterOptions, CodexConnectionOptions } from './adapter.ts';
 export { CODEX_CATALOG, CODEX_DEFAULT_STREAM_IDLE_TIMEOUT_MS, CODEX_PROVIDER, CODEX_RPC_CHANNEL, CODEX_SAVE_ENDPOINT, CODEX_SETTINGS_READ_ENDPOINT, CODEX_AUTH_STATUS_ENDPOINT, CODEX_AUTH_BEGIN_ENDPOINT, CODEX_AUTH_CANCEL_ENDPOINT, CODEX_AUTH_ATTEMPT_STATUS_ENDPOINT, CODEX_AUTH_LOGOUT_ENDPOINT, CODEX_SETTINGS_NAMESPACE, CODEX_AUTH_STATUS_PATH, CODEX_AUTH_LOGIN_PATH, CODEX_AUTH_LOGOUT_PATH, DEFAULT_CODEX_SETTINGS, DEFAULT_CODEX_SEARCH_CONTEXT_SIZE, DEFAULT_CODEX_SEARCH_MAX_OUTPUT_TOKENS, DEFAULT_CODEX_IMAGE_GENERATION_MODEL, DEFAULT_CODEX_SEARCH_MODE, DEFAULT_CODEX_SEARCH_MODEL, decodeCodexSettings, decodeCodexSaveRequest, decodeCodexSaveResult, decodeCodexCatalogModel, } from './client-contract.ts';
 export type { CodexCatalogModel, CodexSaveRequest, CodexSaveResult, CodexSearchContextSize, CodexSearchMode, CodexSettingsView, } from './client-contract.ts';
