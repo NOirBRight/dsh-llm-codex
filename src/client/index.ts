@@ -17,12 +17,14 @@ import {
   CODEX_AUTH_ATTEMPT_STATUS_ENDPOINT,
   CODEX_AUTH_LOGOUT_ENDPOINT,
   CODEX_SAVE_ENDPOINT,
+  CODEX_MODELS_FETCH_ENDPOINT,
   CODEX_SETTINGS_NAMESPACE,
   decodeCodexAuthLoginReply,
   decodeCodexAuthLogoutReply,
   decodeCodexAuthStatus,
   decodeCodexAuthAttemptStatus,
   decodeCodexSaveResult,
+  decodeCodexModelCatalog,
 } from '../client-contract.ts'
 import type { CodexSettingsView } from '../client-contract.ts'
 import { officialPickerCatalog } from '../catalog.ts'
@@ -78,7 +80,7 @@ export function apply(ctx: ClientContext): void {
   void refreshSettings().catch(() => { currentSnapshot = { ...currentSnapshot, status: 'unavailable' }; listeners.forEach(listener => listener()) })
 
   const readAuthStatus: CodexPluginCardFace['readAuthStatus'] = async (signal) => {
-    const result = await rpc.call(CODEX_RPC_CHANNEL, CODEX_AUTH_STATUS_ENDPOINT, {}, signal)
+    const result = await rpc.call(CODEX_RPC_CHANNEL, CODEX_AUTH_STATUS_ENDPOINT, { refresh: true }, signal)
     if (!result.ok) throw new Error(result.error.message)
     const decoded = decodeCodexAuthStatus(result.value)
     if (decoded === undefined) throw new Error('invalid auth status')
@@ -121,7 +123,11 @@ export function apply(ctx: ClientContext): void {
     if (!result.ok || decodeCodexAuthLogoutReply(result.value) === undefined) throw new Error(result.ok ? 'invalid logout response' : result.error.message)
   }
 
-  const fetchModels: CodexPluginCardFace['fetchModels'] = async () => officialPickerCatalog()
+  const fetchModels: CodexPluginCardFace['fetchModels'] = async () => {
+    const result = await rpc.call(CODEX_RPC_CHANNEL, CODEX_MODELS_FETCH_ENDPOINT, {})
+    if (!result.ok) return officialPickerCatalog()
+    return decodeCodexModelCatalog(result.value) ?? officialPickerCatalog()
+  }
 
   const saveConfiguration: CodexPluginCardFace['saveConfiguration'] = async (settings) => {
     const snapshot = scope.getSnapshot()

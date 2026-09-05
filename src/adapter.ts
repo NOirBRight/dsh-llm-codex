@@ -30,6 +30,8 @@ export type { CodexConnectionOptions } from './pi-ai-profile.ts'
 export interface CodexAdapterOptions {
   options: () => CodexConnectionOptions
   resolveApiKey: () => Promise<string>
+  /** Force-refresh ChatGPT OAuth after a content-less AUTH finish. */
+  refreshApiKey?: () => Promise<string>
   resolveAttachments?: () => AttachmentStore | undefined
 }
 
@@ -53,6 +55,79 @@ export async function resolveCodexAccessToken(store: CodexCredentialStore): Prom
     )
   }
   return access
+}
+
+/**
+ * Force getAuth to refresh by marking the stored access token expired.
+ * @param store - Host-backed Codex OAuth store.
+ * @returns the refreshed ChatGPT access token.
+ */
+export async function refreshCodexAccessToken(store: CodexCredentialStore): Promise<string> {
+  await store.modify(OPENAI_CODEX_PROVIDER, async (current) => {
+    if (current === undefined || current.type !== 'oauth') return current
+    return { ...current, expires: 1 }
+  })
+  return resolveCodexAccessToken(store)
+}
+
+function isAuthFinish(chunk: StreamChunk): boolean {
+  return chunk.type === 'finish' && chunk.reason.kind === 'error' && chunk.reason.failure.code === 'AUTH'
+}
+
+function isModelContent(chunk: StreamChunk): boolean {
+  return chunk.type === 'block-start'
+    || chunk.type === 'text-delta'
+    || chunk.type === 'reasoning-delta'
+    || chunk.type === 'tool-call-delta'
+    || chunk.type === 'block-end'
+}
+
+/**
+ * Replay a stream once after a content-less AUTH finish, forcing a token refresh first.
+ * @param stream - one request-scoped model stream factory.
+ * @param options - the same generate options passed to both attempts.
+ * @param classify - per-chunk error remapping applied to both attempts.
+ * @param refreshApiKey - force-refresh hook; omitted means AUTH is not retried here.
+ * @returns chunks from the first successful attempt, or the original AUTH finish.
+ */
+export async function* streamWithAuthRetry(
+  stream: (options: GenerateOptions) => AsyncIterable<StreamChunk>,
+  options: GenerateOptions,
+  classify: (chunk: StreamChunk) => StreamChunk,
+  refreshApiKey: (() => Promise<string>) | undefined,
+): AsyncGenerator<StreamChunk> {
+  const buffered: StreamChunk[] = []
+  let sawContent = false
+  for await (const raw of stream(options)) {
+    const chunk = classify(raw)
+    if (isAuthFinish(chunk) && !sawContent && refreshApiKey !== undefined) {
+      try {
+        await refreshApiKey()
+      } catch (error) {
+        // Only AUTH/MISSING_CREDENTIAL from a failed refresh stay here; abort must
+        // surface as cancellation, not as a fake AUTH finish.
+        if (options.signal?.aborted === true || (error instanceof Error && error.name === 'AbortError')) throw error
+        yield* buffered
+        yield chunk
+        return
+      }
+      options.signal?.throwIfAborted()
+      for await (const retryRaw of stream(options)) {
+        yield classify(retryRaw)
+      }
+      return
+    }
+    if (isModelContent(chunk)) {
+      sawContent = true
+      yield* buffered
+      buffered.length = 0
+      yield chunk
+      continue
+    }
+    if (sawContent) yield chunk
+    else buffered.push(chunk)
+  }
+  yield* buffered
 }
 
 /**
@@ -245,9 +320,12 @@ export class CodexAdapter extends LlmAdapter {
   }
 
   override async * stream(options: GenerateOptions): AsyncIterable<StreamChunk> {
-    for await (const chunk of this.current().stream(narrowCodexEscalationSchemas(options))) {
-      yield classifyCodexTransientError(chunk)
-    }
+    yield* streamWithAuthRetry(
+      opts => this.current().stream(narrowCodexEscalationSchemas(opts)),
+      options,
+      classifyCodexTransientError,
+      this.config.refreshApiKey,
+    )
   }
 
   /** Own the method so rc.2 Host can call it even when this class extends an older LlmAdapter. */
@@ -262,13 +340,15 @@ export class CodexAdapter extends LlmAdapter {
         model: await this.resolveModel(provider, model, signal),
         stream: (options: GenerateOptions) => delegate.stream(options),
       }
+    const refreshApiKey = this.config.refreshApiKey
     return {
       model: inner.model,
-      stream: async function* (options: GenerateOptions) {
-        for await (const chunk of inner.stream(narrowCodexEscalationSchemas(options)) as AsyncIterable<StreamChunk>) {
-          yield classifyCodexTransientError(chunk)
-        }
-      },
+      stream: (options: GenerateOptions) => streamWithAuthRetry(
+        opts => inner.stream(narrowCodexEscalationSchemas(opts)) as AsyncIterable<StreamChunk>,
+        options,
+        classifyCodexTransientError,
+        refreshApiKey,
+      ),
     }
   }
 }

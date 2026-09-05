@@ -28,6 +28,10 @@ export type CodexWebAuthStatus =
   | { status: 'signed-in'; usage: CodexUsage; quotaError?: string }
   | { status: 'error'; message: string }
 
+function codexUsageEmpty(usage: CodexUsage): boolean {
+  return usage.rateLimits.length === 0 && usage.credits === undefined && usage.individualLimit === undefined
+}
+
 export interface LoginChallenge {
   /** Browser OAuth URL, when the provider uses browser authorization. */
   url?: string
@@ -93,9 +97,13 @@ export class CodexWebAuth {
     }
   }
 
-  async status(): Promise<CodexWebAuthStatus> {
+  async status(refresh = false): Promise<CodexWebAuthStatus> {
     if (this.operation !== undefined) return this.state
-    if (this.state.status === 'error' || this.state.status === 'signed-in') return this.state
+    if (this.state.status === 'error') return this.state
+    if (this.state.status === 'signed-in') {
+      if (refresh || codexUsageEmpty(this.state.usage)) await this.refreshUsage()
+      return this.state
+    }
     return this.readStoredStatus()
   }
 
@@ -213,10 +221,9 @@ export class CodexWebAuth {
   private async readStoredStatus(): Promise<CodexWebAuthStatus> {
     const stored = await codexAuthStatus(this.store)
     if (!stored.authenticated) return { status: 'signed-out' }
-    const signedIn: CodexWebAuthStatus = { status: 'signed-in', usage: { rateLimits: [] } }
-    this.state = signedIn
-    void this.refreshUsage()
-    return signedIn
+    this.state = { status: 'signed-in', usage: { rateLimits: [] } }
+    await this.refreshUsage()
+    return this.state
   }
 
   private async refreshUsage(): Promise<void> {

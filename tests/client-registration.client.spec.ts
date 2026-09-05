@@ -3,6 +3,7 @@
 import { Context, Service } from '@deepseek-ai/cordis'
 import { describe, expect, it, vi } from 'vitest'
 import { apply, inject } from '../src/client/index.ts'
+import { CODEX_AUTH_STATUS_ENDPOINT, CODEX_MODELS_FETCH_ENDPOINT, CODEX_SETTINGS_READ_ENDPOINT, DEFAULT_CODEX_SETTINGS } from '../src/client-contract.ts'
 
 interface SlotEntry {
   options: Record<string, unknown>
@@ -60,6 +61,77 @@ describe('Codex client plugin registration', () => {
     await pending
     expect(opened.location.href).toBe('https://chatgpt.com/oauth')
     open.mockRestore()
+    await fiber.dispose()
+    await ctx.fiber.dispose()
+  })
+
+  it('requests live quota when the Codex card refreshes status', async () => {
+    const rpc = { call: vi.fn(async (_channel: string, endpoint: string) => ({
+      ok: true,
+      value: endpoint === CODEX_SETTINGS_READ_ENDPOINT
+        ? { settings: DEFAULT_CODEX_SETTINGS, revision: 1 }
+        : { status: 'signed-out' },
+    })) }
+    const { ctx, slots } = await bench(rpc)
+    const fiber = ctx.plugin({ inject: [...inject], apply })
+    await fiber.await()
+    const face = slots.entries('settings.provider.item')[0]!.inject!() as { readAuthStatus: () => Promise<unknown> }
+
+    await face.readAuthStatus()
+    expect(rpc.call).toHaveBeenCalledWith('/codex', CODEX_AUTH_STATUS_ENDPOINT, { refresh: true }, undefined)
+
+    await fiber.dispose()
+    await ctx.fiber.dispose()
+  })
+
+  it('fetches the model catalog through Host RPC', async () => {
+    const rpc = { call: vi.fn(async (_channel: string, endpoint: string) => ({
+      ok: true,
+      value: endpoint === CODEX_SETTINGS_READ_ENDPOINT
+        ? { settings: DEFAULT_CODEX_SETTINGS, revision: 1 }
+        : [{ id: 'gpt-6-astra' }],
+    })) }
+    const { ctx, slots } = await bench(rpc)
+    const fiber = ctx.plugin({ inject: [...inject], apply })
+    await fiber.await()
+    const face = slots.entries('settings.provider.item')[0]!.inject!() as { fetchModels: () => Promise<unknown> }
+
+    await expect(face.fetchModels()).resolves.toEqual([expect.objectContaining({ id: 'gpt-6-astra' })])
+    expect(rpc.call).toHaveBeenCalledWith('/codex', CODEX_MODELS_FETCH_ENDPOINT, {})
+
+    await fiber.dispose()
+    await ctx.fiber.dispose()
+  })
+
+  it('falls back to the static catalog during a client-first rolling update', async () => {
+    const rpc = { call: vi.fn(async (_channel: string, endpoint: string) => endpoint === CODEX_SETTINGS_READ_ENDPOINT
+      ? { ok: true, value: { settings: DEFAULT_CODEX_SETTINGS, revision: 1 } }
+      : { ok: false, error: { message: 'unknown Codex endpoint: models/fetch' } }) }
+    const { ctx, slots } = await bench(rpc)
+    const fiber = ctx.plugin({ inject: [...inject], apply })
+    await fiber.await()
+    const face = slots.entries('settings.provider.item')[0]!.inject!() as { fetchModels: () => Promise<readonly { id: string }[]> }
+
+    await expect(face.fetchModels()).resolves.toEqual(expect.arrayContaining([expect.objectContaining({ id: 'gpt-5.6-sol' })]))
+
+    await fiber.dispose()
+    await ctx.fiber.dispose()
+  })
+
+  it('keeps the static catalog when Host returns a malformed discovery reply', async () => {
+    const rpc = { call: vi.fn(async (_channel: string, endpoint: string) => ({
+      ok: true,
+      value: endpoint === CODEX_SETTINGS_READ_ENDPOINT
+        ? { settings: DEFAULT_CODEX_SETTINGS, revision: 1 }
+        : { models: 'malformed' },
+    })) }
+    const { ctx, slots } = await bench(rpc)
+    const fiber = ctx.plugin({ inject: [...inject], apply })
+    await fiber.await()
+    const face = slots.entries('settings.provider.item')[0]!.inject!() as { fetchModels: () => Promise<readonly { id: string }[]> }
+
+    await expect(face.fetchModels()).resolves.toEqual(expect.arrayContaining([expect.objectContaining({ id: 'gpt-5.6-sol' })]))
+
     await fiber.dispose()
     await ctx.fiber.dispose()
   })

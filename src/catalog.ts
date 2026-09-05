@@ -19,6 +19,8 @@ export interface CodexCatalogModel {
   thinking?: boolean
   /** Chat-picker default when the conversation has not chosen a level. */
   defaultEffort?: string
+  /** Reasoning efforts advertised by the remote Codex catalog. */
+  efforts?: string[]
   /** Whether the model accepts image input. */
   vision?: boolean
   /** Legacy capability flag. Ignored at runtime; still decoded. */
@@ -307,7 +309,8 @@ export function effortsForCodexModel(model: CodexCatalogModel): readonly string[
     return CODEX_EFFORT_ORDER.filter(effort => keys.has(effort))
   }
   if (model.thinking === true) {
-    return CODEX_EFFORT_ORDER.filter(effort => effort !== 'ultra' && effort !== 'minimal')
+    const advertised = model.efforts === undefined ? undefined : new Set(model.efforts)
+    return CODEX_EFFORT_ORDER.filter(effort => advertised?.has(effort) ?? (effort !== 'ultra' && effort !== 'minimal'))
   }
   return []
 }
@@ -359,6 +362,7 @@ export function hydrateCatalogModel(model: CodexCatalogModel): CodexCatalogModel
       ...model.maxTokens === undefined ? {} : { maxTokens: model.maxTokens },
       ...model.thinking === undefined ? {} : { thinking: model.thinking },
       ...model.defaultEffort === undefined ? {} : { defaultEffort: model.defaultEffort },
+      ...model.efforts === undefined ? {} : { efforts: model.efforts },
       ...model.vision === undefined ? {} : { vision: model.vision },
       ...model.tools === undefined ? {} : { tools: model.tools },
       ...fast ? { fast: true } : {},
@@ -374,6 +378,7 @@ export function hydrateCatalogModel(model: CodexCatalogModel): CodexCatalogModel
     maxTokens: model.maxTokens ?? official.maxTokens,
     ...fast ? { fast: true } : {},
     ...model.defaultEffort === undefined ? {} : { defaultEffort: model.defaultEffort },
+    ...model.efforts === undefined ? {} : { efforts: model.efforts },
     ...model.description === undefined ? {} : { description: model.description },
   }
 }

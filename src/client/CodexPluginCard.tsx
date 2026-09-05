@@ -70,6 +70,7 @@ interface ModelDraft {
   thinking?: boolean
   vision?: boolean
   defaultEffort?: string
+  efforts?: string[]
   contextWindow: string
   fast?: boolean
 }
@@ -192,6 +193,7 @@ function modelDraftOf(model: CodexCatalogModel): ModelDraft {
     ...model.thinking === undefined ? {} : { thinking: model.thinking },
     ...model.vision === undefined ? {} : { vision: model.vision },
     ...model.defaultEffort === undefined ? {} : { defaultEffort: model.defaultEffort },
+    ...model.efforts === undefined ? {} : { efforts: model.efforts },
     ...model.fast === undefined ? {} : { fast: model.fast },
   }
 }
@@ -204,6 +206,7 @@ function modelSettingsOf(draft: ModelDraft): CodexCatalogModel {
     ...draft.thinking === undefined ? {} : { thinking: draft.thinking },
     ...draft.vision === undefined ? {} : { vision: draft.vision },
     ...draft.defaultEffort === undefined ? {} : { defaultEffort: draft.defaultEffort },
+    ...draft.efforts === undefined ? {} : { efforts: draft.efforts },
     ...contextWindow === undefined || Number.isNaN(contextWindow) ? {} : { contextWindow },
     ...draft.fast === undefined ? {} : { fast: draft.fast },
   }

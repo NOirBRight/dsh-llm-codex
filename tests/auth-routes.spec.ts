@@ -88,6 +88,21 @@ describe('CodexWebAuth.status', () => {
     await auth.dispose()
   })
 
+  it('refreshes a populated quota snapshot only when explicitly requested', async () => {
+    root = await mkdtemp(join(tmpdir(), 'dsh-llm-codex-auth-'))
+    const auth = new CodexWebAuth(authStore())
+    const refreshUsage = vi.fn(async () => {})
+    Object.assign(auth, {
+      state: { status: 'signed-in', usage: { rateLimits: [{ id: 'codex', windows: [{ remainingPercent: 50, windowSeconds: 3_600 }] }] } },
+      refreshUsage,
+    })
+
+    await auth.status()
+    await auth.status(true)
+
+    expect(refreshUsage).toHaveBeenCalledTimes(1)
+  })
+
   it('lets a later client cancel an abandoned browser login and start again', async () => {
     root = await mkdtemp(join(tmpdir(), 'dsh-llm-codex-auth-'))
     const auth = hangingAuth()

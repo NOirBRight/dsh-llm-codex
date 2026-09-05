@@ -6,15 +6,24 @@ ChatGPT Codex integration for DeepSeek Harness. This plugin is a separate provid
 
 The package root exposes the Cordis plugin contract. The same artifact exports `./client`, which contributes the Codex card under Settings → LLM Providers.
 
+## Compatibility
+
+Verified runtimes are DeepSeek Harness `0.1.2-alpha.4` and `0.1.2-rc.1` on Cordis `4.0.2`; this record is evidence, not an allowlist.
+
+Unknown newer runtimes are attempted on a best-effort basis after one warning, and the plugin keeps its normal mount path.
+
+A reproduced failure is blocklisted only afterward; see the [compatibility records](package.json) for the affected version, reason, and evidence.
+
+
 ## Installation
 
-DeepSeek Harness `0.1.2-alpha.4` is required exactly; Alpha.1–Alpha.3 are incompatible and Alpha.5 is unverified. Exact Store records are in `dsh.compatibility.dshReleases`. Users on older runtimes must keep the last compatible Codex tag. Install directly from GitHub:
+Install directly from GitHub:
 
 ~~~sh
 dsh plugin --profile web add --force \
-  https://github.com/NOirBRight/dsh-llm-providers-ui/releases/download/v0.1.3/dsh-llm-providers-ui-0.1.3.tgz
+  https://github.com/NOirBRight/dsh-llm-providers-ui/releases/download/v0.1.5/dsh-llm-providers-ui-0.1.5.tgz
 dsh plugin --profile web add --force \
-  https://github.com/NOirBRight/dsh-llm-codex/releases/download/v0.3.8/dsh-llm-codex-0.3.8.tgz
+  https://github.com/NOirBRight/dsh-llm-codex/releases/download/v0.3.10/dsh-llm-codex-0.3.10.tgz
 dsh web
 ~~~
 
@@ -44,7 +53,7 @@ Picker ids may also use a generic context suffix `-<n>k` or `-<n>m` (for example
 
 Default reasoning effort is per model and editable on the row: Luna uses `max`, Terra `xhigh`, Sol `high`, and every other official Codex model `xhigh`. Fast and 1M rows use their base model's default. A reasoning effort explicitly selected in a conversation takes precedence.
 
-Chat goes through pi-ai `openai-codex-responses` against `https://chatgpt.com/backend-api`. Chat without a session fails `MISSING_CREDENTIAL`. A stored session whose refresh fails is reported as `AUTH`.
+Chat goes through pi-ai `openai-codex-responses` against `https://chatgpt.com/backend-api`. Chat without a session fails `MISSING_CREDENTIAL`. A stored session whose refresh fails is reported as `AUTH`. A later content-less `AUTH` (HTTP 401) force-refreshes the session and retries the request once; remaining `AUTH` failures are eligible for the bundle's eight normal retries.
 
 ### Model Switch integration
 
@@ -85,10 +94,9 @@ Search, `view_image`, and `codex_generate_image` are implemented but default off
         jitterRatio: 0.1
 ~~~
 
-The bundle retries eligible model-request failures up to eight times by default. ChatGPT WebSocket closures, including code-and-reason variants other than message-too-large code 1009, connection limits, and overload responses use retryable DSH failure codes. Token-shape failures use non-retryable `AUTH`; ambiguous usage limits remain non-retryable.
+The bundle retries eligible model-request failures up to eight times by default, including `AUTH`. ChatGPT WebSocket closures, including code-and-reason variants other than message-too-large code 1009, connection limits, and overload responses use retryable DSH failure codes. Ambiguous usage limits remain non-retryable.
 
 There is no `apiKeyEnv` and no user-editable base URL. `models` is the displayed conversation catalog.
-
 
 ## LLM Providers UI ownership
 
@@ -104,7 +112,6 @@ Install `dsh-llm-providers-ui` explicitly in the profile alongside provider plug
 
 MIT
 
-
 ## Release installation (Latest)
 
 ChatGPT Codex login, model catalog, usage, and optional search/image capabilities. The release artifact targets DeepSeek Harness 0.1.2-alpha.4 and contains built Host/Client files only; it has no sibling-repository source, workstation path, link:, or workspace: dependency.
@@ -115,23 +122,23 @@ Owner (Latest):
 
 ~~~sh
 dsh plugin --profile web add --force \
-  https://github.com/NOirBRight/dsh-llm-providers-ui/releases/latest/download/dsh-llm-providers-ui-0.1.3.tgz
+  https://github.com/NOirBRight/dsh-llm-providers-ui/releases/latest/download/dsh-llm-providers-ui-0.1.5.tgz
 ~~~
 
 Provider (Latest):
 
 ~~~sh
 dsh plugin --profile web add --force \
-  https://github.com/NOirBRight/dsh-llm-codex/releases/latest/download/dsh-llm-codex-0.3.8.tgz
+  https://github.com/NOirBRight/dsh-llm-codex/releases/latest/download/dsh-llm-codex-0.3.10.tgz
 ~~~
 
 Fixed versions (reproducible):
 
 ~~~sh
 dsh plugin --profile web add --force \
-  https://github.com/NOirBRight/dsh-llm-providers-ui/releases/download/v0.1.3/dsh-llm-providers-ui-0.1.3.tgz
+  https://github.com/NOirBRight/dsh-llm-providers-ui/releases/download/v0.1.5/dsh-llm-providers-ui-0.1.5.tgz
 dsh plugin --profile web add --force \
-  https://github.com/NOirBRight/dsh-llm-codex/releases/download/v0.3.8/dsh-llm-codex-0.3.8.tgz
+  https://github.com/NOirBRight/dsh-llm-codex/releases/download/v0.3.10/dsh-llm-codex-0.3.10.tgz
 ~~~
 
 Update, uninstall, and verify:
@@ -139,7 +146,7 @@ Update, uninstall, and verify:
 ~~~sh
 # Update to the latest Release
 dsh plugin --profile web add --force \
-  https://github.com/NOirBRight/dsh-llm-codex/releases/latest/download/dsh-llm-codex-0.3.8.tgz
+  https://github.com/NOirBRight/dsh-llm-codex/releases/latest/download/dsh-llm-codex-0.3.10.tgz
 # Verify the loaded version
 dsh plugin --profile web list
 dsh plugin --profile web doctor
@@ -151,4 +158,4 @@ Configuration: use the plugin section in Settings for Web UI plugins, or the pro
 
 Rollback: rerun the fixed v0.3.7 command, verify the profile list, then restart the Web service once. Inspect journalctl --user -u dsh-web.service and dsh plugin --profile web doctor; never put a source checkout in the production profile.
 
-Release and integrity: [v0.3.8](https://github.com/NOirBRight/dsh-llm-codex/releases/tag/v0.3.8) · [SHA256SUMS](https://github.com/NOirBRight/dsh-llm-codex/releases/download/v0.3.8/SHA256SUMS).
+Release and integrity: [v0.3.10](https://github.com/NOirBRight/dsh-llm-codex/releases/tag/v0.3.10) · [SHA256SUMS](https://github.com/NOirBRight/dsh-llm-codex/releases/download/v0.3.10/SHA256SUMS).

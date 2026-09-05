@@ -10,10 +10,11 @@ import z from '@deepseek-ai/schemastery'
 import type {} from '@deepseek-ai/dsh-client-connection'
 import type { ConnectionRpcHandler } from '@deepseek-ai/dsh-client-connection'
 import { resolveRetryPolicy, RetryPolicySchema } from '@deepseek-ai/dsh-llm'
-import type { RetryPolicyConfig } from '@deepseek-ai/dsh-llm'
+import type { ResolvedRetryPolicy, RetryPolicyConfig } from '@deepseek-ai/dsh-llm'
 import { deepEqualJson } from '@deepseek-ai/dsh-util-values'
 import type { SettingsPathOp } from '@deepseek-ai/dsh-settings'
 import { MAX_TIMER_DELAY_MS } from '@deepseek-ai/dsh-timeout'
+import { allowDshRuntime } from './compatibility.ts'
 import type {} from '@deepseek-ai/dsh-attachment'
 import type {} from '@deepseek-ai/dsh-agent'
 import type {} from '@deepseek-ai/dsh-session'
@@ -21,13 +22,14 @@ import type {} from '@deepseek-ai/dsh-web'
 import type {} from '@deepseek-ai/dsh-host-webserver'
 import type {} from '@deepseek-ai/dsh-tools'
 import type {} from '@deepseek-ai/dsh-fs'
-import { CodexAdapter, resolveCodexAccessToken } from './adapter.ts'
+import { CodexAdapter, refreshCodexAccessToken, resolveCodexAccessToken } from './adapter.ts'
 import type { CodexConnectionOptions } from './adapter.ts'
 import { CodexWebAuth, registerCodexAuthRoutes } from './auth-routes.ts'
 import { generateImageTool } from './generate-image.ts'
 import { viewImageTool } from './view-image.ts'
 import { CodexSearchProvider } from './search.ts'
 import { CodexCredentialStore } from './store.ts'
+import { refreshCodexModelCatalog } from './remote-catalog.ts'
 import { installCodexModelSwitchAdapters } from './model-switch-adapter.ts'
 import {
   CODEX_CATALOG,
@@ -36,6 +38,7 @@ import {
   CODEX_RPC_CHANNEL,
   CODEX_SAVE_ENDPOINT,
   CODEX_SETTINGS_READ_ENDPOINT,
+  CODEX_MODELS_FETCH_ENDPOINT,
   CODEX_AUTH_STATUS_ENDPOINT,
   CODEX_AUTH_BEGIN_ENDPOINT,
   CODEX_AUTH_CANCEL_ENDPOINT,
@@ -57,7 +60,13 @@ import { hydrateCatalogModel } from './catalog.ts'
 /** Preserve Codex's historical normal retry count across host-line default changes. */
 const DEFAULT_MAX_RETRIES = 2
 
-export { CodexAdapter, resolveCodexAccessToken } from './adapter.ts'
+function withAuthRetries(policy: ResolvedRetryPolicy): ResolvedRetryPolicy {
+  if (policy.mode !== 'normal') return policy
+  if (policy.retryableCodes.includes('AUTH')) return policy
+  return { ...policy, retryableCodes: Object.freeze([...policy.retryableCodes, 'AUTH']) }
+}
+
+export { CodexAdapter, refreshCodexAccessToken, resolveCodexAccessToken } from './adapter.ts'
 export type { CodexAdapterOptions, CodexConnectionOptions } from './adapter.ts'
 export {
   CODEX_CATALOG,
@@ -66,6 +75,7 @@ export {
   CODEX_RPC_CHANNEL,
   CODEX_SAVE_ENDPOINT,
   CODEX_SETTINGS_READ_ENDPOINT,
+  CODEX_MODELS_FETCH_ENDPOINT,
   CODEX_AUTH_STATUS_ENDPOINT,
   CODEX_AUTH_BEGIN_ENDPOINT,
   CODEX_AUTH_CANCEL_ENDPOINT,
@@ -85,6 +95,7 @@ export {
   decodeCodexSaveRequest,
   decodeCodexSaveResult,
   decodeCodexCatalogModel,
+  decodeCodexModelCatalog,
 } from './client-contract.ts'
 export type {
   CodexCatalogModel,
@@ -106,6 +117,7 @@ export {
   resolveWireModel,
   hydrateCatalogModel,
 } from './catalog.ts'
+export { CODEX_MODELS_URL, CODEX_MODEL_CACHE_FILENAME, refreshCodexModelCatalog } from './remote-catalog.ts'
 export { applyCodexWirePayload, applyCodexCatalogWire } from './service-tier.ts'
 export {
   CodexCredentialStore,
@@ -173,6 +185,7 @@ const catalogModel = z.object({
   vision: z.boolean(),
   thinking: z.boolean(),
   defaultEffort: z.string(),
+  efforts: z.array(z.string()),
   tools: z.boolean(),
   fast: z.boolean(),
 })
@@ -219,10 +232,10 @@ export function resolveAdapterOptions(config: Config): CodexConnectionOptions {
   return {
     models: resolveModels(config.models),
     streamIdleTimeoutMs,
-    retryPolicy: resolveRetryPolicy(
+    retryPolicy: withAuthRetries(resolveRetryPolicy(
       config.retryPolicy ?? { mode: 'normal', maxRetries: DEFAULT_MAX_RETRIES },
       'llm-codex: retryPolicy',
-    ),
+    )),
   }
 }
 
@@ -304,11 +317,19 @@ export function createCodexRpcHandler(ctx: Context): ConnectionRpcHandler {
   }
 }
 
-export function createCodexManagementRpcHandler(ctx: Context, auth: CodexWebAuth): ConnectionRpcHandler {
+export function createCodexManagementRpcHandler(
+  ctx: Context,
+  auth: CodexWebAuth,
+  fetchModels: () => Promise<readonly CodexCatalogModel[]> = async () => CODEX_CATALOG,
+): ConnectionRpcHandler {
   return async (endpoint, payload) => {
     if (endpoint === CODEX_SETTINGS_READ_ENDPOINT) return readConfiguration(ctx)
+    if (endpoint === CODEX_MODELS_FETCH_ENDPOINT) return { ok: true as const, value: await fetchModels() }
     if (endpoint === CODEX_SAVE_ENDPOINT) return saveConfiguration(ctx, payload)
-    if (endpoint === CODEX_AUTH_STATUS_ENDPOINT) return { ok: true as const, value: await auth.status() }
+    if (endpoint === CODEX_AUTH_STATUS_ENDPOINT) {
+      const refresh = typeof payload === 'object' && payload !== null && (payload as { refresh?: unknown }).refresh === true
+      return { ok: true as const, value: await auth.status(refresh) }
+    }
     if (endpoint === CODEX_AUTH_BEGIN_ENDPOINT) {
       const method = typeof payload === 'object' && payload !== null && (payload as { method?: unknown }).method === 'device_code'
         ? 'device_code'
@@ -330,6 +351,8 @@ export function createCodexManagementRpcHandler(ctx: Context, auth: CodexWebAuth
 }
 
 export function apply(ctx: Context, config: Config): void {
+  if (!allowDshRuntime(ctx.logger, 'dsh-llm-codex', ['@deepseek-ai/dsh-llm'])) return
+
   let current: () => Config = () => config
   let lastRaw: Config | undefined
   let lastGood: CodexConnectionOptions | undefined
@@ -356,6 +379,7 @@ export function apply(ctx: Context, config: Config): void {
   const adapter = new CodexAdapter({
     options,
     resolveApiKey: () => resolveCodexAccessToken(credentials),
+    refreshApiKey: () => refreshCodexAccessToken(credentials),
     resolveAttachments: () => ctx.get('attachments'),
   })
   ctx.llm.registerConfigurableProviders([
@@ -373,7 +397,7 @@ export function apply(ctx: Context, config: Config): void {
 
   ctx.inject(['webServer'], webCtx => registerCodexAuthRoutes(webCtx, credentials, auth))
   ctx.inject(['connection'], (connectionCtx) => {
-    connectionCtx.effect(() => connectionCtx.connection.rpc.handle(CODEX_RPC_CHANNEL, createCodexManagementRpcHandler(ctx, auth)), 'dsh-llm-codex: management RPC')
+    connectionCtx.effect(() => connectionCtx.connection.rpc.handle(CODEX_RPC_CHANNEL, createCodexManagementRpcHandler(ctx, auth, () => refreshCodexModelCatalog(credentials))), 'dsh-llm-codex: management RPC')
   })
 
   let stopped = false
