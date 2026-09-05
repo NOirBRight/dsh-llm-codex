@@ -8,6 +8,16 @@ import type {} from '@deepseek-ai/dsh-client-ui-settings-plugins/client'
 import type {} from '@deepseek-ai/dsh-client-ui-layout/client'
 import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
 import type {} from '@deepseek-ai/dsh-client-ui-slots'
+import { createCodexUsageReader } from 'dsh-llm-providers-ui/usage-readers'
+
+/** Register this card and its quota reader on the shared Provider directory. */
+function installProviderDirectory(ctx: ClientContext): void {
+  ctx.inject(['providerDirectory'], scope => {
+    const directory = (scope as unknown as { providerDirectory: { register(entry: { key: string, usage: unknown }): () => void } }).providerDirectory
+    scope.effect(() => directory.register({ key: CODEX_SETTINGS_NAMESPACE, usage: createCodexUsageReader() }), 'dsh-llm-codex: provider directory registration')
+  })
+}
+
 import {
   CODEX_RPC_CHANNEL,
   CODEX_SETTINGS_READ_ENDPOINT,
@@ -53,6 +63,8 @@ export const inject = ['slots', 'locale', 'connection']
 
 
 export function apply(ctx: ClientContext): void {
+  installProviderDirectory(ctx)
+
   const localeNamespace = 'settings.codex'
   ctx.effect(
     () => ctx.locale.register(localeNamespace, { zh, en }),
