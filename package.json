@@ -1,7 +1,7 @@
 {
   "name": "dsh-llm-codex",
   "description": "ChatGPT Codex login, sortable catalog, and Fast models for DeepSeek Harness",
-  "version": "0.3.13",
+  "version": "0.3.14",
   "publishConfig": {
     "access": "public"
   },
@@ -48,8 +48,8 @@
     "build": "tsc -p tsconfig.json && tsdown",
     "test": "vitest run",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "pack:check": "DSH_ALPHA4_PLUGIN_ROOT=\"$PWD\" node ../dsh-llm-codex/scripts/check-alpha4-pack.mjs",
-    "fixtures:alpha4": "DSH_ALPHA4_PLUGIN_ROOT=\"$PWD\" node ../dsh-llm-codex/scripts/prepare-alpha4-fixtures.mjs",
+    "pack:check": "DSH_ALPHA4_PLUGIN_ROOT=\"$PWD\" node scripts/check-alpha4-pack.mjs",
+    "fixtures:alpha4": "DSH_ALPHA4_PLUGIN_ROOT=\"$PWD\" node scripts/prepare-alpha4-fixtures.mjs",
     "check": "pnpm run build && pnpm run test && pnpm run pack:check && pnpm run check:alpha4-adapter",
     "check:alpha4-adapter": "node scripts/check-alpha4-adapter.mjs"
   },

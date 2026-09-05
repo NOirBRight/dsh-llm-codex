@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.3.14] - 2026-09-05
+
+### Added
+
+- Register the provider card and its quota reader on the shared Provider Directory (`dsh-llm-providers-ui` 0.1.9 `usage-readers`, deferred `ctx.inject(providerDirectory)`); the client bundle now includes `usage-readers`.
+- Self-declare Model Switch search capability metadata: the Host search adapter carries the `Codex` label and a live serializable `models` catalog (`{id, name}` for configured models with `tools !== false`) through the existing optional adapter-registry API, with no `dsh-model-switch` package upgrade. Unsupported search models and missing credentials fail explicitly with no silent fallback.
+
+### Notes
+
+- The coordinated Model Switch search UI that reads this metadata requires Model Switch 0.4.7 (coordinated release, not yet published). The `dsh-model-switch` peer range (`^0.4.5`) and dev dependency (0.4.6) are unchanged: older Model Switch releases ignore the extra fields and search still works through the registry.
+- Tested against `dsh-llm-providers-ui` 0.1.9 (includes the Provider Directory registration API).
+
 ## [0.3.13] - 2026-09-05
 
 ### Fixed
