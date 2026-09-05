@@ -8,6 +8,7 @@ interface CodexModelSwitchSettings {
     readonly searchMaxOutputTokens: number;
     readonly models: readonly {
         readonly id: string;
+        readonly name?: string;
         readonly tools?: boolean;
         readonly vision?: boolean;
     }[];
