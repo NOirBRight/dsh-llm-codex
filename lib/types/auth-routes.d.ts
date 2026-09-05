@@ -48,7 +48,7 @@ export declare class CodexWebAuth {
     private usageRefresh;
     private readonly attempts;
     constructor(store: CodexCredentialStore, options?: CodexWebAuthOptions);
-    status(): Promise<CodexWebAuthStatus>;
+    status(refresh?: boolean): Promise<CodexWebAuthStatus>;
     signIn(method?: 'browser' | 'device_code'): Promise<LoginChallenge>;
     attemptStatus(attemptId: string): 'pending' | 'succeeded' | 'failed' | 'cancelled' | 'missing';
     cancel(attemptId?: string): boolean;

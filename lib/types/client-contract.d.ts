@@ -13,6 +13,8 @@ export declare const CODEX_RPC_CHANNEL = "/codex";
 export declare const CODEX_SAVE_ENDPOINT = "settings/save";
 /** Authoritative settings snapshot endpoint. */
 export declare const CODEX_SETTINGS_READ_ENDPOINT = "settings/read";
+/** Authenticated remote model refresh endpoint. */
+export declare const CODEX_MODELS_FETCH_ENDPOINT = "models/fetch";
 export declare const CODEX_AUTH_STATUS_ENDPOINT = "auth/status";
 export declare const CODEX_AUTH_BEGIN_ENDPOINT = "auth/begin";
 export declare const CODEX_AUTH_CANCEL_ENDPOINT = "auth/cancel";
@@ -150,6 +152,8 @@ export type CodexAuthAttemptStatus = {
 export declare const DEFAULT_CODEX_SETTINGS: Readonly<CodexSettingsView>;
 /** Decode one catalog row; unknown extra fields are ignored. */
 export declare function decodeCodexCatalogModel(value: unknown): CodexCatalogModel | undefined;
+/** Narrow a Host model-catalog reply before it enters React state. */
+export declare function decodeCodexModelCatalog(value: unknown): CodexCatalogModel[] | undefined;
 /** Narrow a redacted settings payload before it enters React state. */
 export declare function decodeCodexSettings(value: unknown): CodexSettingsView | undefined;
 /** Decode a browser save request. */

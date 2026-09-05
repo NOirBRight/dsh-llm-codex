@@ -18,6 +18,8 @@ export interface CodexCatalogModel {
     thinking?: boolean;
     /** Chat-picker default when the conversation has not chosen a level. */
     defaultEffort?: string;
+    /** Reasoning efforts advertised by the remote Codex catalog. */
+    efforts?: string[];
     /** Whether the model accepts image input. */
     vision?: boolean;
     /** Legacy capability flag. Ignored at runtime; still decoded. */

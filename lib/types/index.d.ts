@@ -12,9 +12,10 @@ import { CodexWebAuth } from './auth-routes.ts';
 import type { CodexCatalogModel, CodexSearchContextSize, CodexSearchMode } from './client-contract.ts';
 export { CodexAdapter, refreshCodexAccessToken, resolveCodexAccessToken } from './adapter.ts';
 export type { CodexAdapterOptions, CodexConnectionOptions } from './adapter.ts';
-export { CODEX_CATALOG, CODEX_DEFAULT_STREAM_IDLE_TIMEOUT_MS, CODEX_PROVIDER, CODEX_RPC_CHANNEL, CODEX_SAVE_ENDPOINT, CODEX_SETTINGS_READ_ENDPOINT, CODEX_AUTH_STATUS_ENDPOINT, CODEX_AUTH_BEGIN_ENDPOINT, CODEX_AUTH_CANCEL_ENDPOINT, CODEX_AUTH_ATTEMPT_STATUS_ENDPOINT, CODEX_AUTH_LOGOUT_ENDPOINT, CODEX_SETTINGS_NAMESPACE, CODEX_AUTH_STATUS_PATH, CODEX_AUTH_LOGIN_PATH, CODEX_AUTH_LOGOUT_PATH, DEFAULT_CODEX_SETTINGS, DEFAULT_CODEX_SEARCH_CONTEXT_SIZE, DEFAULT_CODEX_SEARCH_MAX_OUTPUT_TOKENS, DEFAULT_CODEX_IMAGE_GENERATION_MODEL, DEFAULT_CODEX_SEARCH_MODE, DEFAULT_CODEX_SEARCH_MODEL, decodeCodexSettings, decodeCodexSaveRequest, decodeCodexSaveResult, decodeCodexCatalogModel, } from './client-contract.ts';
+export { CODEX_CATALOG, CODEX_DEFAULT_STREAM_IDLE_TIMEOUT_MS, CODEX_PROVIDER, CODEX_RPC_CHANNEL, CODEX_SAVE_ENDPOINT, CODEX_SETTINGS_READ_ENDPOINT, CODEX_MODELS_FETCH_ENDPOINT, CODEX_AUTH_STATUS_ENDPOINT, CODEX_AUTH_BEGIN_ENDPOINT, CODEX_AUTH_CANCEL_ENDPOINT, CODEX_AUTH_ATTEMPT_STATUS_ENDPOINT, CODEX_AUTH_LOGOUT_ENDPOINT, CODEX_SETTINGS_NAMESPACE, CODEX_AUTH_STATUS_PATH, CODEX_AUTH_LOGIN_PATH, CODEX_AUTH_LOGOUT_PATH, DEFAULT_CODEX_SETTINGS, DEFAULT_CODEX_SEARCH_CONTEXT_SIZE, DEFAULT_CODEX_SEARCH_MAX_OUTPUT_TOKENS, DEFAULT_CODEX_IMAGE_GENERATION_MODEL, DEFAULT_CODEX_SEARCH_MODE, DEFAULT_CODEX_SEARCH_MODEL, decodeCodexSettings, decodeCodexSaveRequest, decodeCodexSaveResult, decodeCodexCatalogModel, decodeCodexModelCatalog, } from './client-contract.ts';
 export type { CodexCatalogModel, CodexSaveRequest, CodexSaveResult, CodexSearchContextSize, CodexSearchMode, CodexSettingsView, } from './client-contract.ts';
 export { CODEX_FAST_SERVICE_TIER, CODEX_FAST_SUFFIX, CODEX_LARGE_CONTEXT_SUFFIX, CODEX_LARGE_CONTEXT_WINDOW, CODEX_OFFICIAL_MODELS, defaultDisplayedCatalog, officialImageGenerationModels, officialPickerCatalog, resolveWireModel, hydrateCatalogModel, } from './catalog.ts';
+export { CODEX_MODELS_URL, CODEX_MODEL_CACHE_FILENAME, refreshCodexModelCatalog } from './remote-catalog.ts';
 export { applyCodexWirePayload, applyCodexCatalogWire } from './service-tier.ts';
 export { CodexCredentialStore, CODEX_AUTH_FILENAME, OPENAI_CODEX_PROVIDER, codexAuthPath, } from './store.ts';
 export { loginCodex, logoutCodex, codexAuthStatus } from './auth.ts';
@@ -47,6 +48,6 @@ export interface Config {
 export declare const Config: z<Config>;
 export declare function resolveAdapterOptions(config: Config): CodexConnectionOptions;
 export declare function createCodexRpcHandler(ctx: Context): ConnectionRpcHandler;
-export declare function createCodexManagementRpcHandler(ctx: Context, auth: CodexWebAuth): ConnectionRpcHandler;
+export declare function createCodexManagementRpcHandler(ctx: Context, auth: CodexWebAuth, fetchModels?: () => Promise<readonly CodexCatalogModel[]>): ConnectionRpcHandler;
 export declare function apply(ctx: Context, config: Config): void;
 //# sourceMappingURL=index.d.ts.map
