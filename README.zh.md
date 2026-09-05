@@ -23,7 +23,7 @@ DeepSeek Harness 的 ChatGPT Codex 集成。独立提供方路由是 `codex`，�
 dsh plugin --profile web add --force \
   https://github.com/NOirBRight/dsh-llm-providers-ui/releases/download/v0.1.5/dsh-llm-providers-ui-0.1.5.tgz
 dsh plugin --profile web add --force \
-  https://github.com/NOirBRight/dsh-llm-codex/releases/download/v0.3.10/dsh-llm-codex-0.3.10.tgz
+  https://github.com/NOirBRight/dsh-llm-codex/releases/download/v0.3.12/dsh-llm-codex-0.3.12.tgz
 dsh web
 ~~~
 
@@ -129,7 +129,7 @@ dsh plugin --profile web add --force \
 
 ~~~sh
 dsh plugin --profile web add --force \
-  https://github.com/NOirBRight/dsh-llm-codex/releases/latest/download/dsh-llm-codex-0.3.10.tgz
+  https://github.com/NOirBRight/dsh-llm-codex/releases/latest/download/dsh-llm-codex-0.3.12.tgz
 ~~~
 
 固定版本（可复现）：
@@ -138,7 +138,7 @@ dsh plugin --profile web add --force \
 dsh plugin --profile web add --force \
   https://github.com/NOirBRight/dsh-llm-providers-ui/releases/download/v0.1.5/dsh-llm-providers-ui-0.1.5.tgz
 dsh plugin --profile web add --force \
-  https://github.com/NOirBRight/dsh-llm-codex/releases/download/v0.3.10/dsh-llm-codex-0.3.10.tgz
+  https://github.com/NOirBRight/dsh-llm-codex/releases/download/v0.3.12/dsh-llm-codex-0.3.12.tgz
 ~~~
 
 更新、卸载与验证：
@@ -146,7 +146,7 @@ dsh plugin --profile web add --force \
 ~~~sh
 # 更新到最新 Release
 dsh plugin --profile web add --force \
-  https://github.com/NOirBRight/dsh-llm-codex/releases/latest/download/dsh-llm-codex-0.3.10.tgz
+  https://github.com/NOirBRight/dsh-llm-codex/releases/latest/download/dsh-llm-codex-0.3.12.tgz
 # 验证加载与版本
 dsh plugin --profile web list
 dsh plugin --profile web doctor
@@ -158,4 +158,4 @@ dsh plugin --profile web remove dsh-llm-codex
 
 回滚：重新执行固定版本 v0.3.7 命令，确认插件列表后只重启一次 Web 服务。失败时查看 journalctl --user -u dsh-web.service 与 dsh plugin --profile web doctor，不要把源码 checkout 写入 production profile。
 
-Release 与完整性：[v0.3.10](https://github.com/NOirBRight/dsh-llm-codex/releases/tag/v0.3.10) · [SHA256SUMS](https://github.com/NOirBRight/dsh-llm-codex/releases/download/v0.3.10/SHA256SUMS)。
+Release 与完整性：[v0.3.12](https://github.com/NOirBRight/dsh-llm-codex/releases/tag/v0.3.12) · [SHA256SUMS](https://github.com/NOirBRight/dsh-llm-codex/releases/download/v0.3.12/SHA256SUMS)。

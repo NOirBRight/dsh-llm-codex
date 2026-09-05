@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { ReasoningEffortId } from '@deepseek-ai/dsh-llm'
 import type { LlmResolvedModelInfo, StreamChunk } from '@deepseek-ai/dsh-llm'
-import { applyCodexDefaultReasoningMetadata, classifyCodexTransientError, narrowCodexEscalationSchemas, streamWithAuthRetry } from '../src/adapter.ts'
+import { applyCodexDefaultReasoningMetadata, classifyCodexTransientError, CodexAdapter, narrowCodexEscalationSchemas, streamWithAuthRetry } from '../src/adapter.ts'
 import type { GenerateOptions } from '@deepseek-ai/dsh-llm'
 import { resolveAdapterOptions } from '../src/index.ts'
 
@@ -227,6 +227,26 @@ describe('classifyCodexTransientError', () => {
 })
 
 describe('applyCodexDefaultReasoningMetadata', () => {
+  it('exposes the remote Codex effort catalog through model resolution', async () => {
+    const advertisedEfforts = ['low', 'medium', 'high', 'xhigh', 'max', 'ultra']
+    const reasoningEfforts = ['low', 'medium', 'high', 'xhigh', 'max']
+    const options = resolveAdapterOptions({
+      models: [{ id: 'gpt-6-astra', thinking: true, efforts: advertisedEfforts, defaultEffort: 'medium' }],
+    })
+    const adapter = new CodexAdapter({
+      options: () => options,
+      resolveApiKey: () => Promise.resolve('test-key'),
+    })
+
+    const info = await adapter.resolveModel('codex', 'gpt-6-astra')
+    const prepared = await adapter.prepareCall('codex', 'gpt-6-astra')
+
+    expect(info.reasoning?.efforts.map(effort => effort.id)).toEqual(reasoningEfforts)
+    expect(info.reasoning?.defaultEffort).toBe(ReasoningEffortId('medium'))
+    expect(prepared.model.reasoning?.efforts.map(effort => effort.id)).toEqual(reasoningEfforts)
+    expect(prepared.model.reasoning?.defaultEffort).toBe(ReasoningEffortId('medium'))
+  })
+
   it('exposes the configured defaults only when the model supports them', () => {
     expect(applyCodexDefaultReasoningMetadata(resolved(['high', 'xhigh', 'max']), 'gpt-5.6-luna')
       .reasoning?.defaultEffort).toBe(ReasoningEffortId('max'))

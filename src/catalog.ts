@@ -18,9 +18,9 @@ export interface CodexCatalogModel {
   /** Whether the model supports native thinking. */
   thinking?: boolean
   /** Chat-picker default when the conversation has not chosen a level. */
-  defaultEffort?: string
+  defaultEffort?: CodexReasoningEffort
   /** Reasoning efforts advertised by the remote Codex catalog. */
-  efforts?: string[]
+  efforts?: CodexReasoningEffort[]
   /** Whether the model accepts image input. */
   vision?: boolean
   /** Legacy capability flag. Ignored at runtime; still decoded. */
@@ -83,7 +83,6 @@ const LEVELS_56 = Object.freeze({
   high: 'high',
   xhigh: 'xhigh',
   max: 'max',
-  ultra: 'ultra',
   minimal: 'low',
 })
 const LEVELS_DEFAULT = Object.freeze({ xhigh: 'xhigh', high: 'high', minimal: 'low' })
@@ -193,8 +192,17 @@ export const CODEX_DEFAULT_MODEL_IDS: readonly string[] = Object.freeze([
   'gpt-5.6-luna-fast',
 ])
 
+/** Every reasoning level Codex can expose through this plugin, in UI order. */
+export const CODEX_REASONING_EFFORTS = ['minimal', 'low', 'medium', 'high', 'xhigh', 'max'] as const
+export type CodexReasoningEffort = typeof CODEX_REASONING_EFFORTS[number]
+
+/** Whether an untrusted value names a supported Codex reasoning level. */
+export function isCodexReasoningEffort(value: string): value is CodexReasoningEffort {
+  return (CODEX_REASONING_EFFORTS as readonly string[]).includes(value)
+}
+
 /** Stable order for the Default thinking dropdown. */
-export const CODEX_EFFORT_ORDER = ['minimal', 'low', 'medium', 'high', 'xhigh', 'max', 'ultra'] as const
+export const CODEX_EFFORT_ORDER = CODEX_REASONING_EFFORTS
 
 /** Short labels for advertised Codex reasoning levels. */
 export const CODEX_EFFORT_LABELS: Readonly<Record<string, string>> = Object.freeze({
@@ -204,7 +212,6 @@ export const CODEX_EFFORT_LABELS: Readonly<Record<string, string>> = Object.free
   high: 'High',
   xhigh: 'Extra high',
   max: 'Max',
-  ultra: 'Ultra',
 })
 
 function officialByWireId(id: string): CodexOfficialModel | undefined {
@@ -289,7 +296,7 @@ export function officialImageGenerationModels(): readonly CodexOfficialModel[] {
 }
 
 /** Default reasoning effort for a displayed row. Fast / 1M rows share the base policy. */
-export function defaultCodexReasoningEffort(id: string): 'high' | 'xhigh' | 'max' {
+export function defaultCodexReasoningEffort(id: string): CodexReasoningEffort {
   switch (officialModelFor(id)?.id) {
     case 'gpt-5.6-luna': return 'max'
     case 'gpt-5.6-terra': return 'xhigh'
@@ -299,7 +306,7 @@ export function defaultCodexReasoningEffort(id: string): 'high' | 'xhigh' | 'max
 }
 
 /** Reasoning levels shown when Default thinking is available. */
-export function effortsForCodexModel(model: CodexCatalogModel): readonly string[] {
+export function effortsForCodexModel(model: CodexCatalogModel): readonly CodexReasoningEffort[] {
   if (model.thinking === false) return []
   const official = officialModelFor(model.id)
   if (official !== undefined) {
@@ -310,7 +317,7 @@ export function effortsForCodexModel(model: CodexCatalogModel): readonly string[
   }
   if (model.thinking === true) {
     const advertised = model.efforts === undefined ? undefined : new Set(model.efforts)
-    return CODEX_EFFORT_ORDER.filter(effort => advertised?.has(effort) ?? (effort !== 'ultra' && effort !== 'minimal'))
+    return CODEX_EFFORT_ORDER.filter(effort => advertised?.has(effort) ?? effort !== 'minimal')
   }
   return []
 }

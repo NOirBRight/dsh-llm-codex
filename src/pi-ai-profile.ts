@@ -19,7 +19,7 @@ import { openAICodexResponsesApi } from '@earendil-works/pi-ai/api/openai-codex-
 import type { OpenAICodexResponsesOptions } from '@earendil-works/pi-ai/api/openai-codex-responses'
 import type { ResolvedPiAiProviderProfile } from '@deepseek-ai/dsh-llm-pi-ai'
 import type { ResolvedRetryPolicy } from '@deepseek-ai/dsh-llm'
-import { officialModelFor, resolveWireModel } from './catalog.ts'
+import { effortsForCodexModel, officialModelFor, resolveWireModel } from './catalog.ts'
 import { applyCodexWirePayload } from './service-tier.ts'
 import { CODEX_PROVIDER } from './client-contract.ts'
 import type { CodexCatalogModel } from './catalog.ts'
@@ -37,10 +37,15 @@ export interface CodexConnectionOptions {
   retryPolicy: ResolvedRetryPolicy
 }
 
+const CODEX_TRANSPORT_LEVELS = ['off', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'] as const
 function thinkingLevelMap(model: CodexCatalogModel): Model<'openai-codex-responses'>['thinkingLevelMap'] | undefined {
+  const efforts = new Set(effortsForCodexModel(model))
+  if (efforts.size === 0) return undefined
   const official = officialModelFor(model.id)
-  if (official === undefined) return undefined
-  return { ...official.thinkingLevelMap }
+  return Object.fromEntries(CODEX_TRANSPORT_LEVELS.map(level => [
+    level,
+    level !== 'off' && efforts.has(level) ? official?.thinkingLevelMap[level] ?? level : null,
+  ]))
 }
 
 function toPiAiModel(model: CodexCatalogModel): Model<'openai-codex-responses'> {

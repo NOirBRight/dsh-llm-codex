@@ -283,4 +283,5 @@ describe('CodexPluginCard', () => {
     expect(optionValues).not.toContain('gpt-5.6-luna-fast')
     expect(optionValues).not.toContain('gpt-5.3-codex-spark')
   })
+
 })

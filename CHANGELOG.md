@@ -1,4 +1,12 @@
 # Changelog
+
+## [0.3.12] - 2026-09-05
+
+### Fixed
+
+- Refresh the Codex model catalog and usage state.
+- Expose Astra reasoning levels as `low`, `medium`, `high`, `xhigh`, and `max`; unsupported `ultra` data is filtered.
+
 ## [0.3.10] - 2026-09-04
 
 ### Changed

@@ -14,7 +14,7 @@ import {
   officialImageGenerationModels,
   officialModelFor,
 } from '../catalog.ts'
-import type { CodexCatalogModel } from '../catalog.ts'
+import type { CodexCatalogModel, CodexReasoningEffort } from '../catalog.ts'
 import type {
   CodexAccountStatus,
   CodexSaveResult,
@@ -69,8 +69,8 @@ interface ModelDraft {
   name?: string
   thinking?: boolean
   vision?: boolean
-  defaultEffort?: string
-  efforts?: string[]
+  defaultEffort?: CodexReasoningEffort
+  efforts?: CodexReasoningEffort[]
   contextWindow: string
   fast?: boolean
 }
@@ -181,7 +181,8 @@ function integerOf(text: string): number | undefined {
   const trimmed = text.trim()
   if (trimmed.length === 0) return undefined
   if (!/^[1-9]\d*$/u.test(trimmed)) return Number.NaN
-  return Number(trimmed)
+  const value = Number(trimmed)
+  return Number.isSafeInteger(value) ? value : Number.NaN
 }
 
 function modelDraftOf(model: CodexCatalogModel): ModelDraft {

@@ -125,8 +125,8 @@ export function apply(ctx: ClientContext): void {
 
   const fetchModels: CodexPluginCardFace['fetchModels'] = async () => {
     const result = await rpc.call(CODEX_RPC_CHANNEL, CODEX_MODELS_FETCH_ENDPOINT, {})
-    if (!result.ok) return officialPickerCatalog()
-    return decodeCodexModelCatalog(result.value) ?? officialPickerCatalog()
+    const models = result.ok ? decodeCodexModelCatalog(result.value) : undefined
+    return models ?? officialPickerCatalog()
   }
 
   const saveConfiguration: CodexPluginCardFace['saveConfiguration'] = async (settings) => {

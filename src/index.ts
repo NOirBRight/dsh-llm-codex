@@ -23,6 +23,7 @@ import type {} from '@deepseek-ai/dsh-host-webserver'
 import type {} from '@deepseek-ai/dsh-tools'
 import type {} from '@deepseek-ai/dsh-fs'
 import { CodexAdapter, refreshCodexAccessToken, resolveCodexAccessToken } from './adapter.ts'
+import { CODEX_REASONING_EFFORTS } from './catalog.ts'
 import type { CodexConnectionOptions } from './adapter.ts'
 import { CodexWebAuth, registerCodexAuthRoutes } from './auth-routes.ts'
 import { generateImageTool } from './generate-image.ts'
@@ -30,6 +31,7 @@ import { viewImageTool } from './view-image.ts'
 import { CodexSearchProvider } from './search.ts'
 import { CodexCredentialStore } from './store.ts'
 import { refreshCodexModelCatalog } from './remote-catalog.ts'
+import { isRecord } from './untrusted-data.ts'
 import { installCodexModelSwitchAdapters } from './model-switch-adapter.ts'
 import {
   CODEX_CATALOG,
@@ -184,8 +186,8 @@ const catalogModel = z.object({
   maxTokens: z.number().step(1).min(1),
   vision: z.boolean(),
   thinking: z.boolean(),
-  defaultEffort: z.string(),
-  efforts: z.array(z.string()),
+  defaultEffort: z.union(CODEX_REASONING_EFFORTS),
+  efforts: z.array(z.union(CODEX_REASONING_EFFORTS)),
   tools: z.boolean(),
   fast: z.boolean(),
 })
@@ -323,25 +325,26 @@ export function createCodexManagementRpcHandler(
   fetchModels: () => Promise<readonly CodexCatalogModel[]> = async () => CODEX_CATALOG,
 ): ConnectionRpcHandler {
   return async (endpoint, payload) => {
+    const request = isRecord(payload) ? payload : undefined
     if (endpoint === CODEX_SETTINGS_READ_ENDPOINT) return readConfiguration(ctx)
     if (endpoint === CODEX_MODELS_FETCH_ENDPOINT) return { ok: true as const, value: await fetchModels() }
     if (endpoint === CODEX_SAVE_ENDPOINT) return saveConfiguration(ctx, payload)
     if (endpoint === CODEX_AUTH_STATUS_ENDPOINT) {
-      const refresh = typeof payload === 'object' && payload !== null && (payload as { refresh?: unknown }).refresh === true
+      const refresh = request?.['refresh'] === true
       return { ok: true as const, value: await auth.status(refresh) }
     }
     if (endpoint === CODEX_AUTH_BEGIN_ENDPOINT) {
-      const method = typeof payload === 'object' && payload !== null && (payload as { method?: unknown }).method === 'device_code'
+      const method = request?.['method'] === 'device_code'
         ? 'device_code'
         : 'browser'
       return { ok: true as const, value: await auth.signIn(method) }
     }
     if (endpoint === CODEX_AUTH_ATTEMPT_STATUS_ENDPOINT) {
-      const attemptId = typeof payload === 'object' && payload !== null && typeof (payload as { attemptId?: unknown }).attemptId === 'string' ? (payload as { attemptId: string }).attemptId : ''
+      const attemptId = typeof request?.['attemptId'] === 'string' ? request['attemptId'] : ''
       return { ok: true as const, value: { status: auth.attemptStatus(attemptId) } }
     }
     if (endpoint === CODEX_AUTH_CANCEL_ENDPOINT) {
-      const attemptId = typeof payload === 'object' && payload !== null && typeof (payload as { attemptId?: unknown }).attemptId === 'string' ? (payload as { attemptId: string }).attemptId : undefined
+      const attemptId = typeof request?.['attemptId'] === 'string' ? request['attemptId'] : undefined
       if (!auth.cancel(attemptId)) return internalError('stale Codex sign-in attempt')
       return { ok: true as const, value: { ok: true } }
     }
