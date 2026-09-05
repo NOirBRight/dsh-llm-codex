@@ -159,3 +159,11 @@ Configuration: use the plugin section in Settings for Web UI plugins, or the pro
 Rollback: rerun the fixed v0.3.7 command, verify the profile list, then restart the Web service once. Inspect journalctl --user -u dsh-web.service and dsh plugin --profile web doctor; never put a source checkout in the production profile.
 
 Release and integrity: [v0.3.13](https://github.com/NOirBRight/dsh-llm-codex/releases/tag/v0.3.13) · [SHA256SUMS](https://github.com/NOirBRight/dsh-llm-codex/releases/download/v0.3.13/SHA256SUMS).
+
+## Independent Model Switch search (unreleased integration)
+
+The Host adapter self-declares its current search model catalog (`tools !== false`) through the existing Model Switch adapter registry. Search uses the existing ChatGPT credential store and Codex search implementation; no credentials or executable functions are sent to the browser. Model declarations follow current provider settings. Unsupported models and missing credentials fail explicitly.
+
+This requires the coordinated Model Switch dynamic-search implementation, not merely adding a provider label to an older release. Registration does not select global Web routing: explicitly configure `web.searchProvider: model-switch` while preserving the complete existing Web config, then select the adapter/model in Model Switch Settings. `web_fetch` is unchanged. ProviderDirectory role/usage registration remains deferred through `ctx.inject`.
+
+Validation: `pnpm test` (142 passed, 1 skipped), `pnpm run build`; live acceptance through 3082 official Web selection succeeded with `gpt-5.6-luna`. See the Model Switch integration audit for exact lab composition and evidence.
