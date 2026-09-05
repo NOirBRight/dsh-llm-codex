@@ -18,7 +18,7 @@ import type { ResolvedPiAiProviderProfile } from '@deepseek-ai/dsh-llm-pi-ai'
 import { createModels } from '@earendil-works/pi-ai'
 import { openaiCodexProvider } from '@earendil-works/pi-ai/providers/openai-codex'
 import { CODEX_PROVIDER } from './client-contract.ts'
-import { defaultCodexReasoningEffort } from './catalog.ts'
+import { CODEX_EFFORT_LABELS, defaultCodexReasoningEffort, effortsForCodexModel } from './catalog.ts'
 import { createCodexPiAiProfile } from './pi-ai-profile.ts'
 import type { CodexConnectionOptions } from './pi-ai-profile.ts'
 import { createPiAiAuth } from './pi-ai-auth.ts'
@@ -138,16 +138,35 @@ export function applyCodexDefaultReasoningMetadata(
   info: LlmResolvedModelInfo,
   model: string,
   override?: string,
+  advertisedEfforts?: readonly string[],
 ): LlmResolvedModelInfo {
   if (info.reasoning === undefined) return info
+  const reasoning = advertisedEfforts === undefined
+    ? info.reasoning
+    : {
+        ...info.reasoning,
+        efforts: advertisedEfforts.map(effort => ({
+          id: ReasoningEffortId(effort),
+          name: CODEX_EFFORT_LABELS[effort] ?? effort,
+        })),
+      }
   const wanted = override ?? defaultCodexReasoningEffort(model)
   const defaultEffort = ReasoningEffortId(wanted)
-  if (!info.reasoning.efforts.some(effort => effort.id === defaultEffort)) return info
+  if (!reasoning.efforts.some(effort => effort.id === defaultEffort)) {
+    return reasoning === info.reasoning ? info : { ...info, reasoning }
+  }
   return {
     ...info,
-    reasoning: { ...info.reasoning, defaultEffort },
+    reasoning: { ...reasoning, defaultEffort },
   }
 }
+
+function codexReasoningEfforts(model: CodexConnectionOptions['models'][number] | undefined): readonly string[] | undefined {
+  if (model === undefined) return undefined
+  const efforts = effortsForCodexModel(model)
+  return efforts.length === 0 ? undefined : efforts
+}
+
 
 /**
  * Classify ChatGPT WebSocket failures that pi-ai reports without an HTTP status.
@@ -316,7 +335,7 @@ export class CodexAdapter extends LlmAdapter {
   ): Promise<LlmResolvedModelInfo> {
     const info = await this.current().resolveModel(provider, model, signal)
     const catalog = this.config.options().models.find(entry => entry.id === model)
-    return applyCodexDefaultReasoningMetadata(info, model, catalog?.defaultEffort)
+    return applyCodexDefaultReasoningMetadata(info, model, catalog?.defaultEffort, codexReasoningEfforts(catalog))
   }
 
   override async * stream(options: GenerateOptions): AsyncIterable<StreamChunk> {
@@ -331,6 +350,7 @@ export class CodexAdapter extends LlmAdapter {
   /** Own the method so rc.2 Host can call it even when this class extends an older LlmAdapter. */
   override async prepareCall(provider: string, model: string, signal?: AbortSignal) {
     const delegate = this.current()
+    const catalog = this.config.options().models.find(entry => entry.id === model)
     const inner = typeof (delegate as { prepareCall?: unknown }).prepareCall === 'function'
       ? await (delegate as unknown as { prepareCall: (provider: string, model: string, signal?: AbortSignal) => Promise<{
         model: LlmResolvedModelInfo
@@ -341,8 +361,14 @@ export class CodexAdapter extends LlmAdapter {
         stream: (options: GenerateOptions) => delegate.stream(options),
       }
     const refreshApiKey = this.config.refreshApiKey
+    const modelInfo = applyCodexDefaultReasoningMetadata(
+      inner.model,
+      model,
+      catalog?.defaultEffort,
+      codexReasoningEfforts(catalog),
+    )
     return {
-      model: inner.model,
+      model: modelInfo,
       stream: (options: GenerateOptions) => streamWithAuthRetry(
         opts => inner.stream(narrowCodexEscalationSchemas(opts)) as AsyncIterable<StreamChunk>,
         options,

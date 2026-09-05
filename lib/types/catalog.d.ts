@@ -17,9 +17,9 @@ export interface CodexCatalogModel {
     /** Whether the model supports native thinking. */
     thinking?: boolean;
     /** Chat-picker default when the conversation has not chosen a level. */
-    defaultEffort?: string;
+    defaultEffort?: CodexReasoningEffort;
     /** Reasoning efforts advertised by the remote Codex catalog. */
-    efforts?: string[];
+    efforts?: CodexReasoningEffort[];
     /** Whether the model accepts image input. */
     vision?: boolean;
     /** Legacy capability flag. Ignored at runtime; still decoded. */
@@ -69,8 +69,13 @@ export interface CodexOfficialModel {
 export declare const CODEX_OFFICIAL_MODELS: readonly CodexOfficialModel[];
 /** Default conversation-picker rows: Sol / Terra / Luna x normal + Fast. */
 export declare const CODEX_DEFAULT_MODEL_IDS: readonly string[];
+/** Every reasoning level Codex can expose through this plugin, in UI order. */
+export declare const CODEX_REASONING_EFFORTS: readonly ["minimal", "low", "medium", "high", "xhigh", "max"];
+export type CodexReasoningEffort = typeof CODEX_REASONING_EFFORTS[number];
+/** Whether an untrusted value names a supported Codex reasoning level. */
+export declare function isCodexReasoningEffort(value: string): value is CodexReasoningEffort;
 /** Stable order for the Default thinking dropdown. */
-export declare const CODEX_EFFORT_ORDER: readonly ["minimal", "low", "medium", "high", "xhigh", "max", "ultra"];
+export declare const CODEX_EFFORT_ORDER: readonly ["minimal", "low", "medium", "high", "xhigh", "max"];
 /** Short labels for advertised Codex reasoning levels. */
 export declare const CODEX_EFFORT_LABELS: Readonly<Record<string, string>>;
 /**
@@ -88,9 +93,9 @@ export declare function officialModelFor(id: string): CodexOfficialModel | undef
 /** Official non-Fast wire ids that accept image input, used as generate_image routers. */
 export declare function officialImageGenerationModels(): readonly CodexOfficialModel[];
 /** Default reasoning effort for a displayed row. Fast / 1M rows share the base policy. */
-export declare function defaultCodexReasoningEffort(id: string): 'high' | 'xhigh' | 'max';
+export declare function defaultCodexReasoningEffort(id: string): CodexReasoningEffort;
 /** Reasoning levels shown when Default thinking is available. */
-export declare function effortsForCodexModel(model: CodexCatalogModel): readonly string[];
+export declare function effortsForCodexModel(model: CodexCatalogModel): readonly CodexReasoningEffort[];
 /** Whether this picker id is a Fast variant of a model that supports it. */
 export declare function isFastCatalogId(id: string): boolean;
 /** Whether this picker id is a 1M variant of an official large-context model. */

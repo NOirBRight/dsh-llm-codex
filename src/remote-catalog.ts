@@ -3,9 +3,10 @@
 import { readFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import { writeFileAtomic } from '@deepseek-ai/dsh-atomic-write'
-import { officialPickerCatalog } from './catalog.ts'
-import type { CodexCatalogModel } from './catalog.ts'
+import { isCodexReasoningEffort, officialPickerCatalog } from './catalog.ts'
+import type { CodexCatalogModel, CodexReasoningEffort } from './catalog.ts'
 import { decodeCodexCatalogModel } from './client-contract.ts'
+import { isRecord, nonEmptyStringValues, positiveSafeInteger } from './untrusted-data.ts'
 import { resolveCodexAccessToken } from './adapter.ts'
 import { OPENAI_CODEX_PROVIDER } from './store.ts'
 import type { CodexCredentialStore } from './store.ts'
@@ -14,26 +15,13 @@ export const CODEX_MODELS_URL = 'https://chatgpt.com/backend-api/codex/models'
 export const CODEX_MODEL_CACHE_FILENAME = 'codex-models.json'
 const CACHE_FORMAT_VERSION = 1
 const REQUEST_TIMEOUT_MS = 15_000
-// ponytail: the endpoint only validates semver today; make this configurable if OpenAI gates catalogs by client version.
+// NOTE: the endpoint validates semver today; configure this if OpenAI gates catalogs by client version.
 const CLIENT_VERSION = '0.0.0'
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
-}
-
-function positiveInteger(value: unknown): number | undefined {
-  return typeof value === 'number' && Number.isSafeInteger(value) && value > 0 ? value : undefined
-}
-
-function strings(value: unknown): string[] {
-  if (!Array.isArray(value)) return []
-  return value.filter((item): item is string => typeof item === 'string' && item.length > 0)
-}
-
-function reasoningEfforts(value: unknown): string[] {
+function reasoningEfforts(value: unknown): CodexReasoningEffort[] {
   if (!Array.isArray(value)) return []
   return value.flatMap((item) => {
-    if (!isRecord(item) || typeof item['effort'] !== 'string' || item['effort'].length === 0) return []
+    if (!isRecord(item) || typeof item['effort'] !== 'string' || !isCodexReasoningEffort(item['effort'])) return []
     return [item['effort']]
   })
 }
@@ -49,9 +37,9 @@ function remoteRows(value: unknown): CodexCatalogModel[] {
     const id = entry['slug']
     const name = typeof entry['display_name'] === 'string' && entry['display_name'].length > 0 ? entry['display_name'] : id
     const efforts = reasoningEfforts(entry['supported_reasoning_levels'])
-    const modalities = strings(entry['input_modalities'])
-    const contextWindow = positiveInteger(entry['context_window'])
-    const maxTokens = positiveInteger(entry['max_output_tokens'])
+    const modalities = nonEmptyStringValues(entry['input_modalities'])
+    const contextWindow = positiveSafeInteger(entry['context_window'])
+    const maxTokens = positiveSafeInteger(entry['max_output_tokens'])
     const model: CodexCatalogModel = {
       id,
       name,
@@ -60,11 +48,13 @@ function remoteRows(value: unknown): CodexCatalogModel[] {
       ...maxTokens === undefined ? {} : { maxTokens },
       thinking: efforts.length > 0,
       ...efforts.length === 0 ? {} : { efforts },
-      ...typeof entry['default_reasoning_level'] === 'string' ? { defaultEffort: entry['default_reasoning_level'] } : {},
+      ...typeof entry['default_reasoning_level'] === 'string' && isCodexReasoningEffort(entry['default_reasoning_level'])
+        ? { defaultEffort: entry['default_reasoning_level'] }
+        : {},
       vision: modalities.includes('image'),
       tools: true,
     }
-    const fast = strings(entry['additional_speed_tiers']).includes('fast')
+    const fast = nonEmptyStringValues(entry['additional_speed_tiers']).includes('fast')
       || (Array.isArray(entry['service_tiers']) && entry['service_tiers'].some(tier => isRecord(tier) && tier['id'] === 'priority'))
     return fast
       ? [model, { ...model, id: id + '-fast', name: name + ' Fast', fast: true }]

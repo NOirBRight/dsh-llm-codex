@@ -108,7 +108,7 @@ describe('createCodexManagementRpcHandler', () => {
 
     expect(fetchModels).toHaveBeenCalledTimes(1)
     expect(decodeCodexModelCatalog(result.ok ? result.value : undefined)).toEqual([
-      expect.objectContaining({ id: 'gpt-6-astra', efforts: ['low', 'ultra'] }),
+      expect.objectContaining({ id: 'gpt-6-astra', efforts: ['low'] }),
     ])
   })
 })

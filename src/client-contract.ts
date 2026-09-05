@@ -1,7 +1,8 @@
 /** Browser-safe constants and JSON decoders shared by Host and client faces. */
 
-import { defaultDisplayedCatalog, hydrateCatalogModel } from './catalog.ts'
+import { defaultDisplayedCatalog, hydrateCatalogModel, isCodexReasoningEffort } from './catalog.ts'
 import type { CodexCatalogModel } from './catalog.ts'
+import { isRecord, positiveSafeInteger } from './untrusted-data.ts'
 
 export type { CodexCatalogModel } from './catalog.ts'
 
@@ -171,10 +172,6 @@ export const DEFAULT_CODEX_SETTINGS: Readonly<CodexSettingsView> = Object.freeze
   searchMaxOutputTokens: DEFAULT_CODEX_SEARCH_MAX_OUTPUT_TOKENS,
 })
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
-}
-
 const TOKEN_FIELD = /^(?:accessToken|refreshToken|access_token|refresh_token|id_token|idToken|token)$/iu
 
 function hasTokenFields(value: Record<string, unknown>): boolean {
@@ -197,8 +194,7 @@ function optionalStrings(record: Record<string, unknown>, key: string): string[]
 }
 
 function optionalPositiveInt(record: Record<string, unknown>, key: string): number | undefined {
-  const value = record[key]
-  return typeof value === 'number' && Number.isInteger(value) && value > 0 ? value : undefined
+  return positiveSafeInteger(record[key])
 }
 
 /** Decode one catalog row; unknown extra fields are ignored. */
@@ -211,7 +207,7 @@ export function decodeCodexCatalogModel(value: unknown): CodexCatalogModel | und
   const maxTokens = optionalPositiveInt(value, 'maxTokens')
   const thinking = optionalBoolean(value, 'thinking')
   const defaultEffort = optionalString(value, 'defaultEffort')
-  const efforts = optionalStrings(value, 'efforts')
+  const efforts = optionalStrings(value, 'efforts')?.filter(isCodexReasoningEffort)
   const vision = optionalBoolean(value, 'vision')
   const tools = optionalBoolean(value, 'tools')
   const fast = optionalBoolean(value, 'fast')
@@ -220,16 +216,16 @@ export function decodeCodexCatalogModel(value: unknown): CodexCatalogModel | und
   if (contextWindow !== undefined) model.contextWindow = contextWindow
   if (maxTokens !== undefined) model.maxTokens = maxTokens
   if (thinking !== undefined) model.thinking = thinking
-  if (defaultEffort !== undefined) model.defaultEffort = defaultEffort
-  if (efforts !== undefined) model.efforts = efforts
+  if (defaultEffort !== undefined && isCodexReasoningEffort(defaultEffort)) model.defaultEffort = defaultEffort
+  if (efforts !== undefined && efforts.length > 0) model.efforts = efforts
   if (vision !== undefined) model.vision = vision
   if (tools !== undefined) model.tools = tools
   if (fast !== undefined) model.fast = fast
   return hydrateCatalogModel(model)
 }
 
-function decodeModels(value: unknown): CodexCatalogModel[] | undefined {
-  if (value === undefined) return [...DEFAULT_CODEX_SETTINGS.models]
+/** Decode a complete model catalog from an untrusted response. */
+export function decodeCodexModelCatalog(value: unknown): CodexCatalogModel[] | undefined {
   if (!Array.isArray(value)) return undefined
   const models: CodexCatalogModel[] = []
   const seen = new Set<string>()
@@ -242,15 +238,12 @@ function decodeModels(value: unknown): CodexCatalogModel[] | undefined {
   return models
 }
 
-/** Narrow a Host model-catalog reply before it enters React state. */
-export function decodeCodexModelCatalog(value: unknown): CodexCatalogModel[] | undefined {
-  return value === undefined ? undefined : decodeModels(value)
-}
-
 /** Narrow a redacted settings payload before it enters React state. */
 export function decodeCodexSettings(value: unknown): CodexSettingsView | undefined {
   if (!isRecord(value) || hasTokenFields(value)) return undefined
-  const models = decodeModels(value['models'])
+  const models = value['models'] === undefined
+    ? [...DEFAULT_CODEX_SETTINGS.models]
+    : decodeCodexModelCatalog(value['models'])
   if (models === undefined) return undefined
   const streamIdleTimeoutMs = value['streamIdleTimeoutMs']
   const enableSearch = value['enableSearch']

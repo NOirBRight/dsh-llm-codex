@@ -36,7 +36,7 @@ export declare function streamWithAuthRetry(stream: (options: GenerateOptions) =
  * Apply the plugin-owned default only when pi-ai advertises that exact level.
  * A conversation's explicit reasoningEffort still takes precedence in DSH.
  */
-export declare function applyCodexDefaultReasoningMetadata(info: LlmResolvedModelInfo, model: string, override?: string): LlmResolvedModelInfo;
+export declare function applyCodexDefaultReasoningMetadata(info: LlmResolvedModelInfo, model: string, override?: string, advertisedEfforts?: readonly string[]): LlmResolvedModelInfo;
 /**
  * Classify ChatGPT WebSocket failures that pi-ai reports without an HTTP status.
  * @param chunk - One delegated DSH stream chunk.

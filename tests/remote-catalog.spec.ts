@@ -74,7 +74,7 @@ describe('refreshCodexModelCatalog', () => {
         id: 'gpt-6-astra',
         contextWindow: 272_000,
         defaultEffort: 'medium',
-        efforts: ['low', 'medium', 'high', 'xhigh', 'max', 'ultra'],
+        efforts: ['low', 'medium', 'high', 'xhigh', 'max'],
         thinking: true,
         vision: true,
       }),

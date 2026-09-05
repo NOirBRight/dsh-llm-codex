@@ -152,7 +152,7 @@ export type CodexAuthAttemptStatus = {
 export declare const DEFAULT_CODEX_SETTINGS: Readonly<CodexSettingsView>;
 /** Decode one catalog row; unknown extra fields are ignored. */
 export declare function decodeCodexCatalogModel(value: unknown): CodexCatalogModel | undefined;
-/** Narrow a Host model-catalog reply before it enters React state. */
+/** Decode a complete model catalog from an untrusted response. */
 export declare function decodeCodexModelCatalog(value: unknown): CodexCatalogModel[] | undefined;
 /** Narrow a redacted settings payload before it enters React state. */
 export declare function decodeCodexSettings(value: unknown): CodexSettingsView | undefined;
