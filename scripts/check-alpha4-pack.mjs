@@ -127,8 +127,9 @@ function checkAlpha4Manifest(manifest, label) {
   for (const section of ['dependencies', 'optionalDependencies', 'peerDependencies', 'devDependencies']) {
     for (const [name, range] of Object.entries(manifest[section] ?? {})) {
       if (typeof range !== 'string') fail(label + ' has non-string ' + section + '.' + name)
-      // devDependencies never ship (npm pack drops them; the offline closure resolves only runtime sections), so exact rc.1 dev pins are allowed while runtime sections stay strict.
-      if (section !== 'devDependencies' && name.startsWith('@deepseek-ai/dsh-') && range !== ALPHA4 && !(satisfies(ALPHA4, range) && satisfies(RC1, range)) && !(capturedOfficialWorkspace && range === 'workspace:^')) fail(label + ' has a DSH range that excludes Alpha.4 or rc.1: ' + name + ' ' + range)
+      // devDependencies never ship (npm pack drops them; the offline closure resolves only runtime sections), so only the reproduced exact Alpha.4/rc.1 dev pins are allowed; every other range keeps the original rule.
+      const devRuntimePin = section === 'devDependencies' && (range === ALPHA4 || range === RC1)
+      if (!devRuntimePin && name.startsWith('@deepseek-ai/dsh-') && range !== ALPHA4 && !(satisfies(ALPHA4, range) && satisfies(RC1, range)) && !(capturedOfficialWorkspace && range === 'workspace:^')) fail(label + ' has a DSH range that excludes Alpha.4 or rc.1: ' + name + ' ' + range)
       // Cordis plugins published from the upstream monorepo retain their
       // workspace peer range; the harness packages and this plugin must pin
       // the runtime Cordis version itself.

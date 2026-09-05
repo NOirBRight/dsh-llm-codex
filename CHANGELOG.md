@@ -11,7 +11,7 @@
 
 - The coordinated Model Switch search UI that reads this metadata requires Model Switch 0.4.7 (coordinated release, not yet published). The `dsh-model-switch` peer range (`^0.4.5`) and dev dependency (0.4.6) are unchanged: older Model Switch releases ignore the extra fields and search still works through the registry.
 - Tested against `dsh-llm-providers-ui` 0.1.9 (includes the Provider Directory registration API); the Alpha.4 offline fixture graph now resolves 0.1.9 as well.
-- The pack gate allows exact rc.1 `devDependency` pins (dev dependencies never ship) while the runtime closure keeps strict Alpha.4 edge satisfaction.
+- The pack gate allows only exact Alpha.4/rc.1 `devDependency` pins (dev dependencies never ship); every other range keeps the original rule and the runtime closure keeps strict Alpha.4 edge satisfaction.
 
 ## [0.3.13] - 2026-09-05
 
