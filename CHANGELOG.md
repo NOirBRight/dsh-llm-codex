@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.3.13] - 2026-09-05
+
+### Fixed
+
+- Load historical Codex settings containing retired `ultra` and normalize it away before adapter, RPC, and UI use.
+
 ## [0.3.12] - 2026-09-05
 
 ### Fixed

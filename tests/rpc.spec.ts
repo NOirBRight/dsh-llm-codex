@@ -5,6 +5,7 @@ import {
   CODEX_MODELS_FETCH_ENDPOINT,
   CODEX_SETTINGS_NAMESPACE,
   DEFAULT_CODEX_SETTINGS,
+  decodeCodexSaveRequest,
   decodeCodexSaveResult,
   decodeCodexModelCatalog,
 } from '../src/client-contract.ts'
@@ -77,6 +78,23 @@ describe('createCodexRpcHandler', () => {
       { op: 'set', path: ['searchMode'], value: 'live' },
     ])
     expect(JSON.stringify(result)).not.toMatch(/accessToken|refreshToken|Bearer/u)
+  })
+
+  it('filters legacy ultra before a catalog can be saved', () => {
+    const request = decodeCodexSaveRequest({
+      models: [{
+        id: 'gpt-6-astra',
+        efforts: ['low', 'medium', 'high', 'xhigh', 'max', 'ultra'],
+        defaultEffort: 'medium',
+      }],
+      expectedRevision: 1,
+    })
+
+    expect(request?.models[0]).toMatchObject({
+      efforts: ['low', 'medium', 'high', 'xhigh', 'max'],
+      defaultEffort: 'medium',
+    })
+    expect(JSON.stringify(request)).not.toContain('ultra')
   })
 
   it('rejects a save payload that tries to send token fields', async () => {

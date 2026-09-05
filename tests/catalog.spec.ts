@@ -10,6 +10,7 @@ import {
   resolveWireModel,
 } from '../src/catalog.ts'
 import { decodeCodexSettings, DEFAULT_CODEX_SETTINGS } from '../src/client-contract.ts'
+import { Config, resolveAdapterOptions } from '../src/index.ts'
 
 describe('official Codex catalog', () => {
   it('lists vision official models for image generation and excludes Spark', () => {
@@ -103,6 +104,21 @@ describe('official Codex catalog', () => {
     expect(decoded?.enableImageTool).toBe(false)
     expect(decoded?.enableImageGeneration).toBe(false)
     expect(decoded?.imageGenerationModel).toBe('gpt-5.6-luna')
+  })
+
+  it('loads legacy Astra ultra settings without exposing ultra', () => {
+    const config = Config({
+      models: [{
+        id: 'gpt-6-astra',
+        thinking: true,
+        efforts: ['low', 'medium', 'high', 'xhigh', 'max', 'ultra'],
+        defaultEffort: 'medium',
+      }],
+    } as never)
+    const efforts = ['low', 'medium', 'high', 'xhigh', 'max']
+
+    expect(config.models?.[0]).toMatchObject({ efforts, defaultEffort: 'medium' })
+    expect(resolveAdapterOptions(config).models[0]).toMatchObject({ efforts, defaultEffort: 'medium' })
   })
 
   it('rejects duplicate catalog ids', () => {
