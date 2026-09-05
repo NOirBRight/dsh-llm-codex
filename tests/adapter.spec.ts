@@ -3,7 +3,7 @@ import { ReasoningEffortId } from '@deepseek-ai/dsh-llm'
 import type { LlmResolvedModelInfo, StreamChunk } from '@deepseek-ai/dsh-llm'
 import { applyCodexDefaultReasoningMetadata, classifyCodexTransientError, CodexAdapter, narrowCodexEscalationSchemas, streamWithAuthRetry } from '../src/adapter.ts'
 import type { GenerateOptions } from '@deepseek-ai/dsh-llm'
-import { resolveAdapterOptions } from '../src/index.ts'
+import { Config, resolveAdapterOptions } from '../src/index.ts'
 
 function resolved(efforts: readonly string[]): LlmResolvedModelInfo {
   return {
@@ -230,9 +230,9 @@ describe('applyCodexDefaultReasoningMetadata', () => {
   it('exposes the remote Codex effort catalog through model resolution', async () => {
     const advertisedEfforts = ['low', 'medium', 'high', 'xhigh', 'max', 'ultra']
     const reasoningEfforts = ['low', 'medium', 'high', 'xhigh', 'max']
-    const options = resolveAdapterOptions({
+    const options = resolveAdapterOptions(Config({
       models: [{ id: 'gpt-6-astra', thinking: true, efforts: advertisedEfforts, defaultEffort: 'medium' }],
-    })
+    } as never))
     const adapter = new CodexAdapter({
       options: () => options,
       resolveApiKey: () => Promise.resolve('test-key'),

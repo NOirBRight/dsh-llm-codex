@@ -23,7 +23,8 @@ import type {} from '@deepseek-ai/dsh-host-webserver'
 import type {} from '@deepseek-ai/dsh-tools'
 import type {} from '@deepseek-ai/dsh-fs'
 import { CodexAdapter, refreshCodexAccessToken, resolveCodexAccessToken } from './adapter.ts'
-import { CODEX_REASONING_EFFORTS } from './catalog.ts'
+import { CODEX_REASONING_EFFORTS, isCodexReasoningEffort } from './catalog.ts'
+import type { CodexReasoningEffort } from './catalog.ts'
 import type { CodexConnectionOptions } from './adapter.ts'
 import { CodexWebAuth, registerCodexAuthRoutes } from './auth-routes.ts'
 import { generateImageTool } from './generate-image.ts'
@@ -178,6 +179,16 @@ export interface Config {
   registerLegacyTools?: boolean
 }
 
+/** Parse the retired on-disk literal without advertising it as a supported effort. */
+const configuredEffort = z.transform(
+  z.union([...CODEX_REASONING_EFFORTS, z.const('ultra').hidden()]),
+  effort => isCodexReasoningEffort(effort) ? effort : undefined,
+)
+const configuredEfforts = z.transform(
+  z.array(configuredEffort),
+  efforts => efforts.filter(effort => effort !== undefined),
+) as z<CodexReasoningEffort[]>
+
 const catalogModel = z.object({
   id: z.string().required(),
   name: z.string(),
@@ -187,7 +198,7 @@ const catalogModel = z.object({
   vision: z.boolean(),
   thinking: z.boolean(),
   defaultEffort: z.union(CODEX_REASONING_EFFORTS),
-  efforts: z.array(z.union(CODEX_REASONING_EFFORTS)),
+  efforts: configuredEfforts,
   tools: z.boolean(),
   fast: z.boolean(),
 })

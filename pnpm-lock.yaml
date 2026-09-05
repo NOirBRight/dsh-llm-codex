@@ -1907,7 +1907,7 @@ packages:
 
   dsh-model-switch@https://github.com/NOirBRight/dsh-model-switch/releases/download/v0.4.6/dsh-model-switch-0.4.6.tgz:
     resolution: {tarball: https://github.com/NOirBRight/dsh-model-switch/releases/download/v0.4.6/dsh-model-switch-0.4.6.tgz}
-    version: 0.4.5
+    version: 0.4.6
     engines: {node: ^22.19.0 || >=24.0.0}
     peerDependencies:
       '@deepseek-ai/cordis': 4.0.2
