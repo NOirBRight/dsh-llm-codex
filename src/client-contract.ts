@@ -17,6 +17,8 @@ export const CODEX_RPC_CHANNEL = '/codex'
 export const CODEX_SAVE_ENDPOINT = 'settings/save'
 /** Authoritative settings snapshot endpoint. */
 export const CODEX_SETTINGS_READ_ENDPOINT = 'settings/read'
+/** Authenticated remote model refresh endpoint. */
+export const CODEX_MODELS_FETCH_ENDPOINT = 'models/fetch'
 export const CODEX_AUTH_STATUS_ENDPOINT = 'auth/status'
 export const CODEX_AUTH_BEGIN_ENDPOINT = 'auth/begin'
 export const CODEX_AUTH_CANCEL_ENDPOINT = 'auth/cancel'
@@ -189,6 +191,11 @@ function optionalBoolean(record: Record<string, unknown>, key: string): boolean 
   return typeof value === 'boolean' ? value : undefined
 }
 
+function optionalStrings(record: Record<string, unknown>, key: string): string[] | undefined {
+  const value = record[key]
+  return Array.isArray(value) && value.every(item => typeof item === 'string' && item.length > 0) ? value : undefined
+}
+
 function optionalPositiveInt(record: Record<string, unknown>, key: string): number | undefined {
   const value = record[key]
   return typeof value === 'number' && Number.isInteger(value) && value > 0 ? value : undefined
@@ -204,6 +211,7 @@ export function decodeCodexCatalogModel(value: unknown): CodexCatalogModel | und
   const maxTokens = optionalPositiveInt(value, 'maxTokens')
   const thinking = optionalBoolean(value, 'thinking')
   const defaultEffort = optionalString(value, 'defaultEffort')
+  const efforts = optionalStrings(value, 'efforts')
   const vision = optionalBoolean(value, 'vision')
   const tools = optionalBoolean(value, 'tools')
   const fast = optionalBoolean(value, 'fast')
@@ -213,6 +221,7 @@ export function decodeCodexCatalogModel(value: unknown): CodexCatalogModel | und
   if (maxTokens !== undefined) model.maxTokens = maxTokens
   if (thinking !== undefined) model.thinking = thinking
   if (defaultEffort !== undefined) model.defaultEffort = defaultEffort
+  if (efforts !== undefined) model.efforts = efforts
   if (vision !== undefined) model.vision = vision
   if (tools !== undefined) model.tools = tools
   if (fast !== undefined) model.fast = fast
@@ -231,6 +240,11 @@ function decodeModels(value: unknown): CodexCatalogModel[] | undefined {
     models.push(model)
   }
   return models
+}
+
+/** Narrow a Host model-catalog reply before it enters React state. */
+export function decodeCodexModelCatalog(value: unknown): CodexCatalogModel[] | undefined {
+  return value === undefined ? undefined : decodeModels(value)
 }
 
 /** Narrow a redacted settings payload before it enters React state. */

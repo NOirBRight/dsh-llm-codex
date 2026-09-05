@@ -2,11 +2,13 @@ import { describe, expect, it, vi } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
 import {
   CODEX_SAVE_ENDPOINT,
+  CODEX_MODELS_FETCH_ENDPOINT,
   CODEX_SETTINGS_NAMESPACE,
   DEFAULT_CODEX_SETTINGS,
   decodeCodexSaveResult,
+  decodeCodexModelCatalog,
 } from '../src/client-contract.ts'
-import { createCodexRpcHandler } from '../src/index.ts'
+import { createCodexManagementRpcHandler, createCodexRpcHandler } from '../src/index.ts'
 
 describe('createCodexRpcHandler', () => {
   it('rejects unknown endpoints', async () => {
@@ -85,5 +87,28 @@ describe('createCodexRpcHandler', () => {
       accessToken: 'nope',
     })
     expect(result.ok).toBe(false)
+  })
+})
+
+describe('createCodexManagementRpcHandler', () => {
+  it('forwards an explicit live-usage refresh to Codex auth', async () => {
+    const status = vi.fn(async () => ({ status: 'signed-in' }))
+    const handler = createCodexManagementRpcHandler(new Context(), { status } as never)
+
+    await handler('auth/status', { refresh: true })
+
+    expect(status).toHaveBeenCalledWith(true)
+  })
+
+  it('returns the dynamically refreshed model catalog', async () => {
+    const fetchModels = vi.fn(async () => [{ id: 'gpt-6-astra', efforts: ['low', 'ultra'] }])
+    const handler = createCodexManagementRpcHandler(new Context(), {} as never, fetchModels)
+
+    const result = await handler(CODEX_MODELS_FETCH_ENDPOINT, {})
+
+    expect(fetchModels).toHaveBeenCalledTimes(1)
+    expect(decodeCodexModelCatalog(result.ok ? result.value : undefined)).toEqual([
+      expect.objectContaining({ id: 'gpt-6-astra', efforts: ['low', 'ultra'] }),
+    ])
   })
 })

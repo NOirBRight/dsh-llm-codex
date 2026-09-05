@@ -97,11 +97,11 @@ export class CodexWebAuth {
     }
   }
 
-  async status(): Promise<CodexWebAuthStatus> {
+  async status(refresh = false): Promise<CodexWebAuthStatus> {
     if (this.operation !== undefined) return this.state
     if (this.state.status === 'error') return this.state
     if (this.state.status === 'signed-in') {
-      if (codexUsageEmpty(this.state.usage)) await this.refreshUsage()
+      if (refresh || codexUsageEmpty(this.state.usage)) await this.refreshUsage()
       return this.state
     }
     return this.readStoredStatus()
