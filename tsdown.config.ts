@@ -58,7 +58,7 @@ const client: UserConfig = {
       '@deepseek-ai/dsh-client-ui-settings-plugins/client',
       '@deepseek-ai/dsh-client-ui-slots',
     ],
-    alwaysBundle: (id) => id === 'dsh-llm-providers-ui/sortable',
+    alwaysBundle: (id) => id === 'dsh-llm-providers-ui/sortable' || id === 'dsh-llm-providers-ui/usage-readers',
   },
   define: {
     'process.env.NODE_ENV': JSON.stringify(process.env.NODE_ENV ?? 'production'),
