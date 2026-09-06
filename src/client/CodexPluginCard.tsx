@@ -25,7 +25,7 @@ import type {
 } from '../client-contract.ts'
 import type { CodexSettingsKey } from './locales.ts'
 import { BrandMark } from './BrandMark.tsx'
-import { AuthToolbar, ProviderCardHeader, ProviderQuotaMeter, UsageHeader, UsageSkeleton, UsageUpdatedAt, formatProviderSummary, formatUsageClock, providerHeaderStyle, resetLabelOf } from './provider-chrome.tsx'
+import { AuthToolbar, ProviderCardHeader, ProviderQuotaMeter, UsageHeader, UsageSkeleton, UsageUpdatedAt, formatUsageClock, providerHeaderStyle, resetLabelOf } from './provider-chrome.tsx'
 import type { ProviderQuotaState } from './provider-chrome.tsx'
 import { SortableList } from 'dsh-llm-providers-ui/sortable'
 import {
@@ -684,17 +684,15 @@ export function CodexPluginCard(props: CodexPluginCardProps): ReactNode {
             ? t('authLoading')
             : t('signedOut')
   const modelCount = Array.isArray(draft) ? draft.length : (snapshot.value?.models?.length ?? 0)
-  const headerSummary = formatProviderSummary(
-    auth.status === 'signed-in' ? t('summaryOn') : t('summaryOff'),
-    t('summaryModels').replace('{count}', String(modelCount)),
-  )
+  const headerModels = t('summaryModels').replace('{count}', String(modelCount))
+  const headerStatus = auth.status === 'signed-in' ? t('summaryOn') : t('summaryOff')
   const headerQuota = headerQuotaOf(auth, lastUsage, t)
 
   if (snapshot.status === 'unavailable') {
     return (
       <li style={cardStyle} data-provider-card="" data-provider-role="llm">
         <button type="button" style={headerStyle} data-provider-card-header="" aria-expanded={open} onClick={() => { setOpen(!open) }}>
-          <ProviderCardHeader title={title} mark={<BrandMark />} summary={headerSummary} open={open} role="llm" />
+          <ProviderCardHeader title={title} mark={<BrandMark />} summary={headerModels} status={headerStatus} open={open} role="llm" />
         </button>
         {open ? <div style={bodyStyle} data-provider-body=""><p style={statusStyle} role="status">{t('remoteAccess')}</p></div> : null}
       </li>
@@ -705,7 +703,7 @@ export function CodexPluginCard(props: CodexPluginCardProps): ReactNode {
     return (
       <li style={cardStyle} data-provider-card="" data-provider-role="llm">
         <button type="button" style={headerStyle} data-provider-card-header="" aria-expanded={open} onClick={() => { setOpen(!open) }}>
-          <ProviderCardHeader title={title} mark={<BrandMark />} summary={headerSummary} open={open} role="llm" />
+          <ProviderCardHeader title={title} mark={<BrandMark />} summary={headerModels} status={headerStatus} open={open} role="llm" />
         </button>
         {open ? <div style={bodyStyle} data-provider-body=""><p style={statusStyle}>{t('loading')}</p></div> : null}
       </li>
@@ -718,7 +716,8 @@ export function CodexPluginCard(props: CodexPluginCardProps): ReactNode {
         <ProviderCardHeader
           title={title}
           mark={<BrandMark />}
-          summary={headerSummary}
+          summary={headerModels}
+          status={headerStatus}
           open={open}
           unsaved={dirty}
           unsavedLabel={t('unsaved')}
