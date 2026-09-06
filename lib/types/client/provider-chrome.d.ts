@@ -73,13 +73,12 @@ export declare function UsageUpdatedAt(props: {
 export declare const providerHeaderStyle: CSSProperties;
 /** Join connection status and model count: "已登录 · 8 个模型". */
 export declare function formatProviderSummary(status: string, modelsLabel: string): string;
-/** Fixed-height collapsed header: mark, title, status · count, chevron. */
-export declare function ProviderCardHeader(props: {
-    title: string;
-    mark: ReactNode;
-    summary: string;
-    open: boolean;
-    unsaved?: boolean;
-    unsavedLabel?: string;
-}): ReactNode;
+/** Shared selected-A header: monochrome role badge plus segmented remaining-quota meter.
+ * Re-exported from the built dsh-llm-providers-ui/provider-ui artifact; this
+ * module keeps the local auth/usage helpers that are not part of the shared API.
+ * ponytail: local formatProviderSummary/providerHeaderStyle remain until the
+ * shared shell owns the summary line; swap the import only, not the call sites.
+ */
+export { ProviderCardHeader, ProviderQuotaMeter, normalizeQuotaRemaining, providerUiCss, } from 'dsh-llm-providers-ui/provider-ui';
+export type { ProviderCardHeaderProps, ProviderCardRole, ProviderQuotaMeterProps, ProviderQuotaState, } from 'dsh-llm-providers-ui/provider-ui';
 //# sourceMappingURL=provider-chrome.d.ts.map

@@ -25,7 +25,8 @@ import type {
 } from '../client-contract.ts'
 import type { CodexSettingsKey } from './locales.ts'
 import { BrandMark } from './BrandMark.tsx'
-import { AuthToolbar, ProviderCardHeader, UsageHeader, UsageResetAt, UsageSkeleton, UsageUpdatedAt, formatProviderSummary, formatUsageClock, providerHeaderStyle, resetLabelOf } from './provider-chrome.tsx'
+import { AuthToolbar, ProviderCardHeader, ProviderQuotaMeter, UsageHeader, UsageSkeleton, UsageUpdatedAt, formatProviderSummary, formatUsageClock, providerHeaderStyle, resetLabelOf } from './provider-chrome.tsx'
+import type { ProviderQuotaState } from './provider-chrome.tsx'
 import { SortableList } from 'dsh-llm-providers-ui/sortable'
 import {
   ModelCatalogCapabilities,
@@ -161,14 +162,7 @@ const disclosureStyle: CSSProperties = {
 const checkboxStyle: CSSProperties = {
   accentColor: 'var(--dsw-alias-brand-primary)',
 }
-const barTrackStyle: CSSProperties = {
-  boxSizing: 'border-box',
-  height: 14,
-  display: 'flex',
-  overflow: 'hidden',
-  borderRadius: 999,
-  background: 'color-mix(in srgb, var(--dsw-alias-label-primary) 14%, transparent)',
-}
+/* Selected-A quota meters come from the shared ProviderQuotaMeter; no local bar track. */
 
 let nextModelRow = 0
 
@@ -251,10 +245,6 @@ function messageOf(error: unknown, fallback: string): string {
   return error instanceof Error && error.message.length > 0 ? error.message : fallback
 }
 
-function formatPercent(percent: number): string {
-  return new Intl.NumberFormat(undefined, { maximumFractionDigits: 1 }).format(percent)
-}
-
 function interpolate(template: string, params: Record<string, unknown>): string {
   return template.replace(/\{(\w+)\}/gu, (_match, key: string) => String(params[key] ?? ''))
 }
@@ -264,6 +254,22 @@ function windowLabel(seconds: number, t: CodexPluginCardFace['t']): string {
   if (seconds === 7 * 24 * 60 * 60) return t('weeklyLimit')
   const hours = seconds / (60 * 60)
   return Number.isInteger(hours) ? interpolate(t('hourLimit'), { count: hours }) : t('usageWindow')
+}
+
+/** Headline remaining quota from real auth/usage; null when no window is available (never synthetic). */
+function headerQuotaOf(auth: CodexAccountStatus, lastUsage: CodexUsage | undefined, t: CodexPluginCardFace['t']): ProviderQuotaState | null {
+  const usage = auth.status === 'signed-in' ? auth.usage : lastUsage
+  const first = usage?.rateLimits[0]
+  const window = first?.windows[0]
+  if (first === undefined || window === undefined) return null
+  const remaining = window.remainingPercent
+  if (!Number.isFinite(remaining) || remaining < 0 || remaining > 100) return null
+  const label = windowLabel(window.windowSeconds, t)
+  const displayLabel = first.name === undefined || first.windows.length === 1
+    ? first.name ?? label
+    : first.name + ' · ' + label
+  const detail = resetLabelOf(window.resetsAt, { at: t('usageResetAt'), atDays: t('usageResetAtDays') })
+  return { remainingPercent: remaining, label: displayLabel, ...detail === undefined ? {} : { detail } }
 }
 
 function Capability({ label, checked, disabled, onChange }: {
@@ -348,36 +354,23 @@ function UsageLimits({ usage, quotaError, t }: {
       {usage.rateLimits.map(limit => (
         <div key={limit.id} style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           {limit.windows.map(window => {
-            const remaining = Math.max(0, Math.min(100, window.remainingPercent))
+            const remaining = window.remainingPercent
+            if (!Number.isFinite(remaining) || remaining < 0 || remaining > 100) return null
             const label = windowLabel(window.windowSeconds, t)
             const displayLabel = limit.name === undefined || limit.windows.length === 1
               ? limit.name ?? label
               : limit.name + ' · ' + label
+            const detail = resetLabelOf(window.resetsAt, {
+              at: t('usageResetAt'),
+              atDays: t('usageResetAtDays'),
+            })
             return (
-              <div key={label + String(window.windowSeconds)} style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10 }}>
-                  <span style={labelStyle}>{displayLabel}</span>
-                  <span style={hintStyle}>{interpolate(t('percentRemaining'), { percent: formatPercent(remaining) })}</span>
-                </div>
-                <div style={barTrackStyle} role="progressbar" aria-label={displayLabel} aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(remaining)}>
-                  <span
-                    data-usage-fill="true"
-                    style={{
-                      width: String(remaining) + '%',
-                      height: '100%',
-                      flex: 'none',
-                      background: 'var(--dsw-alias-state-business-primary)',
-                      transition: 'width 200ms ease',
-                    }}
-                  />
-                </div>
-                <UsageResetAt
-                  label={resetLabelOf(window.resetsAt, {
-                    at: t('usageResetAt'),
-                    atDays: t('usageResetAtDays'),
-                  })}
-                />
-              </div>
+              <ProviderQuotaMeter
+                key={label + String(window.windowSeconds)}
+                remainingPercent={remaining}
+                label={displayLabel}
+                {...detail === undefined ? {} : { detail }}
+              />
             )
           })}
         </div>
@@ -414,6 +407,7 @@ export function CodexPluginCard(props: CodexPluginCardProps): ReactNode {
   const [auth, setAuth] = useState<CodexAccountStatus>({ status: 'loading' })
   const [authChallenge, setAuthChallenge] = useState<{ url?: string; verificationUri?: string; userCode?: string; attemptId?: string } | undefined>()
   const [catalogOpen, setCatalogOpen] = useState(false)
+  const [modelSort, setModelSort] = useState(false)
   const [expandedModels, setExpandedModels] = useState<ReadonlySet<string>>(new Set())
   const [quotaRefreshing, setQuotaRefreshing] = useState(false)
   const [lastUsage, setLastUsage] = useState<CodexUsage | undefined>(undefined)
@@ -694,32 +688,33 @@ export function CodexPluginCard(props: CodexPluginCardProps): ReactNode {
     auth.status === 'signed-in' ? t('summaryOn') : t('summaryOff'),
     t('summaryModels').replace('{count}', String(modelCount)),
   )
+  const headerQuota = headerQuotaOf(auth, lastUsage, t)
 
   if (snapshot.status === 'unavailable') {
     return (
-      <li style={cardStyle}>
-        <button type="button" style={headerStyle} aria-expanded={open} onClick={() => { setOpen(!open) }}>
-          <ProviderCardHeader title={title} mark={<BrandMark />} summary={headerSummary} open={open} />
+      <li style={cardStyle} data-provider-card="" data-provider-role="llm">
+        <button type="button" style={headerStyle} data-provider-card-header="" aria-expanded={open} onClick={() => { setOpen(!open) }}>
+          <ProviderCardHeader title={title} mark={<BrandMark />} summary={headerSummary} open={open} role="llm" />
         </button>
-        {open ? <div style={bodyStyle}><p style={statusStyle} role="status">{t('remoteAccess')}</p></div> : null}
+        {open ? <div style={bodyStyle} data-provider-body=""><p style={statusStyle} role="status">{t('remoteAccess')}</p></div> : null}
       </li>
     )
   }
 
   if (snapshot.status !== 'ready' || draft === undefined || capabilities === undefined) {
     return (
-      <li style={cardStyle}>
-        <button type="button" style={headerStyle} aria-expanded={open} onClick={() => { setOpen(!open) }}>
-          <ProviderCardHeader title={title} mark={<BrandMark />} summary={headerSummary} open={open} />
+      <li style={cardStyle} data-provider-card="" data-provider-role="llm">
+        <button type="button" style={headerStyle} data-provider-card-header="" aria-expanded={open} onClick={() => { setOpen(!open) }}>
+          <ProviderCardHeader title={title} mark={<BrandMark />} summary={headerSummary} open={open} role="llm" />
         </button>
-        {open ? <div style={bodyStyle}><p style={statusStyle}>{t('loading')}</p></div> : null}
+        {open ? <div style={bodyStyle} data-provider-body=""><p style={statusStyle}>{t('loading')}</p></div> : null}
       </li>
     )
   }
 
   return (
-    <li style={cardStyle}>
-      <button type="button" style={headerStyle} aria-expanded={open} onClick={() => { setOpen(!open) }}>
+    <li style={cardStyle} data-provider-card="" data-provider-role="llm">
+      <button type="button" style={headerStyle} data-provider-card-header="" aria-expanded={open} onClick={() => { setOpen(!open) }}>
         <ProviderCardHeader
           title={title}
           mark={<BrandMark />}
@@ -727,11 +722,13 @@ export function CodexPluginCard(props: CodexPluginCardProps): ReactNode {
           open={open}
           unsaved={dirty}
           unsavedLabel={t('unsaved')}
+          role="llm"
+          {...headerQuota === null ? {} : { quota: headerQuota }}
         />
       </button>
       {open
         ? (
-          <div style={bodyStyle}>
+          <div style={bodyStyle} data-provider-body="">
             <p style={hintStyle}>{t('description')}</p>
             <section style={sectionStyle}>
               <AuthToolbar
@@ -805,9 +802,14 @@ export function CodexPluginCard(props: CodexPluginCardProps): ReactNode {
                   <span style={sectionTitleStyle}>{t('models')}</span>
                   <span style={hintStyle}>{customModels ? t('customized') : t('inherited')}</span>
                 </button>
-                <button type="button" style={buttonStyle} disabled={disabled || fetching} onClick={() => { void chooseFromOfficial() }}>
-                  {fetching ? t('fetchingModels') : t('fetchModels')}
-                </button>
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, flex: 'none' }}>
+                  <button type="button" style={buttonStyle} disabled={disabled} onClick={() => { setModelSort(current => !current) }} aria-pressed={modelSort}>
+                    {modelSort ? t('doneSorting') : t('sortModels')}
+                  </button>
+                  <button type="button" style={buttonStyle} disabled={disabled || fetching} onClick={() => { void chooseFromOfficial() }}>
+                    {fetching ? t('fetchingModels') : t('fetchModels')}
+                  </button>
+                </span>
               </div>
               {catalogOpen
                 ? (
@@ -816,16 +818,26 @@ export function CodexPluginCard(props: CodexPluginCardProps): ReactNode {
                       items={draft}
                       getId={item => item.rowId}
                       disabled={disabled}
+                      sorting={modelSort}
+                      moveButtons={modelSort}
                       dragLabel={(item, index) => {
                         const label = item.id.trim().length > 0 ? item.id.trim() : String(index + 1)
                         return t('dragModel') + ': ' + label
+                      }}
+                      moveUpLabel={(item, index) => {
+                        const label = item.id.trim().length > 0 ? item.id.trim() : String(index + 1)
+                        return t('moveUp') + ': ' + label
+                      }}
+                      moveDownLabel={(item, index) => {
+                        const label = item.id.trim().length > 0 ? item.id.trim() : String(index + 1)
+                        return t('moveDown') + ': ' + label
                       }}
                       onReorder={patchDraft}
                       renderItem={(item, index) => {
                         const expanded = expandedModels.has(item.rowId)
                         const label = item.id.trim().length > 0 ? item.id.trim() : String(index + 1)
                         return (
-                          <div data-model-row={label} style={modelContentStyle}>
+                          <div data-model-row={label} data-provider-model="" style={modelContentStyle}>
                             <input
                               style={rowInputStyle}
                               value={item.id}

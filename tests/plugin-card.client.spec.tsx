@@ -244,9 +244,9 @@ describe('CodexPluginCard', () => {
     render(<CodexPluginCard {...props({ readAuthStatus })} />)
     expand()
     await waitFor(() => {
-      expect(screen.getByText(`GPT-5.3-Codex-Spark · ${en.fiveHourLimit}`)).toBeTruthy()
+      expect(screen.getAllByText(`GPT-5.3-Codex-Spark · ${en.fiveHourLimit}`).length).toBeGreaterThanOrEqual(2)
     })
-    expect(screen.getByText(`GPT-5.3-Codex-Spark · ${en.weeklyLimit}`)).toBeTruthy()
+    expect(screen.getAllByText(`GPT-5.3-Codex-Spark · ${en.weeklyLimit}`).length).toBeGreaterThanOrEqual(1)
   })
 
   it('uses official non-Fast models in the search dropdown and defaults to Luna', async () => {

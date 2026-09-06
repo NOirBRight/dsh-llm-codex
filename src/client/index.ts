@@ -8,13 +8,13 @@ import type {} from '@deepseek-ai/dsh-client-ui-settings-plugins/client'
 import type {} from '@deepseek-ai/dsh-client-ui-layout/client'
 import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
 import type {} from '@deepseek-ai/dsh-client-ui-slots'
+import type {} from 'dsh-llm-providers-ui/client'
 import { createCodexUsageReader } from 'dsh-llm-providers-ui/usage-readers'
 
-/** Register this card and its quota reader on the shared Provider directory. */
+/** Register this card, its shared header ownership, and its quota reader. */
 function installProviderDirectory(ctx: ClientContext): void {
   ctx.inject(['providerDirectory'], scope => {
-    const directory = (scope as unknown as { providerDirectory: { register(entry: { key: string, usage: unknown }): () => void } }).providerDirectory
-    scope.effect(() => directory.register({ key: CODEX_SETTINGS_NAMESPACE, usage: createCodexUsageReader() }), 'dsh-llm-codex: provider directory registration')
+    scope.effect(() => scope.providerDirectory.register({ key: CODEX_SETTINGS_NAMESPACE, header: 'shared', usage: createCodexUsageReader() }), 'dsh-llm-codex: provider directory registration')
   })
 }
 
@@ -133,6 +133,7 @@ export function apply(ctx: ClientContext): void {
   const logout: CodexPluginCardFace['logout'] = async () => {
     const result = await rpc.call(CODEX_RPC_CHANNEL, CODEX_AUTH_LOGOUT_ENDPOINT, {})
     if (!result.ok || decodeCodexAuthLogoutReply(result.value) === undefined) throw new Error(result.ok ? 'invalid logout response' : result.error.message)
+    try { ctx.get('providerDirectory')?.invalidateUsage(CODEX_SETTINGS_NAMESPACE) } catch { /* providerDirectory is optional in lab */ }
   }
 
   const fetchModels: CodexPluginCardFace['fetchModels'] = async () => {
