@@ -9,9 +9,10 @@ import type { CodexPluginCardProps } from '../src/client/CodexPluginCard.tsx'
 import { providerUiCss } from '../src/client/provider-chrome.tsx'
 import { en } from '../src/client/locales.ts'
 import { DEFAULT_CODEX_SETTINGS } from '../src/client-contract.ts'
+import { clearProviderUsageCache, peekCachedUsage, rememberHeadlineQuota } from 'dsh-llm-providers-ui/usage-readers'
 import type { CodexSettingsView } from '../src/client-contract.ts'
 
-afterEach(() => { cleanup() })
+afterEach(() => { cleanup(); clearProviderUsageCache() })
 
 const settings: CodexSettingsView = {
   ...DEFAULT_CODEX_SETTINGS,
@@ -81,6 +82,92 @@ describe('CodexPluginCard collapsed quota', () => {
 
     await waitFor(() => { expect(document.querySelector('[data-provider-quota-mini] [data-provider-quota-missing]')).not.toBeNull() })
     expect(screen.queryByRole('meter')).toBeNull()
+  })
+
+  it('ignores seeded cache when the account has no usable quota surface', async () => {
+    rememberHeadlineQuota('llm-codex', 'Codex', { remainingPercent: 76, label: 'seeded' })
+    const readAuthStatus = vi.fn(() => Promise.resolve({
+      status: 'signed-in',
+      usage: { rateLimits: [] },
+    }))
+    render(<CodexPluginCard {...props({ readAuthStatus })} />)
+
+    await waitFor(() => { expect(document.querySelector('[data-provider-quota-mini] [data-provider-quota-missing]')).not.toBeNull() })
+    expect(screen.queryByRole('meter')).toBeNull()
+  })
+
+  it('clears local usage on sign-out so a later failing reauth cannot resurrect it', async () => {
+    const authed = (): Promise<unknown> => Promise.resolve({
+      status: 'signed-in',
+      usage: { rateLimits: [{ id: 'primary', windows: [{ remainingPercent: 76, windowSeconds: 18000 }] }] },
+    })
+    const view = render(<CodexPluginCard {...props({ readAuthStatus: vi.fn(authed) })} />)
+    expect((await screen.findByRole('meter', { name: en.fiveHourLimit })).getAttribute('aria-valuenow')).toBe('76')
+    view.rerender(<CodexPluginCard {...props({ readAuthStatus: vi.fn(() => Promise.resolve({ status: 'signed-out' })) })} />)
+    await waitFor(() => { expect(screen.queryByRole('meter')).toBeNull() })
+    view.rerender(<CodexPluginCard {...props({
+      readAuthStatus: vi.fn(() => Promise.resolve({
+        status: 'signed-in',
+        usage: { rateLimits: [] },
+        quotaError: 'quota down',
+      })),
+    })} />)
+    await waitFor(() => { expect(document.querySelector('[data-provider-quota-mini] [data-provider-quota-missing]')).not.toBeNull() })
+    expect(screen.queryByRole('meter')).toBeNull()
+  })
+
+  it('drops a superseded read after sign-out without resurrecting its account', async () => {
+    const usageA = {
+      status: 'signed-in',
+      usage: { rateLimits: [{ id: 'primary', windows: [{ remainingPercent: 76, windowSeconds: 18000 }] }] },
+    }
+    const usageB = {
+      status: 'signed-in',
+      usage: { rateLimits: [{ id: 'other', windows: [{ remainingPercent: 10, windowSeconds: 18000 }] }] },
+    }
+    let resolveSecond!: (value: unknown) => void
+    const second = new Promise<unknown>(value => {
+      resolveSecond = value
+    })
+    const readAuthStatus = vi.fn().mockResolvedValueOnce(usageA).mockReturnValueOnce(second)
+    render(<CodexPluginCard {...props({ readAuthStatus })} />)
+    expect((await screen.findByRole('meter', { name: en.fiveHourLimit })).getAttribute('aria-valuenow')).toBe('76')
+    fireEvent.click(screen.getAllByRole('button', { expanded: false })[0] as HTMLElement)
+    fireEvent.click(await screen.findByRole('button', { name: en.usageRefresh }))
+    expect(readAuthStatus).toHaveBeenCalledTimes(2)
+    fireEvent.click(await screen.findByRole('button', { name: en.signOut }))
+    resolveSecond(usageB)
+    await new Promise(resolve => setTimeout(resolve, 50))
+    expect(screen.queryByRole('meter')).toBeNull()
+  })
+
+  it('drops a late read after unmount without caching it', async () => {
+    expect(peekCachedUsage('llm-codex')).toBeUndefined()
+    let resolveRead!: (value: unknown) => void
+    const gate = new Promise<unknown>(value => {
+      resolveRead = value
+    })
+    const readAuthStatus = vi.fn(() => gate)
+    const view = render(<CodexPluginCard {...props({ readAuthStatus })} />)
+    await waitFor(() => { expect(readAuthStatus).toHaveBeenCalledTimes(1) })
+    view.unmount()
+    resolveRead({
+      status: 'signed-in',
+      usage: { rateLimits: [{ id: 'primary', windows: [{ remainingPercent: 76, windowSeconds: 18000 }] }] },
+    })
+    await new Promise(resolve => setTimeout(resolve, 50))
+    expect(peekCachedUsage('llm-codex')).toBeUndefined()
+  })
+
+  it('labels unknown auth as loading with no fake count instead of not-signed-in', async () => {
+    const readAuthStatus = vi.fn(() => new Promise<never>(() => {}))
+    const useCodexSettings = (selector: (value: unknown) => unknown): unknown =>
+      selector({ status: 'loading', value: undefined, base: {}, user: {}, revision: 0, writable: true, mode: 'host' })
+    render(<CodexPluginCard {...props({ readAuthStatus, useCodexSettings })} />)
+    await waitFor(() => { expect(readAuthStatus).toHaveBeenCalledTimes(1) })
+    expect(document.querySelector('[data-provider-header-status]')?.textContent).toBe(en.authLoading)
+    expect(document.querySelector('[data-provider-header-status]')?.textContent).not.toBe(en.summaryOff)
+    expect(document.querySelector('[data-provider-header-summary]')?.textContent).toBe('')
   })
 
   it('emits the shared header stylesheet instead of a local header fork', () => {

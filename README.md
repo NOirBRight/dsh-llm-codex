@@ -37,6 +37,8 @@ The settings and authentication RPC uses Connection's authenticated `/codex` cha
 
 Open Settings → LLM Providers → Codex. **Sign in with ChatGPT** starts the official ChatGPT OAuth flow, opens the system browser, and stores the session only on the Host at `$DSH_HOME/codex-oauth.json` (mode `0600`). The card then shows usage limits. Sign out deletes that file. The browser never receives tokens.
 
+The collapsed header first-paints the last successful quota from the shared browser cache; error, unsupported, and signed-out states paint no cached meter. Signing in, signing out, or an authoritative signed-out status purges the cache in every bundle copy, even without providerDirectory.
+
 ![Codex plugin card: ChatGPT login, usage, and Fast catalog rows](docs/images/plugin-card-catalog.png)
 
 ### Model catalog

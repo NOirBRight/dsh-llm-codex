@@ -9,7 +9,7 @@ import type {} from '@deepseek-ai/dsh-client-ui-layout/client'
 import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
 import type {} from '@deepseek-ai/dsh-client-ui-slots'
 import type {} from 'dsh-llm-providers-ui/client'
-import { createCodexUsageReader } from 'dsh-llm-providers-ui/usage-readers'
+import { createCodexUsageReader, dropPersistedUsageKeys } from 'dsh-llm-providers-ui/usage-readers'
 
 /** Register this card, its shared header ownership, and its quota reader. */
 function installProviderDirectory(ctx: ClientContext): void {
@@ -86,11 +86,20 @@ export function apply(ctx: ClientContext): void {
   }
   void refreshSettings().catch(() => { currentSnapshot = { ...currentSnapshot, status: 'unavailable' }; listeners.forEach(listener => listener()) })
 
+  let authGeneration = 0
+  /** Purge every bundle copy, even without providerDirectory. Stale reads check currency first. */
+  const invalidateUsageCache = (): void => {
+    dropPersistedUsageKeys([CODEX_SETTINGS_NAMESPACE])
+    try { ctx.get('providerDirectory')?.invalidateUsage(CODEX_SETTINGS_NAMESPACE) } catch { /* providerDirectory is optional in lab */ }
+  }
+
   const readAuthStatus: CodexPluginCardFace['readAuthStatus'] = async (signal) => {
+    const generation = authGeneration
     const result = await rpc.call(CODEX_RPC_CHANNEL, CODEX_AUTH_STATUS_ENDPOINT, { refresh: true }, signal)
     if (!result.ok) throw new Error(result.error.message)
     const decoded = decodeCodexAuthStatus(result.value)
     if (decoded === undefined) throw new Error('invalid auth status')
+    if (decoded.status === 'signed-out' && generation === authGeneration) invalidateUsageCache()
     return decoded
   }
 
@@ -117,6 +126,10 @@ export function apply(ctx: ClientContext): void {
     if (!result.ok) throw new Error(result.error.message)
     const decoded = decodeCodexAuthAttemptStatus(result.value)
     if (decoded === undefined) throw new Error('invalid auth attempt status')
+    if (decoded.status === 'succeeded') {
+      authGeneration += 1
+      invalidateUsageCache()
+    }
     return decoded
   }
 
@@ -128,7 +141,8 @@ export function apply(ctx: ClientContext): void {
   const logout: CodexPluginCardFace['logout'] = async () => {
     const result = await rpc.call(CODEX_RPC_CHANNEL, CODEX_AUTH_LOGOUT_ENDPOINT, {})
     if (!result.ok || decodeCodexAuthLogoutReply(result.value) === undefined) throw new Error(result.ok ? 'invalid logout response' : result.error.message)
-    try { ctx.get('providerDirectory')?.invalidateUsage(CODEX_SETTINGS_NAMESPACE) } catch { /* providerDirectory is optional in lab */ }
+    authGeneration += 1
+    invalidateUsageCache()
   }
 
   const fetchModels: CodexPluginCardFace['fetchModels'] = async () => {
