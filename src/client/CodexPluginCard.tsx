@@ -481,6 +481,13 @@ export function CodexPluginCard(props: CodexPluginCardProps): ReactNode {
       } else {
         setRefreshError(t('usageRefreshFailed'))
       }
+    } else if (next.status === 'signed-out') {
+      // Authoritative sign-out clears local usage state, not merely hides it:
+      // retained lastUsage would otherwise resurrect as live quota on a later
+      // reauth whose own read errors or reports no usable windows.
+      setLastUsage(undefined)
+      setUsageUpdatedAt(undefined)
+      setRefreshError(undefined)
     }
   }, [t])
 
@@ -503,12 +510,15 @@ export function CodexPluginCard(props: CodexPluginCardProps): ReactNode {
 
   const refreshAuth = useCallback(async (signal?: AbortSignal, spin = false): Promise<void> => {
     if (spin) setQuotaRefreshing(true)
+    // Generation guard: a superseded read (sign-out, sign-in, unmount) must not
+    // resurrect old-account usage into state or the persisted headline cache.
+    const attempt = authAttempt.current
     try {
       const next = await readAuthStatus(signal)
-      if (!mounted.current || signal?.aborted === true) return
+      if (!liveAuthAttempt(attempt) || !mounted.current || signal?.aborted === true) return
       applyAuthStatus(next)
     } catch (error: unknown) {
-      if (mounted.current && signal?.aborted !== true) {
+      if (liveAuthAttempt(attempt) && signal?.aborted !== true) {
         setRefreshError(t('usageRefreshFailed'))
         setAuth(current => current.status === 'signed-in'
           ? current
@@ -720,14 +730,20 @@ export function CodexPluginCard(props: CodexPluginCardProps): ReactNode {
           : auth.status === 'loading'
             ? t('authLoading')
             : t('signedOut')
-  const modelCount = Array.isArray(draft) ? draft.length : (snapshot.value?.models?.length ?? 0)
-  const headerModels = t('summaryModels').replace('{count}', String(modelCount))
-  const headerStatus = auth.status === 'signed-in' ? t('summaryOn') : t('summaryOff')
+  const modelCount = Array.isArray(draft) ? draft.length : snapshot.value?.models?.length
+  const headerModels = modelCount === undefined ? '' : t('summaryModels').replace('{count}', String(modelCount))
+  // Unknown auth is loading, not signed out: only an authoritative verdict earns On/Off.
+  const headerStatus = auth.status === 'signed-in' ? t('summaryOn') : auth.status === 'signed-out' ? t('summaryOff') : auth.status === 'error' ? t('statusFailed') : t('authLoading')
   const liveQuota = headerQuotaOf(auth, lastUsage, t)
-  // The cache only covers "no answer yet"; a settled failure keeps its unavailable dash.
+  // The verdict gates the entire header quota, not only the persisted fallback: stale
+  // local lastUsage must not look fresh on error or unsupported either. The shared
+  // cache supplies the first frame, and only a known sign-out drops the stored entry.
+  const quotaUnsupported = auth.status === 'signed-in' && usageUpdatedAt !== undefined && liveQuota === null
+  const quotaWithheld = auth.status === 'signed-out' || refreshError !== undefined || quotaUnsupported
   const headerQuota: ProviderQuotaState | null = useProviderQuotaCache(USAGE_PROVIDER_KEY, USAGE_PROVIDER_NAME, liveQuota, {
     answered: authAnswered,
     signedOut: auth.status === 'signed-out' || auth.status === 'reauth-required',
+    withheld: quotaWithheld,
   })
 
   if (snapshot.status === 'unavailable') {
@@ -747,7 +763,7 @@ export function CodexPluginCard(props: CodexPluginCardProps): ReactNode {
       <li style={cardStyle} data-provider-card="" data-provider-role="llm">
         <style>{providerUiCss}</style>
         <button type="button" data-provider-card-header="" aria-expanded={open} onClick={() => { setOpen(!open) }}>
-          <ProviderCardHeader title={title} mark={<BrandMark />} summary={headerModels} status={headerStatus} open={open} role="llm" />
+          <ProviderCardHeader title={title} mark={<BrandMark />} summary={headerModels} status={headerStatus} open={open} role="llm" {...(headerQuota === null ? {} : { quota: headerQuota })} />
         </button>
         {open ? <div style={bodyStyle} data-provider-body=""><p style={statusStyle}>{t('loading')}</p></div> : null}
       </li>
@@ -768,8 +784,8 @@ export function CodexPluginCard(props: CodexPluginCardProps): ReactNode {
           unsavedLabel={t('unsaved')}
           role="llm"
           {...headerQuota === null
-            ? (auth.status === 'signed-in' && refreshError !== undefined
-              // Query attempted but no usable quota: unavailable dash, never a fabricated percent.
+            ? (auth.status === 'signed-in' && (refreshError !== undefined || usageUpdatedAt !== undefined)
+              // Query settled without usable quota (error or unsupported): dash, never a fabricated percent.
               ? { quota: { label: t('usage') } }
               : {})
             : { quota: headerQuota }}

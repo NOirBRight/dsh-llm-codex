@@ -241,7 +241,7 @@ describe('CodexPluginCard', () => {
     render(<CodexPluginCard {...props({ readAuthStatus })} />)
     expand()
 
-    expect(screen.getByText(en.authLoading)).toBeTruthy()
+    expect(document.querySelector('[data-provider-header-status]')?.textContent).toBe(en.authLoading)
     expect(screen.queryByRole('button', { name: en.signIn })).toBeNull()
   })
 

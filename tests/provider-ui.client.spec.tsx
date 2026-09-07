@@ -9,9 +9,10 @@ import { en } from '../src/client/locales.ts'
 import { DEFAULT_CODEX_SETTINGS } from '../src/client-contract.ts'
 import type { CodexCatalogModel, CodexSettingsView } from '../src/client-contract.ts'
 import { apply, inject } from '../src/client/index.ts'
+import { clearProviderUsageCache } from 'dsh-llm-providers-ui/usage-readers'
 import { CODEX_AUTH_LOGOUT_ENDPOINT, CODEX_SETTINGS_NAMESPACE, CODEX_SETTINGS_READ_ENDPOINT } from '../src/client-contract.ts'
 
-afterEach(() => { cleanup() })
+afterEach(() => { cleanup(); clearProviderUsageCache() })
 
 const settings: CodexSettingsView = {
   ...DEFAULT_CODEX_SETTINGS,

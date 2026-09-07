@@ -3,7 +3,8 @@
 import { Context, Service } from '@deepseek-ai/cordis'
 import { describe, expect, it, vi } from 'vitest'
 import { apply, inject } from '../src/client/index.ts'
-import { CODEX_AUTH_STATUS_ENDPOINT, CODEX_MODELS_FETCH_ENDPOINT, CODEX_SETTINGS_READ_ENDPOINT, DEFAULT_CODEX_SETTINGS } from '../src/client-contract.ts'
+import { clearProviderUsageCache, peekCachedUsage, rememberHeadlineQuota } from 'dsh-llm-providers-ui/usage-readers'
+import { CODEX_AUTH_ATTEMPT_STATUS_ENDPOINT, CODEX_AUTH_LOGOUT_ENDPOINT, CODEX_AUTH_STATUS_ENDPOINT, CODEX_MODELS_FETCH_ENDPOINT, CODEX_SETTINGS_READ_ENDPOINT, DEFAULT_CODEX_SETTINGS } from '../src/client-contract.ts'
 
 interface SlotEntry {
   options: Record<string, unknown>
@@ -155,6 +156,77 @@ describe('Codex client plugin registration', () => {
     expect(slots.entries('settings.provider.item')).toHaveLength(0)
     expect(slots.entries('settings.section')).toHaveLength(0)
     expect(slots.entries('shell.overlay')).toHaveLength(0)
+    await ctx.fiber.dispose()
+  })
+
+  it('purges persisted quota on logout without a provider directory', async () => {
+    rememberHeadlineQuota('llm-codex', 'Codex', { label: 'W', remainingPercent: 72 })
+    const { ctx, slots } = await bench({ call: async (...args: unknown[]) => args[1] === CODEX_AUTH_LOGOUT_ENDPOINT
+      ? { ok: true, value: { ok: true } }
+      : { ok: true, value: {} } })
+    const fiber = ctx.plugin({ inject: [...inject], apply })
+    await fiber.await()
+    const face = slots.entries('settings.provider.item')[0]!.inject!() as { logout: () => Promise<unknown> }
+    await face.logout()
+    expect(peekCachedUsage('llm-codex')).toBeUndefined()
+    clearProviderUsageCache()
+    await fiber.dispose()
+    await ctx.fiber.dispose()
+  })
+
+  it('purges seeded quota on an authoritative signed-out status', async () => {
+    const { ctx, slots } = await bench({ call: async () => ({ ok: true, value: { status: 'signed-out' } }) })
+    const fiber = ctx.plugin({ inject: [...inject], apply })
+    await fiber.await()
+    rememberHeadlineQuota('llm-codex', 'Codex', { label: 'W', remainingPercent: 72 })
+    const face = slots.entries('settings.provider.item')[0]!.inject!() as { readAuthStatus: () => Promise<unknown> }
+    await face.readAuthStatus()
+    expect(peekCachedUsage('llm-codex')).toBeUndefined()
+    clearProviderUsageCache()
+    await fiber.dispose()
+    await ctx.fiber.dispose()
+  })
+
+  it('ignores a stale signed-out status that resolves after a new login', async () => {
+    let resolveOld: ((value: unknown) => void) | undefined
+    let statusCalls = 0
+    const { ctx, slots } = await bench({ call: async (...args: unknown[]) => {
+      if (args[1] === CODEX_AUTH_STATUS_ENDPOINT) {
+        statusCalls += 1
+        if (statusCalls === 1) return new Promise<unknown>(resolve => { resolveOld = resolve })
+      }
+      if (args[1] === CODEX_AUTH_ATTEMPT_STATUS_ENDPOINT) return { ok: true, value: { status: 'succeeded' } }
+      return { ok: true, value: {} }
+    } })
+    const fiber = ctx.plugin({ inject: [...inject], apply })
+    await fiber.await()
+    const face = slots.entries('settings.provider.item')[0]!.inject!() as {
+      readAuthStatus: () => Promise<unknown>
+      readAuthAttemptStatus: (attemptId: string) => Promise<unknown>
+    }
+    const old = face.readAuthStatus()
+    await face.readAuthAttemptStatus('attempt-1')
+    rememberHeadlineQuota('llm-codex', 'Codex', { label: 'W', remainingPercent: 73 })
+    resolveOld?.({ ok: true, value: { status: 'signed-out' } })
+    await expect(old).resolves.toEqual({ status: 'signed-out' })
+    expect(peekCachedUsage('llm-codex')?.windows[0]?.remainingPercent).toBe(73)
+    clearProviderUsageCache()
+    await fiber.dispose()
+    await ctx.fiber.dispose()
+  })
+
+  it('purges persisted quota when a sign-in attempt succeeds', async () => {
+    const { ctx, slots } = await bench({ call: async (...args: unknown[]) => args[1] === CODEX_AUTH_ATTEMPT_STATUS_ENDPOINT
+      ? { ok: true, value: { status: 'succeeded' } }
+      : { ok: true, value: {} } })
+    const fiber = ctx.plugin({ inject: [...inject], apply })
+    await fiber.await()
+    rememberHeadlineQuota('llm-codex', 'Codex', { label: 'W', remainingPercent: 72 })
+    const face = slots.entries('settings.provider.item')[0]!.inject!() as { readAuthAttemptStatus: (attemptId: string) => Promise<unknown> }
+    await face.readAuthAttemptStatus('attempt-1')
+    expect(peekCachedUsage('llm-codex')).toBeUndefined()
+    clearProviderUsageCache()
+    await fiber.dispose()
     await ctx.fiber.dispose()
   })
 })
