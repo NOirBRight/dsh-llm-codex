@@ -25,7 +25,7 @@ import type {
 } from '../client-contract.ts'
 import type { CodexSettingsKey } from './locales.ts'
 import { BrandMark } from './BrandMark.tsx'
-import { AuthToolbar, ProviderCardHeader, ProviderQuotaMeter, UsageHeader, UsageSkeleton, UsageUpdatedAt, formatUsageClock, providerHeaderStyle, resetLabelOf } from './provider-chrome.tsx'
+import { AuthToolbar, ProviderCardHeader, ProviderQuotaMeter, UsageHeader, UsageSkeleton, UsageUpdatedAt, formatUsageClock, providerUiCss, resetLabelOf } from './provider-chrome.tsx'
 import type { ProviderQuotaState } from './provider-chrome.tsx'
 import { SortableList } from 'dsh-llm-providers-ui/sortable'
 import {
@@ -88,7 +88,6 @@ const cardStyle: CSSProperties = {
   borderRadius: 10,
   background: 'var(--dsw-alias-bg-module-platform)',
 }
-const headerStyle = providerHeaderStyle
 const bodyStyle: CSSProperties = {
   display: 'flex',
   flexDirection: 'column',
@@ -483,18 +482,12 @@ export function CodexPluginCard(props: CodexPluginCardProps): ReactNode {
     }
   }, [readAuthStatus, t])
 
+  // Header quota loads collapsed on mount; expansion reuses it and never refires the same read.
   useEffect(() => {
     const controller = new AbortController()
     void refreshAuth(controller.signal)
     return () => { controller.abort() }
   }, [refreshAuth])
-
-  useEffect(() => {
-    if (!open) return
-    const controller = new AbortController()
-    void refreshAuth(controller.signal, true)
-    return () => { controller.abort() }
-  }, [open, refreshAuth])
 
   useEffect(() => {
     if (!open) return
@@ -691,7 +684,8 @@ export function CodexPluginCard(props: CodexPluginCardProps): ReactNode {
   if (snapshot.status === 'unavailable') {
     return (
       <li style={cardStyle} data-provider-card="" data-provider-role="llm">
-        <button type="button" style={headerStyle} data-provider-card-header="" aria-expanded={open} onClick={() => { setOpen(!open) }}>
+        <style>{providerUiCss}</style>
+        <button type="button" data-provider-card-header="" aria-expanded={open} onClick={() => { setOpen(!open) }}>
           <ProviderCardHeader title={title} mark={<BrandMark />} summary={headerModels} status={headerStatus} open={open} role="llm" />
         </button>
         {open ? <div style={bodyStyle} data-provider-body=""><p style={statusStyle} role="status">{t('remoteAccess')}</p></div> : null}
@@ -702,7 +696,8 @@ export function CodexPluginCard(props: CodexPluginCardProps): ReactNode {
   if (snapshot.status !== 'ready' || draft === undefined || capabilities === undefined) {
     return (
       <li style={cardStyle} data-provider-card="" data-provider-role="llm">
-        <button type="button" style={headerStyle} data-provider-card-header="" aria-expanded={open} onClick={() => { setOpen(!open) }}>
+        <style>{providerUiCss}</style>
+        <button type="button" data-provider-card-header="" aria-expanded={open} onClick={() => { setOpen(!open) }}>
           <ProviderCardHeader title={title} mark={<BrandMark />} summary={headerModels} status={headerStatus} open={open} role="llm" />
         </button>
         {open ? <div style={bodyStyle} data-provider-body=""><p style={statusStyle}>{t('loading')}</p></div> : null}
@@ -712,7 +707,8 @@ export function CodexPluginCard(props: CodexPluginCardProps): ReactNode {
 
   return (
     <li style={cardStyle} data-provider-card="" data-provider-role="llm">
-      <button type="button" style={headerStyle} data-provider-card-header="" aria-expanded={open} onClick={() => { setOpen(!open) }}>
+      <style>{providerUiCss}</style>
+      <button type="button" data-provider-card-header="" aria-expanded={open} onClick={() => { setOpen(!open) }}>
         <ProviderCardHeader
           title={title}
           mark={<BrandMark />}
@@ -722,7 +718,12 @@ export function CodexPluginCard(props: CodexPluginCardProps): ReactNode {
           unsaved={dirty}
           unsavedLabel={t('unsaved')}
           role="llm"
-          {...headerQuota === null ? {} : { quota: headerQuota }}
+          {...headerQuota === null
+            ? (auth.status === 'signed-in' && refreshError !== undefined
+              // Query attempted but no usable quota: unavailable dash, never a fabricated percent.
+              ? { quota: { label: t('usage') } }
+              : {})
+            : { quota: headerQuota }}
         />
       </button>
       {open

@@ -1,7 +1,5 @@
 /** Shared Providers chrome: official DSH glyphs, auth row, chart skeleton. */
-import type { CSSProperties, ReactNode } from 'react';
-/** Use the official 14px globe glyph on the LLM 供应商 nav row. */
-export declare function installProvidersNavIcon(): () => void;
+import type { ReactNode } from 'react';
 /** Account status on the left, sign-in / sign-out on the right. */
 export declare function AuthToolbar(props: {
     status: ReactNode;
@@ -70,14 +68,9 @@ export declare function UsageUpdatedAt(props: {
     at: Date | undefined;
     label: string;
 }): ReactNode;
-export declare const providerHeaderStyle: CSSProperties;
-/** Join connection status and model count: "已登录 · 8 个模型". */
-export declare function formatProviderSummary(status: string, modelsLabel: string): string;
 /** Shared selected-A header: monochrome role badge plus segmented remaining-quota meter.
  * Re-exported from the built dsh-llm-providers-ui/provider-ui artifact; this
  * module keeps the local auth/usage helpers that are not part of the shared API.
- * ponytail: local formatProviderSummary/providerHeaderStyle remain until the
- * shared shell owns the summary line; swap the import only, not the call sites.
  */
 export { ProviderCardHeader, ProviderQuotaMeter, normalizeQuotaRemaining, providerUiCss, } from 'dsh-llm-providers-ui/provider-ui';
 export type { ProviderCardHeaderProps, ProviderCardRole, ProviderQuotaMeterProps, ProviderQuotaState, } from 'dsh-llm-providers-ui/provider-ui';

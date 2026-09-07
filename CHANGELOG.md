@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.3.15] - 2026-09-07
+
+### Changed
+
+- Adopt the shared provider-ui header from `dsh-llm-providers-ui` 0.1.10; remove the per-provider header fork.
+- Header quota loads collapsed with reuse on expansion and no refire; a failed read shows a truthful unavailable dash, never a fabricated percent.
+- Development dependency now points at the final `dsh-llm-providers-ui` 0.1.10 release URL with pinned integrity.
+
 ## [0.3.14] - 2026-09-05
 
 ### Added
