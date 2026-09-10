@@ -26,6 +26,20 @@ describe('Codex pi-ai profile', () => {
     })
   })
 
+  it('exposes an empty modelErrors map for the host modelOf path', () => {
+    const profile = createCodexPiAiProfile({
+      models: [],
+      streamIdleTimeoutMs: 30_000,
+      retryPolicy: { mode: 'normal', maxRetries: 8 },
+    })
+    // Mirrors PiAiAdapter.modelOf: unconditional profile.modelErrors.get(model).
+    expect(profile.modelErrors).toBeInstanceOf(Map)
+    expect(profile.modelErrors.size).toBe(0)
+    for (const model of profile.piProvider.getModels()) {
+      expect(profile.modelErrors.get(model.id)).toBeUndefined()
+    }
+  })
+
   it('declares the official rc.2 request-image budgets', () => {
     const profile = createCodexPiAiProfile({
       models: [],

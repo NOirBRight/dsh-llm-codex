@@ -5096,6 +5096,84 @@
         "registry": "https://registry.npmjs.org",
         "integrity": "sha512-j+N9+iW1InRpTOYo7JXN/A/kG9VSk/bj8imjV0r5RB6LLOTmwEerzw0h0HxL66rxOrvbijeiLADfwbiqOC0vRA=="
       }
+    },
+    {
+      "name": "@earendil-works/pi-ai",
+      "version": "0.85.1",
+      "file": "earendil-works-pi-ai-0.85.1.tgz",
+      "bytes": 798833,
+      "sha256": "af7d11986179445ce6fe88b37d57de22f823c0ffd3a65cae31c555b7f5e99253",
+      "sha512": "sha512-+VgVIJDkDO2efYJKEEqvPTH4zmnIaXdAppGbO+vKFA9qy5PdhFiAenuFAkU+oiCSfOC4dMHDyrjdQeL4ZoC5CQ==",
+      "source": {
+        "kind": "npm-registry",
+        "registry": "https://registry.npmjs.org",
+        "integrity": "sha512-+VgVIJDkDO2efYJKEEqvPTH4zmnIaXdAppGbO+vKFA9qy5PdhFiAenuFAkU+oiCSfOC4dMHDyrjdQeL4ZoC5CQ=="
+      }
+    },
+    {
+      "name": "@anthropic-ai/sdk",
+      "version": "0.123.0",
+      "file": "anthropic-ai-sdk-0.123.0.tgz",
+      "bytes": 1508782,
+      "sha256": "defd4168837747c74dae55a352da80e2e6a8e2d1343ed94a4d840a8ac7aef6bf",
+      "sha512": "sha512-Y9oX9mPNGZClHQOFqrWRk43Srcu/UHuPq3rfxxOq7JgW0gi+lJA2MAOK4Ul3k/+AUrwRWFJvd0tK3oC0Pw25dw==",
+      "source": {
+        "kind": "npm-registry",
+        "registry": "https://registry.npmjs.org",
+        "integrity": "sha512-Y9oX9mPNGZClHQOFqrWRk43Srcu/UHuPq3rfxxOq7JgW0gi+lJA2MAOK4Ul3k/+AUrwRWFJvd0tK3oC0Pw25dw=="
+      }
+    },
+    {
+      "name": "@earendil-works/pi-telemetry",
+      "version": "0.85.1",
+      "file": "earendil-works-pi-telemetry-0.85.1.tgz",
+      "bytes": 27323,
+      "sha256": "22103a32c657ab1f0ca8dd0b3adab48924c56636a5a9ab8b89a43559fb201310",
+      "sha512": "sha512-Bg/YN6kA7Swja/NQxka8xFdecb4E/auIEGF2G5A25EaQXhRnPj300/7/KpgsDDMYUzHTDAv4RyUxaQPJKW81Rw==",
+      "source": {
+        "kind": "npm-registry",
+        "registry": "https://registry.npmjs.org",
+        "integrity": "sha512-Bg/YN6kA7Swja/NQxka8xFdecb4E/auIEGF2G5A25EaQXhRnPj300/7/KpgsDDMYUzHTDAv4RyUxaQPJKW81Rw=="
+      }
+    },
+    {
+      "name": "standardwebhooks",
+      "version": "1.1.1",
+      "file": "standardwebhooks-1.1.1.tgz",
+      "bytes": 4109,
+      "sha256": "d0bc8fec280c9e30ea3cbc876f44fe71d56f443aeca2bd2bdf745718308d4aed",
+      "sha512": "sha512-bCbX9ZEyFkWPsRz7Bl3NuQUJohmwGSev/yhr7vhaGPlc4AfIrspIRa6cPTBuI1ItmrTDJ4d/S2hCsfe4+vQGnQ==",
+      "source": {
+        "kind": "npm-registry",
+        "registry": "https://registry.npmjs.org",
+        "integrity": "sha512-bCbX9ZEyFkWPsRz7Bl3NuQUJohmwGSev/yhr7vhaGPlc4AfIrspIRa6cPTBuI1ItmrTDJ4d/S2hCsfe4+vQGnQ=="
+      }
+    },
+    {
+      "name": "fast-sha256",
+      "version": "1.3.0",
+      "file": "fast-sha256-1.3.0.tgz",
+      "bytes": 9135,
+      "sha256": "4f897ea2594dc9cfb1250e7d4d0f65b4f105952a802fff2d06990bf1dc2c84f6",
+      "sha512": "sha512-n11RGP/lrWEFI/bWdygLxhI+pVeo1ZYIVwvvPkW7azl/rOy+F3HYRZ2K5zeE9mmkhQppyv9sQFx0JM9UabnpPQ==",
+      "source": {
+        "kind": "npm-registry",
+        "registry": "https://registry.npmjs.org",
+        "integrity": "sha512-n11RGP/lrWEFI/bWdygLxhI+pVeo1ZYIVwvvPkW7azl/rOy+F3HYRZ2K5zeE9mmkhQppyv9sQFx0JM9UabnpPQ=="
+      }
+    },
+    {
+      "name": "@stablelib/base64",
+      "version": "1.0.1",
+      "file": "stablelib-base64-1.0.1.tgz",
+      "bytes": 10397,
+      "sha256": "0130711d2e0d3f87436c7825db1f35bd6134fba2eda64b0df43d781f9b6a596a",
+      "sha512": "sha512-1bnPQqSxSuc3Ii6MhBysoWCg58j97aUjuCSZrGSmDxNqtytIi0k8utUenAwTZN4V5mXXYGsVUI9zeBqy+jBOSQ==",
+      "source": {
+        "kind": "npm-registry",
+        "registry": "https://registry.npmjs.org",
+        "integrity": "sha512-1bnPQqSxSuc3Ii6MhBysoWCg58j97aUjuCSZrGSmDxNqtytIi0k8utUenAwTZN4V5mXXYGsVUI9zeBqy+jBOSQ=="
+      }
     }
   ],
   "edges": [
@@ -10949,10 +11027,10 @@
     },
     {
       "from": "dsh-llm-codex@0.3.15",
-      "to": "@earendil-works/pi-ai@0.84.2",
+      "to": "@earendil-works/pi-ai@0.85.1",
       "dependency": "@earendil-works/pi-ai",
       "section": "dependencies",
-      "specifier": "0.84.2",
+      "specifier": "0.85.1",
       "optional": false
     },
     {
@@ -14585,6 +14663,118 @@
       "dependency": "zod",
       "section": "peerDependencies",
       "specifier": "^3.25.28 || ^4",
+      "optional": false
+    },
+    {
+      "from": "@earendil-works/pi-ai@0.85.1",
+      "to": "@anthropic-ai/sdk@0.123.0",
+      "dependency": "@anthropic-ai/sdk",
+      "section": "dependencies",
+      "specifier": "0.123.0",
+      "optional": false
+    },
+    {
+      "from": "@earendil-works/pi-ai@0.85.1",
+      "to": "@aws-sdk/client-bedrock-runtime@3.1048.0",
+      "dependency": "@aws-sdk/client-bedrock-runtime",
+      "section": "dependencies",
+      "specifier": "3.1048.0",
+      "optional": false
+    },
+    {
+      "from": "@earendil-works/pi-ai@0.85.1",
+      "to": "@earendil-works/pi-telemetry@0.85.1",
+      "dependency": "@earendil-works/pi-telemetry",
+      "section": "dependencies",
+      "specifier": "^0.85.1",
+      "optional": false
+    },
+    {
+      "from": "@earendil-works/pi-ai@0.85.1",
+      "to": "@google/genai@1.52.0",
+      "dependency": "@google/genai",
+      "section": "dependencies",
+      "specifier": "1.52.0",
+      "optional": false
+    },
+    {
+      "from": "@earendil-works/pi-ai@0.85.1",
+      "to": "@smithy/node-http-handler@4.7.3",
+      "dependency": "@smithy/node-http-handler",
+      "section": "dependencies",
+      "specifier": "4.7.3",
+      "optional": false
+    },
+    {
+      "from": "@earendil-works/pi-ai@0.85.1",
+      "to": "http-proxy-agent@7.0.2",
+      "dependency": "http-proxy-agent",
+      "section": "dependencies",
+      "specifier": "7.0.2",
+      "optional": false
+    },
+    {
+      "from": "@earendil-works/pi-ai@0.85.1",
+      "to": "https-proxy-agent@7.0.6",
+      "dependency": "https-proxy-agent",
+      "section": "dependencies",
+      "specifier": "7.0.6",
+      "optional": false
+    },
+    {
+      "from": "@earendil-works/pi-ai@0.85.1",
+      "to": "openai@6.40.0",
+      "dependency": "openai",
+      "section": "dependencies",
+      "specifier": "6.40.0",
+      "optional": false
+    },
+    {
+      "from": "@earendil-works/pi-ai@0.85.1",
+      "to": "partial-json@0.1.7",
+      "dependency": "partial-json",
+      "section": "dependencies",
+      "specifier": "0.1.7",
+      "optional": false
+    },
+    {
+      "from": "@earendil-works/pi-ai@0.85.1",
+      "to": "typebox@1.3.7",
+      "dependency": "typebox",
+      "section": "dependencies",
+      "specifier": "1.3.7",
+      "optional": false
+    },
+    {
+      "from": "@anthropic-ai/sdk@0.123.0",
+      "to": "standardwebhooks@1.1.1",
+      "dependency": "standardwebhooks",
+      "section": "dependencies",
+      "specifier": "^1.0.0",
+      "optional": false
+    },
+    {
+      "from": "@anthropic-ai/sdk@0.123.0",
+      "to": "json-schema-to-ts@3.1.1",
+      "dependency": "json-schema-to-ts",
+      "section": "dependencies",
+      "specifier": "^3.1.1",
+      "optional": false
+    },
+    {
+      "from": "standardwebhooks@1.1.1",
+      "to": "@stablelib/base64@1.0.1",
+      "dependency": "@stablelib/base64",
+      "section": "dependencies",
+      "specifier": "^1.0.0",
+      "optional": false
+    },
+    {
+      "from": "standardwebhooks@1.1.1",
+      "to": "fast-sha256@1.3.0",
+      "dependency": "fast-sha256",
+      "section": "dependencies",
+      "specifier": "^1.3.0",
       "optional": false
     }
   ]
