@@ -732,11 +732,11 @@ export function CodexPluginCard(props: CodexPluginCardProps): ReactNode {
     if (liveQuota !== undefined) rememberHeadlineQuota(USAGE_PROVIDER_KEY, USAGE_PROVIDER_NAME, liveQuota)
   }, [auth.status, liveQuota?.remainingPercent, liveQuota?.label])
   // The cache only covers "no answer yet"; a settled failure keeps its unavailable dash.
-  const usageAnswered = auth.status === 'signed-in' && (auth.usage !== undefined || lastUsage !== undefined)
+  const usageFailed = auth.status === 'signed-in' && auth.quotaError !== undefined
   // No auth gate on the cached value: it must paint on the first frame, before the
   // account read answers. A stale entry cannot linger, because sign-out drops it.
   const headerQuota: ProviderQuotaState | null = liveQuota
-    ?? (usageAnswered ? null : headerQuotaFromCache(peekCachedUsage(USAGE_PROVIDER_KEY)) ?? null)
+    ?? (usageFailed ? null : headerQuotaFromCache(peekCachedUsage(USAGE_PROVIDER_KEY)) ?? null)
 
   if (snapshot.status === 'unavailable') {
     return (
