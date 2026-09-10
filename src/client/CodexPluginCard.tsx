@@ -47,11 +47,11 @@ import {
 
 export type { CodexAccountStatus }
 
-/** Bounded re-reads while a just-finished sign-in still reports no quota detail. */
-const SIGN_IN_USAGE_ATTEMPTS = 8
+/** First re-read delay while a signed-in account has not published usable quota yet. */
+const USAGE_SETTLE_START_MS = 1_500
 
-/** Spacing between those re-reads; the provider publishes quota shortly after auth. */
-const SIGN_IN_USAGE_DELAY_MS = 1_500
+/** Steady quota re-read cadence, and the ceiling on settle backoff: retrying never outpaces normal polling. */
+const USAGE_POLL_INTERVAL_MS = 60_000
 
 export interface CodexPluginCardFace {
   t: (key: CodexSettingsKey) => string
@@ -490,23 +490,6 @@ export function CodexPluginCard(props: CodexPluginCardProps): ReactNode {
     }
   }, [t])
 
-  /**
-   * A finished sign-in usually answers before the provider publishes quota, so the
-   * single read that follows lands with no usage and the card then waits for the
-   * 60s interval. Re-read on a short bounded cadence until quota appears, then hand
-   * back to the interval.
-   */
-  const settleUsageAfterSignIn = useCallback(async (isStopped: () => boolean): Promise<void> => {
-    for (let attempt = 0; attempt < SIGN_IN_USAGE_ATTEMPTS; attempt += 1) {
-      await new Promise(resolve => { window.setTimeout(resolve, SIGN_IN_USAGE_DELAY_MS) })
-      if (!mounted.current || isStopped()) return
-      const next = await readAuthStatus()
-      if (!mounted.current || isStopped()) return
-      applyAuthStatus(next)
-      if (next.status === 'signed-in' && next.quotaError === undefined && next.usage !== undefined) return
-    }
-  }, [applyAuthStatus, readAuthStatus])
-
   const refreshAuth = useCallback(async (signal?: AbortSignal, spin = false): Promise<void> => {
     if (spin) setQuotaRefreshing(true)
     // Generation guard: a superseded read (sign-out, sign-in, unmount) must not
@@ -535,9 +518,41 @@ export function CodexPluginCard(props: CodexPluginCardProps): ReactNode {
     return () => { controller.abort() }
   }, [refreshAuth])
 
+  const liveQuota = headerQuotaOf(auth, lastUsage, t)
+  // Signed-in and holding a usable headline window: the header is settled. Anything else —
+  // a provider that has not published quota since the sign-in, or a read that failed — is
+  // transient and must not wait out the 60s interval before the header can fill in.
+  const usageSettled = refreshError === undefined && liveQuota !== null
+
+  /**
+   * Re-read while the header is withheld with nothing scheduled: 1.5s doubling up to the
+   * steady interval, until a usable window arrives. The loop stops on settle, on any status
+   * change, and on unmount. Retrying renders nothing by itself: every attempt still passes
+   * the generation guard, so a failing read keeps the previous account's quota withheld.
+   */
+  useEffect(() => {
+    if (auth.status !== 'signed-in' || usageSettled) return
+    const controller = new AbortController()
+    let stopped = false
+    const settle = async (): Promise<void> => {
+      let delay = USAGE_SETTLE_START_MS
+      while (!stopped && mounted.current) {
+        await new Promise(resolve => { window.setTimeout(resolve, delay) })
+        if (stopped || !mounted.current) return
+        await refreshAuth(controller.signal)
+        if (stopped || !mounted.current) return
+        delay = Math.min(delay * 2, USAGE_POLL_INTERVAL_MS)
+      }
+    }
+    void settle()
+    return () => { stopped = true; controller.abort() }
+  }, [auth.status, refreshAuth, usageSettled])
+
   useEffect(() => {
     if (!open) return
-    const interval = auth.status === 'signing-in' ? 1000 : auth.status === 'signed-in' ? 60_000 : undefined
+    const interval = auth.status === 'signing-in'
+      ? 1000
+      : auth.status === 'signed-in' && usageSettled ? USAGE_POLL_INTERVAL_MS : undefined
     if (interval === undefined) return
     const controller = new AbortController()
     const timer = window.setInterval(() => { void refreshAuth(controller.signal) }, interval)
@@ -545,7 +560,7 @@ export function CodexPluginCard(props: CodexPluginCardProps): ReactNode {
       window.clearInterval(timer)
       controller.abort()
     }
-  }, [open, auth.status, refreshAuth])
+  }, [open, auth.status, refreshAuth, usageSettled])
 
   useEffect(() => {
     if (!open || auth.status !== 'signing-in' || authChallenge?.attemptId === undefined) return
@@ -556,11 +571,9 @@ export function CodexPluginCard(props: CodexPluginCardProps): ReactNode {
         const result = await readAuthAttemptStatus(attemptId)
         if (stopped || !mounted.current) return
         if (result.status === 'succeeded') {
+          // Applying the signed-in status reruns this effect, which stops the poll;
+          // quota settling then belongs to the settle effect.
           await refreshAuth()
-          // Deliberately not keyed to the poll's own stop flag: applying the
-          // signed-in status reruns this effect, whose cleanup would otherwise
-          // cancel the follow-up reads. The loop is bounded on its own.
-          await settleUsageAfterSignIn(() => !mounted.current)
           return
         }
         if (result.status === 'failed') setAuth({ status: 'error', message: t('signInFailed') })
@@ -570,7 +583,7 @@ export function CodexPluginCard(props: CodexPluginCardProps): ReactNode {
     void poll()
     const timer = window.setInterval(() => { void poll() }, 1000)
     return () => { stopped = true; window.clearInterval(timer) }
-  }, [auth.status, authChallenge?.attemptId, open, readAuthAttemptStatus, refreshAuth, settleUsageAfterSignIn, t])
+  }, [auth.status, authChallenge?.attemptId, open, readAuthAttemptStatus, refreshAuth, t])
 
   const patchDraft = (models: ModelDraft[]): void => {
     setDraft(models)
@@ -733,7 +746,6 @@ export function CodexPluginCard(props: CodexPluginCardProps): ReactNode {
   const headerModels = modelCount === undefined ? '' : t('summaryModels').replace('{count}', String(modelCount))
   // Unknown auth is loading, not signed out: only an authoritative verdict earns On/Off.
   const headerStatus = auth.status === 'signed-in' ? t('summaryOn') : auth.status === 'signed-out' ? t('summaryOff') : auth.status === 'error' ? t('statusFailed') : t('authLoading')
-  const liveQuota = headerQuotaOf(auth, lastUsage, t)
   // The verdict gates the entire header quota, not only the persisted fallback: stale
   // local lastUsage must not look fresh on error or unsupported either. The shared
   // cache supplies the first frame, and only a known sign-out drops the stored entry.

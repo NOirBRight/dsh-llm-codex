@@ -139,6 +139,63 @@ describe('CodexPluginCard', () => {
     expect(signedInReads).toBeGreaterThanOrEqual(3)
   })
 
+  it('fills the header as soon as a fresh sign-in publishes quota, not at the 60s interval', async () => {
+    let signedIn = false
+    let signedInReads = 0
+    const readAuthStatus = vi.fn(async (): Promise<CodexAccountStatus> => {
+      if (!signedIn) return { status: 'signed-out' }
+      signedInReads += 1
+      // A just-signed-in account answers signed-in with an empty window list until the
+      // provider publishes rates. An answer carrying `usage` but no usable window must not
+      // end the settling, or the header waits out the full 60s interval as a dash.
+      return signedInReads < 3
+        ? { status: 'signed-in', usage: { rateLimits: [] } }
+        : { status: 'signed-in', usage: { rateLimits: [{ id: 'primary', windows: [{ remainingPercent: 41, windowSeconds: 18000 }] }] } }
+    })
+    render(<CodexPluginCard {...props({
+      readAuthStatus,
+      startAuth: vi.fn(() => Promise.resolve({
+        verificationUri: 'https://chatgpt.com/device',
+        userCode: 'LATE-CODE',
+        attemptId: 'attempt-late',
+      })),
+      readAuthAttemptStatus: vi.fn(async () => { signedIn = true; return { status: 'succeeded' as const } }),
+    })} />)
+    expand()
+    await waitFor(() => { expect(screen.getByText(en.signedOut)).toBeTruthy() })
+
+    fireEvent.click(screen.getByRole('button', { name: en.signIn }))
+
+    // The 20s bound is the assertion: waiting for the 60s interval fails it.
+    const meters = await screen.findAllByRole('meter', { name: en.fiveHourLimit }, { timeout: 20_000 })
+    expect(meters[0]?.getAttribute('aria-valuenow')).toBe('41')
+    expect(signedInReads).toBeGreaterThanOrEqual(3)
+  })
+
+  it('keeps the header withheld while a signed-in account keeps failing its quota read', async () => {
+    const usable = vi.fn(async (): Promise<CodexAccountStatus> => ({
+      status: 'signed-in',
+      usage: { rateLimits: [{ id: 'primary', windows: [{ remainingPercent: 76, windowSeconds: 18000 }] }] },
+    }))
+    const view = render(<CodexPluginCard {...props({ readAuthStatus: usable })} />)
+    expect((await screen.findByRole('meter', { name: en.fiveHourLimit })).getAttribute('aria-valuenow')).toBe('76')
+
+    const failing = vi.fn(async (): Promise<CodexAccountStatus> => ({
+      status: 'signed-in',
+      usage: { rateLimits: [] },
+      quotaError: 'quota down',
+    }))
+    view.rerender(<CodexPluginCard {...props({ readAuthStatus: failing })} />)
+    await waitFor(() => { expect(document.querySelector('[data-provider-quota-mini] [data-provider-quota-missing]')).not.toBeNull() })
+    expect(screen.queryByRole('meter')).toBeNull()
+
+    // Retrying is fast, not the 60s interval — but it renders nothing: a further answer lands
+    // while the dash stays up, so the previous read's 76% never returns.
+    await waitFor(() => { expect(failing.mock.calls.length).toBeGreaterThanOrEqual(2) }, { timeout: 5000 })
+    expect(document.querySelector('[data-provider-quota-mini] [data-provider-quota-missing]')).not.toBeNull()
+    expect(screen.queryByRole('meter')).toBeNull()
+  })
+
   it('falls back to textarea copy when Clipboard API rejects', async () => {
     const writeText = vi.fn(() => Promise.reject(new Error('denied')))
     Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText } })
