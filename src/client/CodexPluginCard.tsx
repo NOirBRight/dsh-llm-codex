@@ -42,6 +42,12 @@ import {
 
 export type { CodexAccountStatus }
 
+/** Bounded re-reads while a just-finished sign-in still reports no quota detail. */
+const SIGN_IN_USAGE_ATTEMPTS = 8
+
+/** Spacing between those re-reads; the provider publishes quota shortly after auth. */
+const SIGN_IN_USAGE_DELAY_MS = 1_500
+
 export interface CodexPluginCardFace {
   t: (key: CodexSettingsKey) => string
   hooks: {
@@ -454,22 +460,44 @@ export function CodexPluginCard(props: CodexPluginCardProps): ReactNode {
 
   useEffect(() => () => { props.closeModelPicker() }, [props.closeModelPicker])
 
+  /** Fold one account-status answer into the card's state. */
+  const applyAuthStatus = useCallback((next: CodexAccountStatus): void => {
+    setAuth(next)
+    if (next.status !== 'signing-in') setAuthChallenge(undefined)
+    if (next.status === 'signed-in') {
+      if (next.quotaError === undefined) {
+        setLastUsage(next.usage)
+        setUsageUpdatedAt(new Date())
+        setRefreshError(undefined)
+      } else {
+        setRefreshError(t('usageRefreshFailed'))
+      }
+    }
+  }, [t])
+
+  /**
+   * A finished sign-in usually answers before the provider publishes quota, so the
+   * single read that follows lands with no usage and the card then waits for the
+   * 60s interval. Re-read on a short bounded cadence until quota appears, then hand
+   * back to the interval.
+   */
+  const settleUsageAfterSignIn = useCallback(async (isStopped: () => boolean): Promise<void> => {
+    for (let attempt = 0; attempt < SIGN_IN_USAGE_ATTEMPTS; attempt += 1) {
+      await new Promise(resolve => { window.setTimeout(resolve, SIGN_IN_USAGE_DELAY_MS) })
+      if (!mounted.current || isStopped()) return
+      const next = await readAuthStatus()
+      if (!mounted.current || isStopped()) return
+      applyAuthStatus(next)
+      if (next.status === 'signed-in' && next.quotaError === undefined && next.usage !== undefined) return
+    }
+  }, [applyAuthStatus, readAuthStatus])
+
   const refreshAuth = useCallback(async (signal?: AbortSignal, spin = false): Promise<void> => {
     if (spin) setQuotaRefreshing(true)
     try {
       const next = await readAuthStatus(signal)
       if (!mounted.current || signal?.aborted === true) return
-      setAuth(next)
-      if (next.status !== 'signing-in') setAuthChallenge(undefined)
-      if (next.status === 'signed-in') {
-        if (next.quotaError === undefined) {
-          setLastUsage(next.usage)
-          setUsageUpdatedAt(new Date())
-          setRefreshError(undefined)
-        } else {
-          setRefreshError(t('usageRefreshFailed'))
-        }
-      }
+      applyAuthStatus(next)
     } catch (error: unknown) {
       if (mounted.current && signal?.aborted !== true) {
         setRefreshError(t('usageRefreshFailed'))
@@ -480,7 +508,7 @@ export function CodexPluginCard(props: CodexPluginCardProps): ReactNode {
     } finally {
       if (spin && mounted.current) setQuotaRefreshing(false)
     }
-  }, [readAuthStatus, t])
+  }, [applyAuthStatus, readAuthStatus, t])
 
   // Header quota loads collapsed on mount; expansion reuses it and never refires the same read.
   useEffect(() => {
@@ -509,7 +537,14 @@ export function CodexPluginCard(props: CodexPluginCardProps): ReactNode {
       try {
         const result = await readAuthAttemptStatus(attemptId)
         if (stopped || !mounted.current) return
-        if (result.status === 'succeeded') { await refreshAuth(); return }
+        if (result.status === 'succeeded') {
+          await refreshAuth()
+          // Deliberately not keyed to the poll's own stop flag: applying the
+          // signed-in status reruns this effect, whose cleanup would otherwise
+          // cancel the follow-up reads. The loop is bounded on its own.
+          await settleUsageAfterSignIn(() => !mounted.current)
+          return
+        }
         if (result.status === 'failed') setAuth({ status: 'error', message: t('signInFailed') })
         else if (result.status === 'cancelled' || result.status === 'missing') setAuth({ status: 'signed-out' })
       } catch { /* generic status polling remains the safe fallback */ }
@@ -517,7 +552,7 @@ export function CodexPluginCard(props: CodexPluginCardProps): ReactNode {
     void poll()
     const timer = window.setInterval(() => { void poll() }, 1000)
     return () => { stopped = true; window.clearInterval(timer) }
-  }, [auth.status, authChallenge?.attemptId, open, readAuthAttemptStatus, refreshAuth, t])
+  }, [auth.status, authChallenge?.attemptId, open, readAuthAttemptStatus, refreshAuth, settleUsageAfterSignIn, t])
 
   const patchDraft = (models: ModelDraft[]): void => {
     setDraft(models)

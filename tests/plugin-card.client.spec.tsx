@@ -108,6 +108,37 @@ describe('CodexPluginCard', () => {
     expect(screen.queryByRole('link', { name: en.openDevicePage })).toBeNull()
   })
 
+  it('re-reads the account status until quota appears after sign-in', async () => {
+    let signedIn = false
+    let signedInReads = 0
+    const readAuthStatus = vi.fn(async (): Promise<CodexAccountStatus> => {
+      if (!signedIn) return { status: 'signed-out' }
+      signedInReads += 1
+      // The provider publishes quota shortly after auth: the first signed-in
+      // answers carry none, which used to leave the card meterless until the
+      // 60s interval fired.
+      return signedInReads < 3
+        ? { status: 'signed-in' }
+        : { status: 'signed-in', usage: { rateLimits: [{ id: 'primary', windows: [{ remainingPercent: 73, windowSeconds: 18000 }] }] } }
+    })
+    render(<CodexPluginCard {...props({
+      readAuthStatus,
+      startAuth: vi.fn(() => Promise.resolve({
+        verificationUri: 'https://chatgpt.com/device',
+        userCode: 'WAIT-CODE',
+        attemptId: 'attempt-wait',
+      })),
+      readAuthAttemptStatus: vi.fn(async () => { signedIn = true; return { status: 'succeeded' as const } }),
+    })} />)
+    expand()
+    await waitFor(() => { expect(screen.getByText(en.signedOut)).toBeTruthy() })
+    fireEvent.click(screen.getByRole('button', { name: en.signIn }))
+
+    const meters = await screen.findAllByRole('meter', { name: en.fiveHourLimit }, { timeout: 8000 })
+    expect(meters[0]?.getAttribute('aria-valuenow')).toBe('73')
+    expect(signedInReads).toBeGreaterThanOrEqual(3)
+  })
+
   it('falls back to textarea copy when Clipboard API rejects', async () => {
     const writeText = vi.fn(() => Promise.reject(new Error('denied')))
     Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText } })
