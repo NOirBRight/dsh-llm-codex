@@ -27,7 +27,14 @@ import type { CodexSettingsKey } from './locales.ts'
 import { BrandMark } from './BrandMark.tsx'
 import { AuthToolbar, ProviderCardHeader, ProviderQuotaMeter, UsageHeader, UsageSkeleton, UsageUpdatedAt, formatUsageClock, providerUiCss, resetLabelOf } from './provider-chrome.tsx'
 import type { ProviderQuotaState } from './provider-chrome.tsx'
+import { dropPersistedUsageKeys, headerQuotaFromCache, peekCachedUsage, rememberHeadlineQuota } from 'dsh-llm-providers-ui/usage-readers'
 import { SortableList } from 'dsh-llm-providers-ui/sortable'
+
+/** Provider key this card shares with the Provider Usage sidebar cache. */
+const USAGE_PROVIDER_KEY = 'llm-codex'
+
+/** Display name recorded with the cached headline quota. */
+const USAGE_PROVIDER_NAME = 'Codex'
 import {
   ModelCatalogCapabilities,
   ModelCatalogDetails,
@@ -714,7 +721,20 @@ export function CodexPluginCard(props: CodexPluginCardProps): ReactNode {
   const modelCount = Array.isArray(draft) ? draft.length : (snapshot.value?.models?.length ?? 0)
   const headerModels = t('summaryModels').replace('{count}', String(modelCount))
   const headerStatus = auth.status === 'signed-in' ? t('summaryOn') : t('summaryOff')
-  const headerQuota = headerQuotaOf(auth, lastUsage, t)
+  const liveQuota = headerQuotaOf(auth, lastUsage, t)
+  // One cache shared with the Provider Usage sidebar: first paint reads it, a live
+  // answer always wins, and a sign-out drops the entry instead of leaving it stale.
+  useEffect(() => {
+    if (auth.status !== 'signed-in') {
+      if (auth.status === 'signed-out' || auth.status === 'reauth-required') dropPersistedUsageKeys([USAGE_PROVIDER_KEY])
+      return
+    }
+    if (liveQuota !== undefined) rememberHeadlineQuota(USAGE_PROVIDER_KEY, USAGE_PROVIDER_NAME, liveQuota)
+  }, [auth.status, liveQuota?.remainingPercent, liveQuota?.label])
+  // The cache only covers "no answer yet"; a settled failure keeps its unavailable dash.
+  const usageAnswered = auth.status === 'signed-in' && (auth.usage !== undefined || lastUsage !== undefined)
+  const headerQuota: ProviderQuotaState | null = liveQuota
+    ?? (auth.status === 'signed-in' && !usageAnswered ? headerQuotaFromCache(peekCachedUsage(USAGE_PROVIDER_KEY)) ?? null : null)
 
   if (snapshot.status === 'unavailable') {
     return (
