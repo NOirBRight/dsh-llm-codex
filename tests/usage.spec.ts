@@ -1,5 +1,27 @@
+import { mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { parseCodexUsage } from '../src/usage.ts'
+import { INVALID_CREDENTIAL_CODE } from '@deepseek-ai/dsh-llm'
+import { CodexCredentialStore } from '../src/store.ts'
+import { isCodexCredentialFailure, parseCodexUsage, readCodexRateLimits } from '../src/usage.ts'
+
+describe('readCodexRateLimits credential resolution', () => {
+  it('classifies a stored document it cannot use as a credential failure', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'dsh-llm-codex-usage-'))
+    try {
+      const filename = join(root, 'codex-oauth.json')
+      await writeFile(filename, '{"version":1,"credential":{"type":"oauth"}}\n')
+      const error: unknown = await readCodexRateLimits(new CodexCredentialStore(filename))
+        .then(() => undefined, (thrown: unknown) => thrown)
+
+      expect(error).toMatchObject({ code: INVALID_CREDENTIAL_CODE })
+      expect(isCodexCredentialFailure(error)).toBe(true)
+    } finally {
+      await rm(root, { recursive: true, force: true })
+    }
+  })
+})
 
 describe('parseCodexUsage', () => {
   it('projects remaining capacity from the official usage payload', () => {

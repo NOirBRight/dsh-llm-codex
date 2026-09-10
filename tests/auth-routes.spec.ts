@@ -4,16 +4,24 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { AuthInteraction } from '@earendil-works/pi-ai'
+import { INVALID_CREDENTIAL_CODE, LlmError } from '@deepseek-ai/dsh-llm'
 import { CodexWebAuth, trustedRequest } from '../src/auth-routes.ts'
 import { openSystemBrowser } from '../src/open-browser.ts'
 import { CodexCredentialStore } from '../src/store.ts'
 import { decodeCodexAuthStatus } from '../src/client-contract.ts'
 
 const loginCodex = vi.hoisted(() => vi.fn())
+const readCodexRateLimits = vi.hoisted(() => vi.fn())
 
 vi.mock('../src/auth.ts', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../src/auth.ts')>()
   return { ...actual, loginCodex }
+})
+
+vi.mock('../src/usage.ts', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../src/usage.ts')>()
+  readCodexRateLimits.mockImplementation(actual.readCodexRateLimits)
+  return { ...actual, readCodexRateLimits }
 })
 
 /** Same contract as pi-ai's browser login: emit a URL, then hang on manual_code. */
@@ -31,6 +39,7 @@ let root: string | undefined
 
 afterEach(async () => {
   loginCodex.mockReset()
+  readCodexRateLimits.mockClear()
   if (root !== undefined) await rm(root, { recursive: true, force: true })
   root = undefined
 })
@@ -101,6 +110,33 @@ describe('CodexWebAuth.status', () => {
     await auth.status(true)
 
     expect(refreshUsage).toHaveBeenCalledTimes(1)
+  })
+
+  it('surfaces a credential failure instead of flattening it into a quota message', async () => {
+    root = await mkdtemp(join(tmpdir(), 'dsh-llm-codex-auth-'))
+    const auth = new CodexWebAuth(authStore())
+    Object.assign(auth, { state: { status: 'signed-in', usage: { rateLimits: [] } } })
+    readCodexRateLimits.mockRejectedValueOnce(
+      new LlmError('llm-codex: not signed in; sign in with ChatGPT', 'MISSING_CREDENTIAL'),
+    )
+
+    await expect(auth.status(true)).rejects.toMatchObject({
+      code: 'MISSING_CREDENTIAL',
+      message: expect.stringContaining('sign in'),
+    })
+  })
+
+  it('keeps a transient usage failure as a quota message rather than a credential verdict', async () => {
+    root = await mkdtemp(join(tmpdir(), 'dsh-llm-codex-auth-'))
+    const auth = new CodexWebAuth(authStore())
+    Object.assign(auth, { state: { status: 'signed-in', usage: { rateLimits: [] } } })
+    readCodexRateLimits.mockRejectedValueOnce(new Error('Codex usage request failed with HTTP 503'))
+
+    await expect(auth.status(true)).resolves.toEqual({
+      status: 'signed-in',
+      usage: { rateLimits: [] },
+      quotaError: 'Codex usage request failed with HTTP 503',
+    })
   })
 
   it('lets a later client cancel an abandoned browser login and start again', async () => {

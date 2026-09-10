@@ -96,6 +96,20 @@ describe('CodexPluginCard collapsed quota', () => {
     expect(screen.queryByRole('meter')).toBeNull()
   })
 
+  it('paints the cached quota in the loading branch before the settings snapshot is ready', async () => {
+    rememberHeadlineQuota('llm-codex', 'Codex', { remainingPercent: 64, label: 'W' })
+    const useCodexSettings = (selector: (value: unknown) => unknown): unknown =>
+      selector({ status: 'loading', value: undefined, base: {}, user: {}, revision: 0, writable: true, mode: 'host' })
+    render(<CodexPluginCard {...props({
+      readAuthStatus: vi.fn(() => new Promise<never>(() => {})),
+      useCodexSettings,
+    })} />)
+
+    const meter = await screen.findByRole('meter')
+    expect(meter.getAttribute('aria-valuenow')).toBe('64')
+    expect(document.querySelector('[data-provider-quota-missing]')).toBeNull()
+  })
+
   it('clears local usage on sign-out so a later failing reauth cannot resurrect it', async () => {
     const authed = (): Promise<unknown> => Promise.resolve({
       status: 'signed-in',

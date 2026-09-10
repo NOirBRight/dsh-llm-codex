@@ -2,6 +2,7 @@
 
 import { createModels } from '@earendil-works/pi-ai'
 import { openaiCodexProvider } from '@earendil-works/pi-ai/providers/openai-codex'
+import { INVALID_CREDENTIAL_CODE, LlmError } from '@deepseek-ai/dsh-llm'
 import type {
   CodexCredits,
   CodexIndividualLimit,
@@ -36,6 +37,24 @@ export class CodexReauthRequiredError extends Error {
 
 export function isCodexReauthRequiredError(error: unknown): error is CodexReauthRequiredError {
   return error instanceof CodexReauthRequiredError
+}
+
+/** Failure codes that already mean this account has no usable credential. */
+const CREDENTIAL_FAILURE_CODES: ReadonlySet<string> = new Set([
+  'AUTH',
+  'MISSING_CREDENTIAL',
+  INVALID_CREDENTIAL_CODE,
+])
+
+/**
+ * Whether one failure means the Codex credential is missing or no longer
+ * usable, rather than a transport or provider failure.
+ * @param error - value caught from credential resolution or a usage read.
+ * @returns true when the account cannot serve quota until it signs in again.
+ */
+export function isCodexCredentialFailure(error: unknown): boolean {
+  return isCodexReauthRequiredError(error)
+    || (error instanceof LlmError && CREDENTIAL_FAILURE_CODES.has(error.code))
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -193,12 +212,24 @@ export function parseCodexUsage(value: unknown, now = Date.now()): CodexUsage {
 export async function readCodexRateLimits(store: CodexCredentialStore): Promise<CodexUsage> {
   const models = createModels({ credentials: store })
   models.setProvider(openaiCodexProvider())
-  const auth = await models.getAuth(OPENAI_CODEX_PROVIDER)
-  const credential = await store.read(OPENAI_CODEX_PROVIDER)
+  let auth: Awaited<ReturnType<typeof models.getAuth>>
+  let credential: Awaited<ReturnType<typeof store.read>>
+  try {
+    auth = await models.getAuth(OPENAI_CODEX_PROVIDER)
+    credential = await store.read(OPENAI_CODEX_PROVIDER)
+  } catch (error: unknown) {
+    // An unreadable document or a rejected refresh leaves no usable session, which
+    // is terminal for this account rather than a transient usage-read failure.
+    throw new LlmError(
+      'Codex: the stored credential could not be resolved; sign in again with ChatGPT',
+      INVALID_CREDENTIAL_CODE,
+      { cause: error },
+    )
+  }
   const access = auth?.auth.apiKey
   const accountId = credential?.type === 'oauth' ? credential.accountId : undefined
   if (access === undefined || access.length === 0 || typeof accountId !== 'string' || accountId.length === 0) {
-    throw new Error('Codex is signed out')
+    throw new LlmError('Codex is signed out', 'MISSING_CREDENTIAL')
   }
   const response = await fetch(CODEX_USAGE_URL, {
     method: 'GET',

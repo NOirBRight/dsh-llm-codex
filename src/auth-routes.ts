@@ -8,6 +8,7 @@ import type {} from '@deepseek-ai/dsh-host-webserver'
 import { loginCodex, logoutCodex, codexAuthStatus } from './auth.ts'
 import type { CodexCredentialStore } from './store.ts'
 import {
+  isCodexCredentialFailure,
   isCodexReauthRequiredError,
   CODEX_REAUTH_REQUIRED_MESSAGE,
   readCodexRateLimits,
@@ -47,7 +48,8 @@ export interface CodexWebAuthOptions {
   openBrowser?: (url: string) => Promise<void>
 }
 
-function safeMessage(error: unknown): string {
+/** Redact token-shaped text from one failure message bound for a client. */
+export function safeMessage(error: unknown): string {
   return (error instanceof Error ? error.message : String(error))
     .replace(/\beyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\b/gu, '[redacted token]')
     .replace(/(\b(?:code|token|refresh_token|access_token)=)[^&\s]+/giu, '$1[redacted]')
@@ -232,8 +234,15 @@ export class CodexWebAuth {
       if (this.state.status === 'signed-in') this.state = { status: 'signed-in', usage }
     }).catch(error => {
       if (this.state.status !== 'signed-in') return
-      if (isCodexReauthRequiredError(error)) this.state = { status: 'reauth-required', message: CODEX_REAUTH_REQUIRED_MESSAGE }
-      else this.state = { status: 'signed-in', usage: { rateLimits: [] }, quotaError: safeMessage(error) }
+      if (isCodexReauthRequiredError(error)) {
+        this.state = { status: 'reauth-required', message: CODEX_REAUTH_REQUIRED_MESSAGE }
+        return
+      }
+      // A credential that cannot be resolved is answered to the caller with its own
+      // failure code; flattening it into a quota message would keep the previous
+      // account's cached quota alive.
+      if (isCodexCredentialFailure(error)) throw error
+      this.state = { status: 'signed-in', usage: { rateLimits: [] }, quotaError: safeMessage(error) }
     }).finally(() => { this.usageRefresh = undefined })
     return this.usageRefresh
   }
@@ -320,7 +329,11 @@ export function registerCodexAuthRoutes(ctx: Context, store: CodexCredentialStor
         handler: async (req, res) => {
           if (req.method !== 'GET') return json(res, 405, { error: 'method not allowed' })
           if (!trustedRequest(req)) return json(res, 403, { error: 'forbidden' })
-          json(res, 200, await auth.status())
+          try {
+            json(res, 200, await auth.status())
+          } catch (error: unknown) {
+            json(res, 500, { error: safeMessage(error) })
+          }
         },
       }),
       ctx.webServer.register({
