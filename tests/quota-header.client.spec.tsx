@@ -2,16 +2,19 @@
 // Collapsed header quota: the mount read covers the header, expansion never refires
 // the same read, and settled unavailability renders a dash, never a fabricated percent.
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { SettingsScopeSnapshot } from '../src/client/settings-scope.ts'
 import { CodexPluginCard } from '../src/client/CodexPluginCard.tsx'
 import type { CodexPluginCardProps } from '../src/client/CodexPluginCard.tsx'
 import { providerUiCss } from '../src/client/provider-chrome.tsx'
 import { en } from '../src/client/locales.ts'
+import { clearProviderUsageCache, rememberHeadlineQuota } from 'dsh-llm-providers-ui/usage-readers'
 import { DEFAULT_CODEX_SETTINGS } from '../src/client-contract.ts'
 import type { CodexSettingsView } from '../src/client-contract.ts'
 
 afterEach(() => { cleanup() })
+// Each case starts with an empty shared cache: the dash cases assert "nothing was ever cached".
+beforeEach(() => { clearProviderUsageCache() })
 
 const settings: CodexSettingsView = {
   ...DEFAULT_CODEX_SETTINGS,
@@ -55,6 +58,18 @@ function expand(): void {
 }
 
 describe('CodexPluginCard collapsed quota', () => {
+  it('paints the shared cached quota before any live answer arrives', async () => {
+    clearProviderUsageCache()
+    rememberHeadlineQuota('llm-codex', 'Codex', { label: 'Codex', remainingPercent: 64 })
+    // The account read never settles: the cached value must be the only source.
+    const readAuthStatus = vi.fn(() => new Promise<never>(() => undefined))
+    render(<CodexPluginCard {...props({ readAuthStatus })} />)
+
+    const meter = await screen.findByRole('meter', { name: 'Codex' })
+    expect(meter.getAttribute('aria-valuenow')).toBe('64')
+    clearProviderUsageCache()
+  })
+
   it('shows header quota while collapsed and does not reload on expansion', async () => {
     const readAuthStatus = vi.fn(() => Promise.resolve({
       status: 'signed-in',

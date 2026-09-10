@@ -417,6 +417,8 @@ export function CodexPluginCard(props: CodexPluginCardProps): ReactNode {
   )
   const [sourceRevision, setSourceRevision] = useState<number | undefined>(snapshot.revision)
   const [auth, setAuth] = useState<CodexAccountStatus>({ status: 'loading' })
+  /** True once a status read has answered: before that, "loading" is only the initial state. */
+  const [authAnswered, setAuthAnswered] = useState(false)
   const [authChallenge, setAuthChallenge] = useState<{ url?: string; verificationUri?: string; userCode?: string; attemptId?: string } | undefined>()
   const [catalogOpen, setCatalogOpen] = useState(false)
   const [modelSort, setModelSort] = useState(false)
@@ -469,6 +471,7 @@ export function CodexPluginCard(props: CodexPluginCardProps): ReactNode {
 
   /** Fold one account-status answer into the card's state. */
   const applyAuthStatus = useCallback((next: CodexAccountStatus): void => {
+    setAuthAnswered(true)
     setAuth(next)
     if (next.status !== 'signing-in') setAuthChallenge(undefined)
     if (next.status === 'signed-in') {
@@ -732,11 +735,14 @@ export function CodexPluginCard(props: CodexPluginCardProps): ReactNode {
     if (liveQuota !== undefined) rememberHeadlineQuota(USAGE_PROVIDER_KEY, USAGE_PROVIDER_NAME, liveQuota)
   }, [auth.status, liveQuota?.remainingPercent, liveQuota?.label])
   // The cache only covers "no answer yet"; a settled failure keeps its unavailable dash.
-  const usageFailed = auth.status === 'signed-in' && auth.quotaError !== undefined
   // No auth gate on the cached value: it must paint on the first frame, before the
   // account read answers. A stale entry cannot linger, because sign-out drops it.
+  // Known signed-out beats the cache: a stored value for another account must not
+  // reappear on the frame before the drop effect runs. Unknown (still loading) does
+  // not, because that is exactly the first frame the cache exists to cover.
+  const cacheUsable = !(authAnswered && (auth.status === 'signed-out' || auth.status === 'reauth-required'))
   const headerQuota: ProviderQuotaState | null = liveQuota
-    ?? (usageFailed ? null : headerQuotaFromCache(peekCachedUsage(USAGE_PROVIDER_KEY)) ?? null)
+    ?? (cacheUsable ? headerQuotaFromCache(peekCachedUsage(USAGE_PROVIDER_KEY)) ?? null : null)
 
   if (snapshot.status === 'unavailable') {
     return (
