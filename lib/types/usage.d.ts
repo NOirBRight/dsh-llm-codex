@@ -10,6 +10,13 @@ export declare class CodexReauthRequiredError extends Error {
     constructor();
 }
 export declare function isCodexReauthRequiredError(error: unknown): error is CodexReauthRequiredError;
+/**
+ * Whether one failure means the Codex credential is missing or no longer
+ * usable, rather than a transport or provider failure.
+ * @param error - value caught from credential resolution or a usage read.
+ * @returns true when the account cannot serve quota until it signs in again.
+ */
+export declare function isCodexCredentialFailure(error: unknown): boolean;
 /** Convert the provider response into the small secret-free object sent to the browser. */
 export declare function parseCodexUsage(value: unknown, now?: number): CodexUsage;
 /** Read current quota without issuing a model request. */

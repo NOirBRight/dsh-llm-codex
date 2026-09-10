@@ -33,6 +33,8 @@ export interface CodexWebAuthOptions {
     challengeTimeoutMs?: number;
     openBrowser?: (url: string) => Promise<void>;
 }
+/** Redact token-shaped text from one failure message bound for a client. */
+export declare function safeMessage(error: unknown): string;
 export declare class CodexWebAuth {
     private readonly store;
     private state;
