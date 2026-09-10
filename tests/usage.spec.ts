@@ -11,7 +11,8 @@ describe('readCodexRateLimits credential resolution', () => {
     const root = await mkdtemp(join(tmpdir(), 'dsh-llm-codex-usage-'))
     try {
       const filename = join(root, 'codex-oauth.json')
-      await writeFile(filename, '{"version":1,"credential":{"type":"oauth"}}\n')
+      // Owner-only, or the store rejects the file mode before it parses the document.
+      await writeFile(filename, '{"version":1,"credential":{"type":"oauth"}}\n', { mode: 0o600 })
       const error: unknown = await readCodexRateLimits(new CodexCredentialStore(filename))
         .then(() => undefined, (thrown: unknown) => thrown)
 

@@ -1,7 +1,11 @@
-import { describe, expect, it, vi } from 'vitest'
+import { mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
 import { INVALID_CREDENTIAL_CODE, LlmError } from '@deepseek-ai/dsh-llm'
-import { CodexReauthRequiredError } from '../src/usage.ts'
+import { CodexCredentialStore } from '../src/store.ts'
+import { CODEX_USAGE_URL, CodexReauthRequiredError, readCodexRateLimits } from '../src/usage.ts'
 import {
   CODEX_SAVE_ENDPOINT,
   CODEX_MODELS_FETCH_ENDPOINT,
@@ -181,6 +185,75 @@ describe('Codex management failure codes', () => {
     expect(result.ok).toBe(false)
     if (result.ok) throw new Error('expected the catalog read to fail')
     expect(result.error.code).toBe(INVALID_CREDENTIAL_CODE)
+  })
+
+  it.each([
+    ['upstream 401', 401],
+    ['upstream 403', 403],
+  ])('maps a usage read rejected by the issuer (%s) onto the credential wire code', async (_label, status) => {
+    const root = await mkdtemp(join(tmpdir(), 'dsh-llm-codex-usage-rpc-'))
+    try {
+      const filename = join(root, 'codex-oauth.json')
+      await writeFile(filename, JSON.stringify({
+        version: 1,
+        credential: {
+          type: 'oauth',
+          access: 'access-token',
+          refresh: 'refresh-token',
+          accountId: 'account-id',
+          expires: Date.now() + 3_600_000,
+        },
+      }), { mode: 0o600 })
+      vi.stubGlobal('fetch', vi.fn(async () => new Response('', { status })))
+      const store = new CodexCredentialStore(filename)
+      expect(CODEX_USAGE_URL).toContain('chatgpt.com')
+      const handler = createCodexManagementRpcHandler(new Context(), {
+        status: () => readCodexRateLimits(store).then(usage => ({ status: 'signed-in', usage })),
+      } as never)
+
+      const result = await handler('auth/status', { refresh: true })
+
+      expect(result.ok).toBe(false)
+      if (result.ok) throw new Error('expected the usage read to fail')
+      expect(result.error.code).toBe(INVALID_CREDENTIAL_CODE)
+    } finally {
+      vi.unstubAllGlobals()
+      await rm(root, { recursive: true, force: true })
+    }
+  })
+
+  it.each([
+    ['a 5xx response', () => new Response('', { status: 503 })],
+    ['a network failure', () => { throw new TypeError('fetch failed') }],
+  ])('keeps a transient usage failure (%s) internal', async (_label, respond) => {
+    const root = await mkdtemp(join(tmpdir(), 'dsh-llm-codex-usage-rpc-'))
+    try {
+      const filename = join(root, 'codex-oauth.json')
+      await writeFile(filename, JSON.stringify({
+        version: 1,
+        credential: {
+          type: 'oauth',
+          access: 'access-token',
+          refresh: 'refresh-token',
+          accountId: 'account-id',
+          expires: Date.now() + 3_600_000,
+        },
+      }), { mode: 0o600 })
+      vi.stubGlobal('fetch', vi.fn(async () => respond()))
+      const store = new CodexCredentialStore(filename)
+      const handler = createCodexManagementRpcHandler(new Context(), {
+        status: () => readCodexRateLimits(store).then(usage => ({ status: 'signed-in', usage })),
+      } as never)
+
+      const result = await handler('auth/status', { refresh: true })
+
+      expect(result.ok).toBe(false)
+      if (result.ok) throw new Error('expected the usage read to fail')
+      expect(result.error.code).toBe('internal')
+    } finally {
+      vi.unstubAllGlobals()
+      await rm(root, { recursive: true, force: true })
+    }
   })
 
   it('keeps a failing sign-out answerable instead of throwing', async () => {
