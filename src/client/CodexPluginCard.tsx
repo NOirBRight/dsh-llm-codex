@@ -738,7 +738,7 @@ export function CodexPluginCard(props: CodexPluginCardProps): ReactNode {
   // local lastUsage must not look fresh on error or unsupported either. The shared
   // cache supplies the first frame, and only a known sign-out drops the stored entry.
   const quotaUnsupported = auth.status === 'signed-in' && usageUpdatedAt !== undefined && liveQuota === null
-  const quotaWithheld = auth.status === 'signed-out' || refreshError !== undefined || quotaUnsupported
+  const quotaWithheld = auth.status === 'signed-out' || auth.status === 'reauth-required' || refreshError !== undefined || quotaUnsupported
   const headerQuota: ProviderQuotaState | null = useProviderQuotaCache(CODEX_SETTINGS_NAMESPACE, USAGE_PROVIDER_NAME, liveQuota, {
     answered: authAnswered,
     signedOut: auth.status === 'signed-out' || auth.status === 'reauth-required',

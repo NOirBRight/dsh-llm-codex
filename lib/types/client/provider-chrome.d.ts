@@ -72,6 +72,6 @@ export declare function UsageUpdatedAt(props: {
  * Re-exported from the built dsh-llm-providers-ui/provider-ui artifact; this
  * module keeps the local auth/usage helpers that are not part of the shared API.
  */
-export { ProviderCardHeader, ProviderQuotaMeter, normalizeQuotaRemaining, providerUiCss, useProviderQuotaCache, } from 'dsh-llm-providers-ui/provider-ui';
+export { ProviderCardHeader, ProviderQuotaMeter, normalizeQuotaRemaining, providerQuotaHeaderProps, providerUiCss, useProviderQuotaCache, } from 'dsh-llm-providers-ui/provider-ui';
 export type { ProviderCardHeaderProps, ProviderCardRole, ProviderQuotaMeterProps, ProviderQuotaState, } from 'dsh-llm-providers-ui/provider-ui';
 //# sourceMappingURL=provider-chrome.d.ts.map
