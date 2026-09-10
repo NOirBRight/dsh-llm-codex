@@ -23,14 +23,13 @@ import type {
   CodexSettingsView,
   CodexUsage,
 } from '../client-contract.ts'
+import { CODEX_SETTINGS_NAMESPACE } from '../client-contract.ts'
 import type { CodexSettingsKey } from './locales.ts'
 import { BrandMark } from './BrandMark.tsx'
-import { AuthToolbar, ProviderCardHeader, ProviderQuotaMeter, UsageHeader, UsageSkeleton, UsageUpdatedAt, formatUsageClock, providerUiCss, resetLabelOf, useProviderQuotaCache } from './provider-chrome.tsx'
+import { AuthToolbar, ProviderCardHeader, ProviderQuotaMeter, UsageHeader, UsageSkeleton, UsageUpdatedAt, formatUsageClock, providerUiCss, providerQuotaHeaderProps, resetLabelOf, useProviderQuotaCache } from './provider-chrome.tsx'
 import type { ProviderQuotaState } from './provider-chrome.tsx'
 import { SortableList } from 'dsh-llm-providers-ui/sortable'
 
-/** Provider key this card shares with the Provider Usage sidebar cache. */
-const USAGE_PROVIDER_KEY = 'llm-codex'
 
 /** Display name recorded with the cached headline quota. */
 const USAGE_PROVIDER_NAME = 'Codex'
@@ -740,10 +739,16 @@ export function CodexPluginCard(props: CodexPluginCardProps): ReactNode {
   // cache supplies the first frame, and only a known sign-out drops the stored entry.
   const quotaUnsupported = auth.status === 'signed-in' && usageUpdatedAt !== undefined && liveQuota === null
   const quotaWithheld = auth.status === 'signed-out' || refreshError !== undefined || quotaUnsupported
-  const headerQuota: ProviderQuotaState | null = useProviderQuotaCache(USAGE_PROVIDER_KEY, USAGE_PROVIDER_NAME, liveQuota, {
+  const headerQuota: ProviderQuotaState | null = useProviderQuotaCache(CODEX_SETTINGS_NAMESPACE, USAGE_PROVIDER_NAME, liveQuota, {
     answered: authAnswered,
     signedOut: auth.status === 'signed-out' || auth.status === 'reauth-required',
     withheld: quotaWithheld,
+  })
+  // Both the loading frame and the settled frame carry the meter; a settled query without
+  // usable quota shows the unavailable dash instead.
+  const quotaProps = providerQuotaHeaderProps(headerQuota, {
+    dashLabel: t('usage'),
+    settled: auth.status === 'signed-in' && (refreshError !== undefined || usageUpdatedAt !== undefined),
   })
 
   if (snapshot.status === 'unavailable') {
@@ -763,7 +768,7 @@ export function CodexPluginCard(props: CodexPluginCardProps): ReactNode {
       <li style={cardStyle} data-provider-card="" data-provider-role="llm">
         <style>{providerUiCss}</style>
         <button type="button" data-provider-card-header="" aria-expanded={open} onClick={() => { setOpen(!open) }}>
-          <ProviderCardHeader title={title} mark={<BrandMark />} summary={headerModels} status={headerStatus} open={open} role="llm" {...(headerQuota === null ? {} : { quota: headerQuota })} />
+          <ProviderCardHeader title={title} mark={<BrandMark />} summary={headerModels} status={headerStatus} open={open} role="llm" {...quotaProps} />
         </button>
         {open ? <div style={bodyStyle} data-provider-body=""><p style={statusStyle}>{t('loading')}</p></div> : null}
       </li>
@@ -783,12 +788,7 @@ export function CodexPluginCard(props: CodexPluginCardProps): ReactNode {
           unsaved={dirty}
           unsavedLabel={t('unsaved')}
           role="llm"
-          {...headerQuota === null
-            ? (auth.status === 'signed-in' && (refreshError !== undefined || usageUpdatedAt !== undefined)
-              // Query settled without usable quota (error or unsupported): dash, never a fabricated percent.
-              ? { quota: { label: t('usage') } }
-              : {})
-            : { quota: headerQuota }}
+          {...quotaProps}
         />
       </button>
       {open

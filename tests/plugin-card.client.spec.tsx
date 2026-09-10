@@ -115,8 +115,8 @@ describe('CodexPluginCard', () => {
       if (!signedIn) return { status: 'signed-out' }
       signedInReads += 1
       // The provider publishes quota shortly after auth: the first signed-in
-      // answers carry none, which used to leave the card meterless until the
-      // 60s interval fired.
+      // answers carry none, so the card re-reads on its bounded cadence instead
+      // of waiting for the 60s interval.
       return signedInReads < 3
         ? { status: 'signed-in' }
         : { status: 'signed-in', usage: { rateLimits: [{ id: 'primary', windows: [{ remainingPercent: 73, windowSeconds: 18000 }] }] } }
