@@ -295,6 +295,7 @@ export {
   ProviderQuotaMeter,
   normalizeQuotaRemaining,
   providerUiCss,
+  useProviderQuotaCache,
 } from 'dsh-llm-providers-ui/provider-ui';
 export type {
   ProviderCardHeaderProps,
