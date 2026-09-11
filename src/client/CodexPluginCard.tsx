@@ -1137,6 +1137,10 @@ export function CodexPluginCard(props: CodexPluginCardProps): ReactNode {
             count: modelCount ?? 0,
             allOpen: catalogOpen,
             onToggleAll: () => { setCatalogOpen(value => !value) },
+            sorting: modelSort,
+            onToggleSorting: () => { setModelSort(current => !current) },
+            onChooseFromAccount: () => { void chooseFromOfficial() },
+            chooseDisabled: disabled || fetching,
             list: modelsList,
           }}
           advanced={capabilitiesSection}
