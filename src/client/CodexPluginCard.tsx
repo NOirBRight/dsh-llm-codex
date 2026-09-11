@@ -29,6 +29,7 @@ import { BrandMark } from './BrandMark.tsx'
 import { AuthToolbar, ProviderCardHeader, ProviderQuotaMeter, UsageHeader, UsageSkeleton, UsageUpdatedAt, formatUsageClock, providerUiCss, providerQuotaHeaderProps, resetLabelOf, useProviderQuotaCache } from './provider-chrome.tsx'
 import type { ProviderQuotaState } from './provider-chrome.tsx'
 import { SortableList } from 'dsh-llm-providers-ui/sortable'
+import { ProviderDetail, providerDetailCopy, type ProviderItemSlotContext } from 'dsh-llm-providers-ui/provider-detail'
 
 
 /** Display name recorded with the cached headline quota. */
@@ -74,6 +75,8 @@ export interface CodexPluginCardFace {
 export type CodexPluginCardProps =
   PropsRuntime<'settings.provider.item'>
   & InjectFace<CodexPluginCardFace>
+  // Present only on the settings page; an older host renders the legacy card.
+  & Partial<ProviderItemSlotContext>
 
 interface ModelDraft {
   rowId: string
@@ -789,110 +792,9 @@ export function CodexPluginCard(props: CodexPluginCardProps): ReactNode {
     )
   }
 
-  return (
-    <li style={cardStyle} data-provider-card="" data-provider-role="llm">
-      <style>{providerUiCss}</style>
-      <button type="button" data-provider-card-header="" aria-expanded={open} onClick={() => { setOpen(!open) }}>
-        <ProviderCardHeader
-          title={title}
-          mark={<BrandMark />}
-          summary={headerModels}
-          status={headerStatus}
-          open={open}
-          unsaved={dirty}
-          unsavedLabel={t('unsaved')}
-          role="llm"
-          {...quotaProps}
-        />
-      </button>
-      {open
-        ? (
-          <div style={bodyStyle} data-provider-body="">
-            <p style={hintStyle}>{t('description')}</p>
-            <section style={sectionStyle}>
-              <AuthToolbar
-                status={<p style={{ ...statusStyle, margin: 0 }} role="status">{statusLabel}</p>}
-                action={auth.status === 'signed-in'
-                  ? <button type="button" style={buttonStyle} disabled={authBusy} onClick={() => { void onSignOut() }}>{t('signOut')}</button>
-                  : auth.status === 'loading'
-                    ? null
-                    : auth.status === 'signing-in'
-                      ? <button type="button" style={buttonStyle} disabled={authBusy} onClick={() => { void onCancelAuth() }}>{t('cancel')}</button>
-                      : <button type="button" style={primaryButtonStyle} disabled={authBusy} onClick={() => { void onSignIn() }}>
-                          {auth.status === 'error' || auth.status === 'reauth-required' ? t('signInAgain') : t('signIn')}
-                        </button>}
-              />
-              {auth.status === 'error' || auth.status === 'reauth-required'
-                ? <p style={errorStyle}>{auth.message}</p>
-                : null}
-              {authChallenge !== undefined
-                ? (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                      {authChallenge.userCode === undefined
-                        ? null
-                        : <><p style={hintStyle}>{t('deviceInstructions')}</p><DeviceCodeRow key={authChallenge.userCode} code={authChallenge.userCode} t={t} /></>}
-                      {authChallenge.verificationUri === undefined
-                        ? authChallenge.url === undefined ? null : <a href={authChallenge.url} target="_blank" rel="noreferrer">{t('openChatGPT')}</a>
-                        : <a href={authChallenge.verificationUri} target="_blank" rel="noreferrer">{t('openDevicePage')}</a>}
-                    </div>
-                  )
-                : null}
-              {auth.status === 'signed-in' || auth.status === 'loading'
-                ? (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                    <UsageHeader
-                      title={t('usage')}
-                      spinning={auth.status === 'loading' || quotaRefreshing}
-                      disabled={auth.status === 'loading' || quotaRefreshing}
-                      refreshLabel={t('usageRefresh')}
-                      busyLabel={t('usageLoading')}
-                      {...refreshError === undefined ? {} : { error: refreshError }}
-                      onRefresh={() => { void refreshAuth(undefined, true) }}
-                    />
-                    {(() => {
-                      if (quotaRefreshing || auth.status === 'loading') {
-                        const known = lastUsage?.rateLimits.reduce((count, limit) => count + limit.windows.length, 0) ?? 0
-                        return <UsageSkeleton rows={known > 0 ? known : 2} />
-                      }
-                      const usageView = auth.status === 'signed-in' ? auth.usage : lastUsage
-                      return usageView === undefined
-                        ? <UsageSkeleton rows={2} />
-                        : <UsageLimits usage={usageView} t={t} />
-                    })()}
-                    <UsageUpdatedAt
-                      at={usageUpdatedAt}
-                      label={usageUpdatedAt === undefined ? '' : t('usageUpdatedAt').replace('{time}', formatUsageClock(usageUpdatedAt))}
-                    />
-                  </div>
-                )
-                : null}
-            </section>
-
-            <section style={sectionStyle} aria-label={t('models')}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
-                <button
-                  type="button"
-                  style={disclosureStyle}
-                  aria-expanded={catalogOpen}
-                  aria-label={t('models')}
-                  onClick={() => { setCatalogOpen(!catalogOpen) }}
-                >
-                  <IconChevron open={catalogOpen} />
-                  <span style={sectionTitleStyle}>{t('models')}</span>
-                  <span style={hintStyle}>{customModels ? t('customized') : t('inherited')}</span>
-                </button>
-                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, flex: 'none' }}>
-                  <button type="button" style={buttonStyle} disabled={disabled} onClick={() => { setModelSort(current => !current) }} aria-pressed={modelSort}>
-                    {modelSort ? t('doneSorting') : t('sortModels')}
-                  </button>
-                  <button type="button" style={buttonStyle} disabled={disabled || fetching} onClick={() => { void chooseFromOfficial() }}>
-                    {fetching ? t('fetchingModels') : t('fetchModels')}
-                  </button>
-                </span>
-              </div>
-              {catalogOpen
-                ? (
-                  <>
+  // Prototype C pieces, shared by the legacy card and the migrated detail.
+  const modelsList = (
+    <>
                     <SortableList
                       items={draft}
                       getId={item => item.rowId}
@@ -1054,11 +956,25 @@ export function CodexPluginCard(props: CodexPluginCardProps): ReactNode {
                     >
                       {t('addModel')}
                     </button>
-                  </>
-                )
+    </>
+  )
+  const authChallengeBlock = (
+    <>
+              {authChallenge !== undefined
+                ? (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                      {authChallenge.userCode === undefined
+                        ? null
+                        : <><p style={hintStyle}>{t('deviceInstructions')}</p><DeviceCodeRow key={authChallenge.userCode} code={authChallenge.userCode} t={t} /></>}
+                      {authChallenge.verificationUri === undefined
+                        ? authChallenge.url === undefined ? null : <a href={authChallenge.url} target="_blank" rel="noreferrer">{t('openChatGPT')}</a>
+                        : <a href={authChallenge.verificationUri} target="_blank" rel="noreferrer">{t('openDevicePage')}</a>}
+                    </div>
+                  )
                 : null}
-            </section>
-
+    </>
+  )
+  const capabilitiesSection = (
             <section style={sectionStyle}>
               <h3 style={sectionTitleStyle}>{t('capabilities')}</h3>
               <p style={hintStyle}>{t('capabilitiesIntro')}</p>
@@ -1167,7 +1083,9 @@ export function CodexPluginCard(props: CodexPluginCardProps): ReactNode {
                 )
                 : null}
             </section>
-
+  )
+  const draftBlock = (
+    <>
             {invalidModels ? <p style={errorStyle}>{t('invalidModel')}</p> : null}
             {invalidCaps && capabilities.searchModel.trim().length === 0 ? <p style={errorStyle}>{t('invalidSearchModel')}</p> : null}
             {invalidCaps && capabilities.imageGenerationModel.trim().length === 0 ? <p style={errorStyle}>{t('invalidImageGenerationModel')}</p> : null}
@@ -1180,6 +1098,150 @@ export function CodexPluginCard(props: CodexPluginCardProps): ReactNode {
                 {busy ? t('saving') : t('save')}
               </button>
             </div>
+    </>
+  )
+
+
+  // Prototype C detail: the shared template owns the layout, this card owns Codex's data.
+  if (props.mode === 'detail') {
+    const accountActions = auth.status === 'signed-in'
+      ? <button type="button" style={buttonStyle} disabled={authBusy} onClick={() => { void onSignOut() }}>{t('signOut')}</button>
+      : auth.status === 'loading'
+        ? null
+        : auth.status === 'signing-in'
+          ? <button type="button" style={buttonStyle} disabled={authBusy} onClick={() => { void onCancelAuth() }}>{t('cancel')}</button>
+          : (
+              <button type="button" style={primaryButtonStyle} disabled={authBusy} onClick={() => { void onSignIn() }}>
+                {auth.status === 'error' || auth.status === 'reauth-required' ? t('signInAgain') : t('signIn')}
+              </button>
+            )
+    return (
+      <li style={cardStyle} data-provider-card="" data-provider-role="llm">
+        <ProviderDetail
+          name={title}
+          role="llm"
+          copy={props.copy ?? providerDetailCopy.en}
+          notice={t('description')}
+          account={{
+            state: auth.status === 'signed-in' ? 'connected' : 'unconnected',
+            label: statusLabel,
+            actions: accountActions,
+            ...(authChallenge === undefined ? {} : { body: authChallengeBlock }),
+          }}
+          quota={{
+            status: props.usage?.status ?? 'loading',
+            windows: props.usage?.windows ?? [],
+            ...(props.onRefresh === undefined ? {} : { onRefresh: props.onRefresh }),
+          }}
+          models={{
+            count: modelCount ?? 0,
+            allOpen: catalogOpen,
+            onToggleAll: () => { setCatalogOpen(value => !value) },
+            list: modelsList,
+          }}
+          advanced={capabilitiesSection}
+          draft={draftBlock}
+        />
+      </li>
+    )
+  }
+
+  return (
+    <li style={cardStyle} data-provider-card="" data-provider-role="llm">
+      <style>{providerUiCss}</style>
+      <button type="button" data-provider-card-header="" aria-expanded={open} onClick={() => { setOpen(!open) }}>
+        <ProviderCardHeader
+          title={title}
+          mark={<BrandMark />}
+          summary={headerModels}
+          status={headerStatus}
+          open={open}
+          unsaved={dirty}
+          unsavedLabel={t('unsaved')}
+          role="llm"
+          {...quotaProps}
+        />
+      </button>
+      {open
+        ? (
+          <div style={bodyStyle} data-provider-body="">
+            <p style={hintStyle}>{t('description')}</p>
+            <section style={sectionStyle}>
+              <AuthToolbar
+                status={<p style={{ ...statusStyle, margin: 0 }} role="status">{statusLabel}</p>}
+                action={auth.status === 'signed-in'
+                  ? <button type="button" style={buttonStyle} disabled={authBusy} onClick={() => { void onSignOut() }}>{t('signOut')}</button>
+                  : auth.status === 'loading'
+                    ? null
+                    : auth.status === 'signing-in'
+                      ? <button type="button" style={buttonStyle} disabled={authBusy} onClick={() => { void onCancelAuth() }}>{t('cancel')}</button>
+                      : <button type="button" style={primaryButtonStyle} disabled={authBusy} onClick={() => { void onSignIn() }}>
+                          {auth.status === 'error' || auth.status === 'reauth-required' ? t('signInAgain') : t('signIn')}
+                        </button>}
+              />
+              {auth.status === 'error' || auth.status === 'reauth-required'
+                ? <p style={errorStyle}>{auth.message}</p>
+                : null}
+              {authChallenge === undefined ? null : authChallengeBlock}
+              {auth.status === 'signed-in' || auth.status === 'loading'
+                ? (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                    <UsageHeader
+                      title={t('usage')}
+                      spinning={auth.status === 'loading' || quotaRefreshing}
+                      disabled={auth.status === 'loading' || quotaRefreshing}
+                      refreshLabel={t('usageRefresh')}
+                      busyLabel={t('usageLoading')}
+                      {...refreshError === undefined ? {} : { error: refreshError }}
+                      onRefresh={() => { void refreshAuth(undefined, true) }}
+                    />
+                    {(() => {
+                      if (quotaRefreshing || auth.status === 'loading') {
+                        const known = lastUsage?.rateLimits.reduce((count, limit) => count + limit.windows.length, 0) ?? 0
+                        return <UsageSkeleton rows={known > 0 ? known : 2} />
+                      }
+                      const usageView = auth.status === 'signed-in' ? auth.usage : lastUsage
+                      return usageView === undefined
+                        ? <UsageSkeleton rows={2} />
+                        : <UsageLimits usage={usageView} t={t} />
+                    })()}
+                    <UsageUpdatedAt
+                      at={usageUpdatedAt}
+                      label={usageUpdatedAt === undefined ? '' : t('usageUpdatedAt').replace('{time}', formatUsageClock(usageUpdatedAt))}
+                    />
+                  </div>
+                )
+                : null}
+            </section>
+
+            <section style={sectionStyle} aria-label={t('models')}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+                <button
+                  type="button"
+                  style={disclosureStyle}
+                  aria-expanded={catalogOpen}
+                  aria-label={t('models')}
+                  onClick={() => { setCatalogOpen(!catalogOpen) }}
+                >
+                  <IconChevron open={catalogOpen} />
+                  <span style={sectionTitleStyle}>{t('models')}</span>
+                  <span style={hintStyle}>{customModels ? t('customized') : t('inherited')}</span>
+                </button>
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, flex: 'none' }}>
+                  <button type="button" style={buttonStyle} disabled={disabled} onClick={() => { setModelSort(current => !current) }} aria-pressed={modelSort}>
+                    {modelSort ? t('doneSorting') : t('sortModels')}
+                  </button>
+                  <button type="button" style={buttonStyle} disabled={disabled || fetching} onClick={() => { void chooseFromOfficial() }}>
+                    {fetching ? t('fetchingModels') : t('fetchModels')}
+                  </button>
+                </span>
+              </div>
+              {catalogOpen ? modelsList : null}
+            </section>
+
+            {capabilitiesSection}
+
+            {draftBlock}
           </div>
         )
         : null}

@@ -11,10 +11,23 @@ import type {} from '@deepseek-ai/dsh-client-ui-slots'
 import type {} from 'dsh-llm-providers-ui/client'
 import { createCodexUsageReader, dropPersistedUsageKeys } from 'dsh-llm-providers-ui/usage-readers'
 
-/** Register this card, its shared header ownership, and its quota reader. */
-function installProviderDirectory(ctx: ClientContext): void {
+/**
+ * Register this card, its shared header ownership, quota reader, display name,
+ * and active model count so the shared settings page needs no DOM probing.
+ * @param ctx - client context carrying the Provider directory.
+ * @param modelCount - reads the current active model count from plugin state.
+ */
+function installProviderDirectory(ctx: ClientContext, modelCount: () => number | undefined): void {
   ctx.inject(['providerDirectory'], scope => {
-    scope.effect(() => scope.providerDirectory.register({ key: CODEX_SETTINGS_NAMESPACE, header: 'shared', usage: createCodexUsageReader() }), 'dsh-llm-codex: provider directory registration')
+    scope.effect(() => scope.providerDirectory.register({
+      key: CODEX_SETTINGS_NAMESPACE,
+      name: 'Codex',
+      header: 'shared',
+      // The card renders the shared detail template; the settings page adds only the breadcrumb.
+      detail: 'shared',
+      usage: createCodexUsageReader(),
+      modelCount,
+    }), 'dsh-llm-codex: provider directory registration')
   })
 }
 
@@ -58,7 +71,6 @@ export const inject = ['slots', 'locale', 'connection']
 
 
 export function apply(ctx: ClientContext): void {
-  installProviderDirectory(ctx)
 
   const localeNamespace = 'settings.codex'
   ctx.effect(
@@ -76,6 +88,9 @@ export function apply(ctx: ClientContext): void {
     set: async () => { throw new Error('Use Codex management settings/save') },
     unset: async () => { throw new Error('Use Codex management settings/save') },
   }
+  // Registered after the snapshot exists so the published count always reads live state.
+  installProviderDirectory(ctx, () => currentSnapshot.value?.models.length)
+
   const refreshSettings = async (): Promise<void> => {
     const result = await rpc.call(CODEX_RPC_CHANNEL, CODEX_SETTINGS_READ_ENDPOINT, {})
     if (!result.ok) throw new Error(result.error.message)

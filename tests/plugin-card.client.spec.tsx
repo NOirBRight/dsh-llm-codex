@@ -3,6 +3,7 @@
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { SettingsScopeSnapshot } from '../src/client/settings-scope.ts'
+import { providerDetailCopy } from 'dsh-llm-providers-ui/provider-detail'
 import { CodexPluginCard } from '../src/client/CodexPluginCard.tsx'
 import type { CodexAccountStatus, CodexPluginCardProps } from '../src/client/CodexPluginCard.tsx'
 import { en } from '../src/client/locales.ts'
@@ -394,5 +395,28 @@ describe('CodexPluginCard', () => {
     expect(optionValues).not.toContain('gpt-5.6-luna-fast')
     expect(optionValues).not.toContain('gpt-5.3-codex-spark')
   })
+  it('renders the shared detail template with folded advanced settings', () => {
+    const onRefresh = vi.fn()
+    const usage = {
+      status: 'ready' as const,
+      fetchedAt: '2026-09-12T00:00:00.000Z',
+      windows: [
+        { id: 'primary', label: 'Primary', shortLabel: 'P', remainingPercent: 84, valueText: '84%' },
+        { id: 'secondary', label: 'Secondary', shortLabel: 'S', remainingPercent: 61, valueText: '61%' },
+      ],
+    }
+    const { container } = render(<CodexPluginCard {...props({ mode: 'detail', usage, accountState: 'connected', onRefresh, copy: providerDetailCopy.en })} />)
 
+    expect(container.querySelector('[data-provider-detail]')).not.toBeNull()
+    expect(container.querySelectorAll('[data-c-quota]')).toHaveLength(1)
+    expect(container.textContent).toContain('84%')
+    expect(container.textContent).toContain('61%')
+    // Capabilities live in the folded advanced block, closed until the user opens it.
+    const advanced = container.querySelector('details.c-advanced')
+    expect(advanced).not.toBeNull()
+    expect((advanced as HTMLDetailsElement).open).toBe(false)
+    expect(advanced?.textContent).toContain(en.capabilities)
+    // The plugin's own usage header must not return in detail mode.
+    expect(container.querySelector('[aria-label="' + en.usage + '"]')).toBeNull()
+  })
 })
