@@ -2,14 +2,6 @@
 import type { ClientContext } from './settings-scope.js';
 import type { CodexSettingsKey } from './locales.ts';
 declare module '@deepseek-ai/dsh-client-ui-slots' {
-    interface SlotMap {
-        'settings.provider.item': {
-            kind: 'keyed';
-            scope: 'root';
-        };
-    }
-}
-declare module '@deepseek-ai/dsh-client-ui-slots' {
     interface LocaleNamespaceMap {
         /** Codex Plugin configuration copy. */
         'settings.codex': CodexSettingsKey;

@@ -1,9 +1,9 @@
-import { mkdtemp, rm, stat } from 'node:fs/promises'
+import { mkdtemp, rm, stat, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 import type { OAuthCredential } from '@earendil-works/pi-ai'
-import { CodexCredentialStore, OPENAI_CODEX_PROVIDER } from '../src/store.ts'
+import { CodexCredentialStore, CodexCredentialUnusableError, OPENAI_CODEX_PROVIDER } from '../src/store.ts'
 
 let root: string | undefined
 
@@ -43,6 +43,13 @@ describe('CodexCredentialStore', () => {
 
     await auth.delete(OPENAI_CODEX_PROVIDER)
     expect(await auth.list()).toEqual([])
+  })
+
+  it('marks a document it cannot serve as unusable rather than transient', async () => {
+    const auth = await store()
+    await writeFile(auth.filename, '{"version":1}\n', { mode: 0o600 })
+
+    await expect(auth.read(OPENAI_CODEX_PROVIDER)).rejects.toBeInstanceOf(CodexCredentialUnusableError)
   })
 
   it('ignores other provider ids', async () => {

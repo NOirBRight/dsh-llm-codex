@@ -1,5 +1,28 @@
 # Changelog
 
+## [0.3.15] - 2026-09-07
+
+### Changed
+
+- Adopt the shared provider-ui header and quota cache from `dsh-llm-providers-ui` 0.1.12; remove the per-provider header fork.
+- Header quota loads collapsed with reuse on expansion and no refire; a failed read shows a truthful unavailable dash, never a fabricated percent.
+- Host usage/auth failures that mean an unusable credential answer `INVALID_CREDENTIAL` so the shared quota cache can evict the previous account's reading.
+- Development dependency and install guidance point at the `dsh-llm-providers-ui` `v0.1.12-015rc1d` candidate tarball.
+- Verified runtimes now include DeepSeek Harness `0.1.5-rc.1` alongside Alpha.4 and `0.1.2-rc.1`.
+
+## [0.3.14] - 2026-09-05
+
+### Added
+
+- Register the provider card and its quota reader on the shared Provider Directory (`dsh-llm-providers-ui` 0.1.9 `usage-readers`, deferred `ctx.inject(providerDirectory)`); the client bundle now includes `usage-readers`.
+- Self-declare Model Switch search capability metadata: the Host search adapter carries the `Codex` label and a live serializable `models` catalog (`{id, name}` for configured models with `tools !== false`) through the existing optional adapter-registry API, with no `dsh-model-switch` package upgrade. Unsupported search models and missing credentials fail explicitly with no silent fallback.
+
+### Notes
+
+- The coordinated Model Switch search UI that reads this metadata requires Model Switch 0.4.7 (coordinated release, not yet published). The `dsh-model-switch` peer range (`^0.4.5`) and dev dependency (0.4.6) are unchanged: older Model Switch releases ignore the extra fields and search still works through the registry.
+- Tested against `dsh-llm-providers-ui` 0.1.9 (includes the Provider Directory registration API); the Alpha.4 offline fixture graph now resolves 0.1.9 as well.
+- The pack gate allows only exact Alpha.4/rc.1 `devDependency` pins (dev dependencies never ship); every other range keeps the original rule and the runtime closure keeps strict Alpha.4 edge satisfaction.
+
 ## [0.3.13] - 2026-09-05
 
 ### Fixed

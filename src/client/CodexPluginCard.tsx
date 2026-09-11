@@ -23,10 +23,16 @@ import type {
   CodexSettingsView,
   CodexUsage,
 } from '../client-contract.ts'
+import { CODEX_SETTINGS_NAMESPACE } from '../client-contract.ts'
 import type { CodexSettingsKey } from './locales.ts'
 import { BrandMark } from './BrandMark.tsx'
-import { AuthToolbar, ProviderCardHeader, UsageHeader, UsageResetAt, UsageSkeleton, UsageUpdatedAt, formatProviderSummary, formatUsageClock, providerHeaderStyle, resetLabelOf } from './provider-chrome.tsx'
+import { AuthToolbar, ProviderCardHeader, ProviderQuotaMeter, UsageHeader, UsageSkeleton, UsageUpdatedAt, formatUsageClock, providerUiCss, providerQuotaHeaderProps, resetLabelOf, useProviderQuotaCache } from './provider-chrome.tsx'
+import type { ProviderQuotaState } from './provider-chrome.tsx'
 import { SortableList } from 'dsh-llm-providers-ui/sortable'
+
+
+/** Display name recorded with the cached headline quota. */
+const USAGE_PROVIDER_NAME = 'Codex'
 import {
   ModelCatalogCapabilities,
   ModelCatalogDetails,
@@ -40,6 +46,12 @@ import {
 } from './model-catalog-ui.tsx'
 
 export type { CodexAccountStatus }
+
+/** First re-read delay while a signed-in account has not published usable quota yet. */
+const USAGE_SETTLE_START_MS = 1_500
+
+/** Steady quota re-read cadence, and the ceiling on settle backoff: retrying never outpaces normal polling. */
+const USAGE_POLL_INTERVAL_MS = 60_000
 
 export interface CodexPluginCardFace {
   t: (key: CodexSettingsKey) => string
@@ -87,7 +99,6 @@ const cardStyle: CSSProperties = {
   borderRadius: 10,
   background: 'var(--dsw-alias-bg-module-platform)',
 }
-const headerStyle = providerHeaderStyle
 const bodyStyle: CSSProperties = {
   display: 'flex',
   flexDirection: 'column',
@@ -161,14 +172,7 @@ const disclosureStyle: CSSProperties = {
 const checkboxStyle: CSSProperties = {
   accentColor: 'var(--dsw-alias-brand-primary)',
 }
-const barTrackStyle: CSSProperties = {
-  boxSizing: 'border-box',
-  height: 14,
-  display: 'flex',
-  overflow: 'hidden',
-  borderRadius: 999,
-  background: 'color-mix(in srgb, var(--dsw-alias-label-primary) 14%, transparent)',
-}
+/* Selected-A quota meters come from the shared ProviderQuotaMeter; no local bar track. */
 
 let nextModelRow = 0
 
@@ -251,10 +255,6 @@ function messageOf(error: unknown, fallback: string): string {
   return error instanceof Error && error.message.length > 0 ? error.message : fallback
 }
 
-function formatPercent(percent: number): string {
-  return new Intl.NumberFormat(undefined, { maximumFractionDigits: 1 }).format(percent)
-}
-
 function interpolate(template: string, params: Record<string, unknown>): string {
   return template.replace(/\{(\w+)\}/gu, (_match, key: string) => String(params[key] ?? ''))
 }
@@ -264,6 +264,22 @@ function windowLabel(seconds: number, t: CodexPluginCardFace['t']): string {
   if (seconds === 7 * 24 * 60 * 60) return t('weeklyLimit')
   const hours = seconds / (60 * 60)
   return Number.isInteger(hours) ? interpolate(t('hourLimit'), { count: hours }) : t('usageWindow')
+}
+
+/** Headline remaining quota from real auth/usage; null when no window is available (never synthetic). */
+function headerQuotaOf(auth: CodexAccountStatus, lastUsage: CodexUsage | undefined, t: CodexPluginCardFace['t']): ProviderQuotaState | null {
+  const usage = auth.status === 'signed-in' ? auth.usage : lastUsage
+  const first = usage?.rateLimits[0]
+  const window = first?.windows[0]
+  if (first === undefined || window === undefined) return null
+  const remaining = window.remainingPercent
+  if (!Number.isFinite(remaining) || remaining < 0 || remaining > 100) return null
+  const label = windowLabel(window.windowSeconds, t)
+  const displayLabel = first.name === undefined || first.windows.length === 1
+    ? first.name ?? label
+    : first.name + ' · ' + label
+  const detail = resetLabelOf(window.resetsAt, { at: t('usageResetAt'), atDays: t('usageResetAtDays') })
+  return { remainingPercent: remaining, label: displayLabel, ...detail === undefined ? {} : { detail } }
 }
 
 function Capability({ label, checked, disabled, onChange }: {
@@ -348,36 +364,23 @@ function UsageLimits({ usage, quotaError, t }: {
       {usage.rateLimits.map(limit => (
         <div key={limit.id} style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           {limit.windows.map(window => {
-            const remaining = Math.max(0, Math.min(100, window.remainingPercent))
+            const remaining = window.remainingPercent
+            if (!Number.isFinite(remaining) || remaining < 0 || remaining > 100) return null
             const label = windowLabel(window.windowSeconds, t)
             const displayLabel = limit.name === undefined || limit.windows.length === 1
               ? limit.name ?? label
               : limit.name + ' · ' + label
+            const detail = resetLabelOf(window.resetsAt, {
+              at: t('usageResetAt'),
+              atDays: t('usageResetAtDays'),
+            })
             return (
-              <div key={label + String(window.windowSeconds)} style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10 }}>
-                  <span style={labelStyle}>{displayLabel}</span>
-                  <span style={hintStyle}>{interpolate(t('percentRemaining'), { percent: formatPercent(remaining) })}</span>
-                </div>
-                <div style={barTrackStyle} role="progressbar" aria-label={displayLabel} aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(remaining)}>
-                  <span
-                    data-usage-fill="true"
-                    style={{
-                      width: String(remaining) + '%',
-                      height: '100%',
-                      flex: 'none',
-                      background: 'var(--dsw-alias-state-business-primary)',
-                      transition: 'width 200ms ease',
-                    }}
-                  />
-                </div>
-                <UsageResetAt
-                  label={resetLabelOf(window.resetsAt, {
-                    at: t('usageResetAt'),
-                    atDays: t('usageResetAtDays'),
-                  })}
-                />
-              </div>
+              <ProviderQuotaMeter
+                key={label + String(window.windowSeconds)}
+                remainingPercent={remaining}
+                label={displayLabel}
+                {...detail === undefined ? {} : { detail }}
+              />
             )
           })}
         </div>
@@ -412,8 +415,11 @@ export function CodexPluginCard(props: CodexPluginCardProps): ReactNode {
   )
   const [sourceRevision, setSourceRevision] = useState<number | undefined>(snapshot.revision)
   const [auth, setAuth] = useState<CodexAccountStatus>({ status: 'loading' })
+  /** True once a status read has answered: before that, "loading" is only the initial state. */
+  const [authAnswered, setAuthAnswered] = useState(false)
   const [authChallenge, setAuthChallenge] = useState<{ url?: string; verificationUri?: string; userCode?: string; attemptId?: string } | undefined>()
   const [catalogOpen, setCatalogOpen] = useState(false)
+  const [modelSort, setModelSort] = useState(false)
   const [expandedModels, setExpandedModels] = useState<ReadonlySet<string>>(new Set())
   const [quotaRefreshing, setQuotaRefreshing] = useState(false)
   const [lastUsage, setLastUsage] = useState<CodexUsage | undefined>(undefined)
@@ -461,24 +467,40 @@ export function CodexPluginCard(props: CodexPluginCardProps): ReactNode {
 
   useEffect(() => () => { props.closeModelPicker() }, [props.closeModelPicker])
 
+  /** Fold one account-status answer into the card's state. */
+  const applyAuthStatus = useCallback((next: CodexAccountStatus): void => {
+    setAuthAnswered(true)
+    setAuth(next)
+    if (next.status !== 'signing-in') setAuthChallenge(undefined)
+    if (next.status === 'signed-in') {
+      if (next.quotaError === undefined) {
+        setLastUsage(next.usage)
+        setUsageUpdatedAt(new Date())
+        setRefreshError(undefined)
+      } else {
+        setRefreshError(t('usageRefreshFailed'))
+      }
+    } else if (next.status === 'signed-out') {
+      // Authoritative sign-out clears local usage state, not merely hides it:
+      // retained lastUsage would otherwise resurrect as live quota on a later
+      // reauth whose own read errors or reports no usable windows.
+      setLastUsage(undefined)
+      setUsageUpdatedAt(undefined)
+      setRefreshError(undefined)
+    }
+  }, [t])
+
   const refreshAuth = useCallback(async (signal?: AbortSignal, spin = false): Promise<void> => {
     if (spin) setQuotaRefreshing(true)
+    // Generation guard: a superseded read (sign-out, sign-in, unmount) must not
+    // resurrect old-account usage into state or the persisted headline cache.
+    const attempt = authAttempt.current
     try {
       const next = await readAuthStatus(signal)
-      if (!mounted.current || signal?.aborted === true) return
-      setAuth(next)
-      if (next.status !== 'signing-in') setAuthChallenge(undefined)
-      if (next.status === 'signed-in') {
-        if (next.quotaError === undefined) {
-          setLastUsage(next.usage)
-          setUsageUpdatedAt(new Date())
-          setRefreshError(undefined)
-        } else {
-          setRefreshError(t('usageRefreshFailed'))
-        }
-      }
+      if (!liveAuthAttempt(attempt) || !mounted.current || signal?.aborted === true) return
+      applyAuthStatus(next)
     } catch (error: unknown) {
-      if (mounted.current && signal?.aborted !== true) {
+      if (liveAuthAttempt(attempt) && signal?.aborted !== true) {
         setRefreshError(t('usageRefreshFailed'))
         setAuth(current => current.status === 'signed-in'
           ? current
@@ -487,24 +509,52 @@ export function CodexPluginCard(props: CodexPluginCardProps): ReactNode {
     } finally {
       if (spin && mounted.current) setQuotaRefreshing(false)
     }
-  }, [readAuthStatus, t])
+  }, [applyAuthStatus, readAuthStatus, t])
 
+  // Header quota loads collapsed on mount; expansion reuses it and never refires the same read.
   useEffect(() => {
     const controller = new AbortController()
     void refreshAuth(controller.signal)
     return () => { controller.abort() }
   }, [refreshAuth])
 
+  const liveQuota = headerQuotaOf(auth, lastUsage, t)
+  // Signed-in and holding a usable headline window: the header is settled. Anything else —
+  // a provider that has not published quota since the sign-in, or a read that failed — is
+  // transient and must not wait out the 60s interval before the header can fill in.
+  const usageSettled = refreshError === undefined && liveQuota !== null
+
+  /**
+   * Re-read while the header is withheld with nothing scheduled: 1.5s doubling up to the
+   * steady interval, until a usable window arrives. The loop stops on settle, on any status
+   * change, on collapse, and on unmount, so a card that is closed — or one whose account
+   * never publishes a window — leaves no read running in the background; expanding it
+   * resumes settling. Retrying renders nothing by itself: every attempt still passes the
+   * generation guard, so a failing read keeps the previous account's quota withheld.
+   */
   useEffect(() => {
-    if (!open) return
+    if (!open || auth.status !== 'signed-in' || usageSettled) return
     const controller = new AbortController()
-    void refreshAuth(controller.signal, true)
-    return () => { controller.abort() }
-  }, [open, refreshAuth])
+    let stopped = false
+    const settle = async (): Promise<void> => {
+      let delay = USAGE_SETTLE_START_MS
+      while (!stopped && mounted.current) {
+        await new Promise(resolve => { window.setTimeout(resolve, delay) })
+        if (stopped || !mounted.current) return
+        await refreshAuth(controller.signal)
+        if (stopped || !mounted.current) return
+        delay = Math.min(delay * 2, USAGE_POLL_INTERVAL_MS)
+      }
+    }
+    void settle()
+    return () => { stopped = true; controller.abort() }
+  }, [open, auth.status, refreshAuth, usageSettled])
 
   useEffect(() => {
     if (!open) return
-    const interval = auth.status === 'signing-in' ? 1000 : auth.status === 'signed-in' ? 60_000 : undefined
+    const interval = auth.status === 'signing-in'
+      ? 1000
+      : auth.status === 'signed-in' && usageSettled ? USAGE_POLL_INTERVAL_MS : undefined
     if (interval === undefined) return
     const controller = new AbortController()
     const timer = window.setInterval(() => { void refreshAuth(controller.signal) }, interval)
@@ -512,7 +562,7 @@ export function CodexPluginCard(props: CodexPluginCardProps): ReactNode {
       window.clearInterval(timer)
       controller.abort()
     }
-  }, [open, auth.status, refreshAuth])
+  }, [open, auth.status, refreshAuth, usageSettled])
 
   useEffect(() => {
     if (!open || auth.status !== 'signing-in' || authChallenge?.attemptId === undefined) return
@@ -522,7 +572,12 @@ export function CodexPluginCard(props: CodexPluginCardProps): ReactNode {
       try {
         const result = await readAuthAttemptStatus(attemptId)
         if (stopped || !mounted.current) return
-        if (result.status === 'succeeded') { await refreshAuth(); return }
+        if (result.status === 'succeeded') {
+          // Applying the signed-in status reruns this effect, which stops the poll;
+          // quota settling then belongs to the settle effect.
+          await refreshAuth()
+          return
+        }
         if (result.status === 'failed') setAuth({ status: 'error', message: t('signInFailed') })
         else if (result.status === 'cancelled' || result.status === 'missing') setAuth({ status: 'signed-out' })
       } catch { /* generic status polling remains the safe fallback */ }
@@ -689,49 +744,70 @@ export function CodexPluginCard(props: CodexPluginCardProps): ReactNode {
           : auth.status === 'loading'
             ? t('authLoading')
             : t('signedOut')
-  const modelCount = Array.isArray(draft) ? draft.length : (snapshot.value?.models?.length ?? 0)
-  const headerSummary = formatProviderSummary(
-    auth.status === 'signed-in' ? t('summaryOn') : t('summaryOff'),
-    t('summaryModels').replace('{count}', String(modelCount)),
-  )
+  const modelCount = Array.isArray(draft) ? draft.length : snapshot.value?.models?.length
+  const headerModels = modelCount === undefined ? '' : t('summaryModels').replace('{count}', String(modelCount))
+  // Unknown auth is loading, not signed out: only an authoritative verdict earns On/Off.
+  const headerStatus = auth.status === 'signed-in' ? t('summaryOn') : auth.status === 'signed-out' ? t('summaryOff') : auth.status === 'error' ? t('statusFailed') : t('authLoading')
+  // The verdict gates the entire header quota, not only the persisted fallback: stale
+  // local lastUsage must not look fresh on error or unsupported either. The shared
+  // cache supplies the first frame, and only a known sign-out drops the stored entry.
+  const quotaUnsupported = auth.status === 'signed-in' && usageUpdatedAt !== undefined && liveQuota === null
+  const quotaWithheld = auth.status === 'signed-out' || auth.status === 'reauth-required' || refreshError !== undefined || quotaUnsupported
+  const headerQuota: ProviderQuotaState | null = useProviderQuotaCache(CODEX_SETTINGS_NAMESPACE, USAGE_PROVIDER_NAME, liveQuota, {
+    answered: authAnswered,
+    signedOut: auth.status === 'signed-out' || auth.status === 'reauth-required',
+    withheld: quotaWithheld,
+  })
+  // Both the loading frame and the settled frame carry the meter; a settled query without
+  // usable quota shows the unavailable dash instead.
+  const quotaProps = providerQuotaHeaderProps(headerQuota, {
+    dashLabel: t('usage'),
+    settled: auth.status === 'signed-in' && (refreshError !== undefined || usageUpdatedAt !== undefined),
+  })
 
   if (snapshot.status === 'unavailable') {
     return (
-      <li style={cardStyle}>
-        <button type="button" style={headerStyle} aria-expanded={open} onClick={() => { setOpen(!open) }}>
-          <ProviderCardHeader title={title} mark={<BrandMark />} summary={headerSummary} open={open} />
+      <li style={cardStyle} data-provider-card="" data-provider-role="llm">
+        <style>{providerUiCss}</style>
+        <button type="button" data-provider-card-header="" aria-expanded={open} onClick={() => { setOpen(!open) }}>
+          <ProviderCardHeader title={title} mark={<BrandMark />} summary={headerModels} status={headerStatus} open={open} role="llm" />
         </button>
-        {open ? <div style={bodyStyle}><p style={statusStyle} role="status">{t('remoteAccess')}</p></div> : null}
+        {open ? <div style={bodyStyle} data-provider-body=""><p style={statusStyle} role="status">{t('remoteAccess')}</p></div> : null}
       </li>
     )
   }
 
   if (snapshot.status !== 'ready' || draft === undefined || capabilities === undefined) {
     return (
-      <li style={cardStyle}>
-        <button type="button" style={headerStyle} aria-expanded={open} onClick={() => { setOpen(!open) }}>
-          <ProviderCardHeader title={title} mark={<BrandMark />} summary={headerSummary} open={open} />
+      <li style={cardStyle} data-provider-card="" data-provider-role="llm">
+        <style>{providerUiCss}</style>
+        <button type="button" data-provider-card-header="" aria-expanded={open} onClick={() => { setOpen(!open) }}>
+          <ProviderCardHeader title={title} mark={<BrandMark />} summary={headerModels} status={headerStatus} open={open} role="llm" {...quotaProps} />
         </button>
-        {open ? <div style={bodyStyle}><p style={statusStyle}>{t('loading')}</p></div> : null}
+        {open ? <div style={bodyStyle} data-provider-body=""><p style={statusStyle}>{t('loading')}</p></div> : null}
       </li>
     )
   }
 
   return (
-    <li style={cardStyle}>
-      <button type="button" style={headerStyle} aria-expanded={open} onClick={() => { setOpen(!open) }}>
+    <li style={cardStyle} data-provider-card="" data-provider-role="llm">
+      <style>{providerUiCss}</style>
+      <button type="button" data-provider-card-header="" aria-expanded={open} onClick={() => { setOpen(!open) }}>
         <ProviderCardHeader
           title={title}
           mark={<BrandMark />}
-          summary={headerSummary}
+          summary={headerModels}
+          status={headerStatus}
           open={open}
           unsaved={dirty}
           unsavedLabel={t('unsaved')}
+          role="llm"
+          {...quotaProps}
         />
       </button>
       {open
         ? (
-          <div style={bodyStyle}>
+          <div style={bodyStyle} data-provider-body="">
             <p style={hintStyle}>{t('description')}</p>
             <section style={sectionStyle}>
               <AuthToolbar
@@ -805,9 +881,14 @@ export function CodexPluginCard(props: CodexPluginCardProps): ReactNode {
                   <span style={sectionTitleStyle}>{t('models')}</span>
                   <span style={hintStyle}>{customModels ? t('customized') : t('inherited')}</span>
                 </button>
-                <button type="button" style={buttonStyle} disabled={disabled || fetching} onClick={() => { void chooseFromOfficial() }}>
-                  {fetching ? t('fetchingModels') : t('fetchModels')}
-                </button>
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, flex: 'none' }}>
+                  <button type="button" style={buttonStyle} disabled={disabled} onClick={() => { setModelSort(current => !current) }} aria-pressed={modelSort}>
+                    {modelSort ? t('doneSorting') : t('sortModels')}
+                  </button>
+                  <button type="button" style={buttonStyle} disabled={disabled || fetching} onClick={() => { void chooseFromOfficial() }}>
+                    {fetching ? t('fetchingModels') : t('fetchModels')}
+                  </button>
+                </span>
               </div>
               {catalogOpen
                 ? (
@@ -816,16 +897,26 @@ export function CodexPluginCard(props: CodexPluginCardProps): ReactNode {
                       items={draft}
                       getId={item => item.rowId}
                       disabled={disabled}
+                      sorting={modelSort}
+                      moveButtons={modelSort}
                       dragLabel={(item, index) => {
                         const label = item.id.trim().length > 0 ? item.id.trim() : String(index + 1)
                         return t('dragModel') + ': ' + label
+                      }}
+                      moveUpLabel={(item, index) => {
+                        const label = item.id.trim().length > 0 ? item.id.trim() : String(index + 1)
+                        return t('moveUp') + ': ' + label
+                      }}
+                      moveDownLabel={(item, index) => {
+                        const label = item.id.trim().length > 0 ? item.id.trim() : String(index + 1)
+                        return t('moveDown') + ': ' + label
                       }}
                       onReorder={patchDraft}
                       renderItem={(item, index) => {
                         const expanded = expandedModels.has(item.rowId)
                         const label = item.id.trim().length > 0 ? item.id.trim() : String(index + 1)
                         return (
-                          <div data-model-row={label} style={modelContentStyle}>
+                          <div data-model-row={label} data-provider-model="" style={modelContentStyle}>
                             <input
                               style={rowInputStyle}
                               value={item.id}

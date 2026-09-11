@@ -9,7 +9,7 @@ import type { Context, Fiber } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
 import type {} from '@deepseek-ai/dsh-client-connection'
 import type { ConnectionRpcHandler } from '@deepseek-ai/dsh-client-connection'
-import { resolveRetryPolicy, RetryPolicySchema } from '@deepseek-ai/dsh-llm'
+import { INVALID_CREDENTIAL_CODE, LlmError, resolveRetryPolicy, RetryPolicySchema } from '@deepseek-ai/dsh-llm'
 import type { ResolvedRetryPolicy, RetryPolicyConfig } from '@deepseek-ai/dsh-llm'
 import { deepEqualJson } from '@deepseek-ai/dsh-util-values'
 import type { SettingsPathOp } from '@deepseek-ai/dsh-settings'
@@ -26,7 +26,8 @@ import { CodexAdapter, refreshCodexAccessToken, resolveCodexAccessToken } from '
 import { CODEX_REASONING_EFFORTS, isCodexReasoningEffort } from './catalog.ts'
 import type { CodexReasoningEffort } from './catalog.ts'
 import type { CodexConnectionOptions } from './adapter.ts'
-import { CodexWebAuth, registerCodexAuthRoutes } from './auth-routes.ts'
+import { CodexWebAuth, registerCodexAuthRoutes, safeMessage } from './auth-routes.ts'
+import { isCodexCredentialFailure } from './usage.ts'
 import { generateImageTool } from './generate-image.ts'
 import { viewImageTool } from './view-image.ts'
 import { CodexSearchProvider } from './search.ts'
@@ -252,15 +253,35 @@ export function resolveAdapterOptions(config: Config): CodexConnectionOptions {
   }
 }
 
-function internalError(message: string) {
+function failure(code: string, message: string) {
   return {
     ok: false as const,
     error: {
-      code: 'internal' as const,
+      code,
       message,
       details: {},
     },
   }
+}
+
+function internalError(message: string) {
+  return failure('internal', message)
+}
+
+/**
+ * Map one Host Connection failure onto the wire. A credential that is missing
+ * or no longer usable answers {@link INVALID_CREDENTIAL_CODE} so the shared
+ * provider quota cache drops the previous account's entry instead of keeping
+ * it; any other {@link LlmError} keeps its own failure code, and every other
+ * failure stays internal rather than escaping the handler as a gateway error.
+ * @param error - value caught while answering a Codex endpoint.
+ * @param fallback - message used when the failure carries none.
+ */
+function rpcFailure(error: unknown, fallback: string) {
+  const message = error instanceof Error && error.message.length > 0 ? safeMessage(error) : fallback
+  if (isCodexCredentialFailure(error)) return failure(INVALID_CREDENTIAL_CODE, message)
+  if (error instanceof LlmError) return failure(error.code, message)
+  return internalError(message)
 }
 
 async function saveConfiguration(ctx: Context, payload: unknown) {
@@ -336,31 +357,37 @@ export function createCodexManagementRpcHandler(
   fetchModels: () => Promise<readonly CodexCatalogModel[]> = async () => CODEX_CATALOG,
 ): ConnectionRpcHandler {
   return async (endpoint, payload) => {
-    const request = isRecord(payload) ? payload : undefined
-    if (endpoint === CODEX_SETTINGS_READ_ENDPOINT) return readConfiguration(ctx)
-    if (endpoint === CODEX_MODELS_FETCH_ENDPOINT) return { ok: true as const, value: await fetchModels() }
-    if (endpoint === CODEX_SAVE_ENDPOINT) return saveConfiguration(ctx, payload)
-    if (endpoint === CODEX_AUTH_STATUS_ENDPOINT) {
-      const refresh = request?.['refresh'] === true
-      return { ok: true as const, value: await auth.status(refresh) }
+    // Every failure is answered as a result: one that escaped this handler would
+    // reach the browser as an opaque gateway error with the code discarded.
+    try {
+      const request = isRecord(payload) ? payload : undefined
+      if (endpoint === CODEX_SETTINGS_READ_ENDPOINT) return readConfiguration(ctx)
+      if (endpoint === CODEX_MODELS_FETCH_ENDPOINT) return { ok: true as const, value: await fetchModels() }
+      if (endpoint === CODEX_SAVE_ENDPOINT) return saveConfiguration(ctx, payload)
+      if (endpoint === CODEX_AUTH_STATUS_ENDPOINT) {
+        const refresh = request?.['refresh'] === true
+        return { ok: true as const, value: await auth.status(refresh) }
+      }
+      if (endpoint === CODEX_AUTH_BEGIN_ENDPOINT) {
+        const method = request?.['method'] === 'device_code'
+          ? 'device_code'
+          : 'browser'
+        return { ok: true as const, value: await auth.signIn(method) }
+      }
+      if (endpoint === CODEX_AUTH_ATTEMPT_STATUS_ENDPOINT) {
+        const attemptId = typeof request?.['attemptId'] === 'string' ? request['attemptId'] : ''
+        return { ok: true as const, value: { status: auth.attemptStatus(attemptId) } }
+      }
+      if (endpoint === CODEX_AUTH_CANCEL_ENDPOINT) {
+        const attemptId = typeof request?.['attemptId'] === 'string' ? request['attemptId'] : undefined
+        if (!auth.cancel(attemptId)) return internalError('stale Codex sign-in attempt')
+        return { ok: true as const, value: { ok: true } }
+      }
+      if (endpoint === CODEX_AUTH_LOGOUT_ENDPOINT) { await auth.signOut(); return { ok: true as const, value: { ok: true } } }
+      return internalError(`unknown Codex endpoint: ${endpoint}`)
+    } catch (error: unknown) {
+      return rpcFailure(error, `Codex ${endpoint} request failed`)
     }
-    if (endpoint === CODEX_AUTH_BEGIN_ENDPOINT) {
-      const method = request?.['method'] === 'device_code'
-        ? 'device_code'
-        : 'browser'
-      return { ok: true as const, value: await auth.signIn(method) }
-    }
-    if (endpoint === CODEX_AUTH_ATTEMPT_STATUS_ENDPOINT) {
-      const attemptId = typeof request?.['attemptId'] === 'string' ? request['attemptId'] : ''
-      return { ok: true as const, value: { status: auth.attemptStatus(attemptId) } }
-    }
-    if (endpoint === CODEX_AUTH_CANCEL_ENDPOINT) {
-      const attemptId = typeof request?.['attemptId'] === 'string' ? request['attemptId'] : undefined
-      if (!auth.cancel(attemptId)) return internalError('stale Codex sign-in attempt')
-      return { ok: true as const, value: { ok: true } }
-    }
-    if (endpoint === CODEX_AUTH_LOGOUT_ENDPOINT) { await auth.signOut(); return { ok: true as const, value: { ok: true } } }
-    return internalError(`unknown Codex endpoint: ${endpoint}`)
   }
 }
 
