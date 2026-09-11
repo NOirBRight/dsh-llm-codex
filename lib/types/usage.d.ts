@@ -17,6 +17,16 @@ export declare function isCodexReauthRequiredError(error: unknown): error is Cod
  * @returns true when the account cannot serve quota until it signs in again.
  */
 export declare function isCodexCredentialFailure(error: unknown): boolean;
+/**
+ * Whether one failure confirms the stored credential cannot be used. Only a
+ * refusal this process can observe directly counts: a document the store will
+ * not serve. Credential resolution wraps store failures, so the causes are
+ * walked; a token refresh that fails on the network stays unconfirmed, because
+ * its failure says nothing about whether the credential is still valid.
+ * @param error - value caught from credential resolution.
+ * @returns true only for a credential the store itself rejected.
+ */
+export declare function isCodexCredentialUnusableError(error: unknown): boolean;
 /** Convert the provider response into the small secret-free object sent to the browser. */
 export declare function parseCodexUsage(value: unknown, now?: number): CodexUsage;
 /** Read current quota without issuing a model request. */
