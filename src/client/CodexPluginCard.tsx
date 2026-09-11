@@ -527,11 +527,13 @@ export function CodexPluginCard(props: CodexPluginCardProps): ReactNode {
   /**
    * Re-read while the header is withheld with nothing scheduled: 1.5s doubling up to the
    * steady interval, until a usable window arrives. The loop stops on settle, on any status
-   * change, and on unmount. Retrying renders nothing by itself: every attempt still passes
-   * the generation guard, so a failing read keeps the previous account's quota withheld.
+   * change, on collapse, and on unmount, so a card that is closed — or one whose account
+   * never publishes a window — leaves no read running in the background; expanding it
+   * resumes settling. Retrying renders nothing by itself: every attempt still passes the
+   * generation guard, so a failing read keeps the previous account's quota withheld.
    */
   useEffect(() => {
-    if (auth.status !== 'signed-in' || usageSettled) return
+    if (!open || auth.status !== 'signed-in' || usageSettled) return
     const controller = new AbortController()
     let stopped = false
     const settle = async (): Promise<void> => {
@@ -546,7 +548,7 @@ export function CodexPluginCard(props: CodexPluginCardProps): ReactNode {
     }
     void settle()
     return () => { stopped = true; controller.abort() }
-  }, [auth.status, refreshAuth, usageSettled])
+  }, [open, auth.status, refreshAuth, usageSettled])
 
   useEffect(() => {
     if (!open) return

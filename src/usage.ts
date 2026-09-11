@@ -11,7 +11,7 @@ import type {
   CodexUsage,
 } from './client-contract.ts'
 import type { CodexCredentialStore } from './store.ts'
-import { OPENAI_CODEX_PROVIDER } from './store.ts'
+import { CodexCredentialUnusableError, OPENAI_CODEX_PROVIDER } from './store.ts'
 
 export type {
   CodexCredits,
@@ -55,6 +55,22 @@ const CREDENTIAL_FAILURE_CODES: ReadonlySet<string> = new Set([
 export function isCodexCredentialFailure(error: unknown): boolean {
   return isCodexReauthRequiredError(error)
     || (error instanceof LlmError && CREDENTIAL_FAILURE_CODES.has(error.code))
+}
+
+/**
+ * Whether one failure confirms the stored credential cannot be used. Only a
+ * refusal this process can observe directly counts: a document the store will
+ * not serve. Credential resolution wraps store failures, so the causes are
+ * walked; a token refresh that fails on the network stays unconfirmed, because
+ * its failure says nothing about whether the credential is still valid.
+ * @param error - value caught from credential resolution.
+ * @returns true only for a credential the store itself rejected.
+ */
+export function isCodexCredentialUnusableError(error: unknown): boolean {
+  for (let current: unknown = error; current instanceof Error; current = current.cause) {
+    if (current instanceof CodexCredentialUnusableError) return true
+  }
+  return false
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -218,10 +234,13 @@ export async function readCodexRateLimits(store: CodexCredentialStore): Promise<
     auth = await models.getAuth(OPENAI_CODEX_PROVIDER)
     credential = await store.read(OPENAI_CODEX_PROVIDER)
   } catch (error: unknown) {
-    // An unreadable document or a rejected refresh leaves no usable session, which
-    // is terminal for this account rather than a transient usage-read failure.
+    // Only a credential the store itself refuses is terminal. Resolving one also
+    // refreshes an expired token over the network, and a refresh, lock, or I/O
+    // failure must leave the caller's last good quota in place instead of
+    // reporting this account as logged out.
+    if (!isCodexCredentialUnusableError(error)) throw error
     throw new LlmError(
-      'Codex: the stored credential could not be resolved; sign in again with ChatGPT',
+      'Codex: the stored credential cannot be used; sign in again with ChatGPT',
       INVALID_CREDENTIAL_CODE,
       { cause: error },
     )

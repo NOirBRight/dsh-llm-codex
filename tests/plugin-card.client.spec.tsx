@@ -180,6 +180,8 @@ describe('CodexPluginCard', () => {
     const view = render(<CodexPluginCard {...props({ readAuthStatus: usable })} />)
     expect((await screen.findByRole('meter', { name: en.fiveHourLimit })).getAttribute('aria-valuenow')).toBe('76')
 
+    // Retrying belongs to the expanded card: a collapsed one leaves no read running.
+    expand()
     const failing = vi.fn(async (): Promise<CodexAccountStatus> => ({
       status: 'signed-in',
       usage: { rateLimits: [] },
@@ -194,6 +196,25 @@ describe('CodexPluginCard', () => {
     await waitFor(() => { expect(failing.mock.calls.length).toBeGreaterThanOrEqual(2) }, { timeout: 5000 })
     expect(document.querySelector('[data-provider-quota-mini] [data-provider-quota-missing]')).not.toBeNull()
     expect(screen.queryByRole('meter')).toBeNull()
+  })
+
+  it('leaves no quota read running while the card is collapsed, and resumes on expand', async () => {
+    const readAuthStatus = vi.fn(async (): Promise<CodexAccountStatus> => ({
+      // Signed in with no published window: the header never settles, so an open card
+      // keeps re-reading and a collapsed one must leave nothing scheduled.
+      status: 'signed-in',
+      usage: { rateLimits: [] },
+    }))
+    render(<CodexPluginCard {...props({ readAuthStatus })} />)
+
+    // The mount read is the only read a collapsed card makes; the first settle delay is
+    // 1.5s, so a second read inside this window means the loop ran while closed.
+    await waitFor(() => { expect(readAuthStatus).toHaveBeenCalledTimes(1) })
+    await new Promise(resolve => setTimeout(resolve, 2500))
+    expect(readAuthStatus).toHaveBeenCalledTimes(1)
+
+    expand()
+    await waitFor(() => { expect(readAuthStatus.mock.calls.length).toBeGreaterThan(1) }, { timeout: 5000 })
   })
 
   it('falls back to textarea copy when Clipboard API rejects', async () => {

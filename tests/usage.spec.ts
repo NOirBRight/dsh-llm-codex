@@ -1,26 +1,92 @@
-import { mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import type { OAuthCredential } from '@earendil-works/pi-ai'
 import { INVALID_CREDENTIAL_CODE } from '@deepseek-ai/dsh-llm'
 import { CodexCredentialStore } from '../src/store.ts'
 import { isCodexCredentialFailure, parseCodexUsage, readCodexRateLimits } from '../src/usage.ts'
 
+afterEach(() => { vi.unstubAllGlobals() })
+
+let root: string | undefined
+afterEach(async () => {
+  if (root !== undefined) await rm(root, { recursive: true, force: true })
+  root = undefined
+})
+
+async function storeWith(credential: OAuthCredential | string): Promise<CodexCredentialStore> {
+  root = await mkdtemp(join(tmpdir(), 'dsh-llm-codex-usage-'))
+  const filename = join(root, 'codex-oauth.json')
+  // Owner-only, or the store rejects the file mode before it reads the document.
+  await writeFile(
+    filename,
+    typeof credential === 'string' ? credential : JSON.stringify({ version: 1, credential }),
+    { mode: 0o600 },
+  )
+  return new CodexCredentialStore(filename)
+}
+
+/** The stored credential shape that resolves without a token refresh. */
+function liveCredential(): OAuthCredential {
+  return {
+    type: 'oauth',
+    access: 'access-token',
+    refresh: 'refresh-token',
+    accountId: 'account-id',
+    expires: Date.now() + 3_600_000,
+  }
+}
+
+async function credentialFailure(thrown: Promise<unknown>): Promise<unknown> {
+  return await thrown.then(() => undefined, (error: unknown) => error)
+}
+
 describe('readCodexRateLimits credential resolution', () => {
   it('classifies a stored document it cannot use as a credential failure', async () => {
-    const root = await mkdtemp(join(tmpdir(), 'dsh-llm-codex-usage-'))
-    try {
-      const filename = join(root, 'codex-oauth.json')
-      // Owner-only, or the store rejects the file mode before it parses the document.
-      await writeFile(filename, '{"version":1,"credential":{"type":"oauth"}}\n', { mode: 0o600 })
-      const error: unknown = await readCodexRateLimits(new CodexCredentialStore(filename))
-        .then(() => undefined, (thrown: unknown) => thrown)
+    const store = await storeWith('{"version":1,"credential":{"type":"oauth"}}\n')
+    const error = await credentialFailure(readCodexRateLimits(store))
 
-      expect(error).toMatchObject({ code: INVALID_CREDENTIAL_CODE })
-      expect(isCodexCredentialFailure(error)).toBe(true)
-    } finally {
-      await rm(root, { recursive: true, force: true })
-    }
+    expect(error).toMatchObject({ code: INVALID_CREDENTIAL_CODE })
+    expect(isCodexCredentialFailure(error)).toBe(true)
+  })
+
+  it('leaves a refresh that fails on the network unresolved instead of logging the account out', async () => {
+    // Inside the five-minute validity window, so resolving the credential refreshes it.
+    const store = await storeWith({ ...liveCredential(), expires: Date.now() + 1_000 })
+    vi.stubGlobal('fetch', vi.fn(() => Promise.reject(new TypeError('fetch failed'))))
+
+    const error = await credentialFailure(readCodexRateLimits(store))
+
+    expect(error).toBeInstanceOf(Error)
+    expect((error as { code?: string }).code).not.toBe(INVALID_CREDENTIAL_CODE)
+    expect(isCodexCredentialFailure(error)).toBe(false)
+  })
+
+  it('leaves a store that cannot be read unresolved instead of logging the account out', async () => {
+    // A directory at the credential path fails the read with a plain I/O error, not a
+    // verdict about the credential, so the caller keeps the last good quota.
+    root = await mkdtemp(join(tmpdir(), 'dsh-llm-codex-usage-'))
+    const filename = join(root, 'codex-oauth.json')
+    await mkdir(filename, { mode: 0o700 })
+    const store = new CodexCredentialStore(filename)
+
+    const error = await credentialFailure(readCodexRateLimits(store))
+
+    expect(error).toBeInstanceOf(Error)
+    expect((error as { code?: string }).code).not.toBe(INVALID_CREDENTIAL_CODE)
+    expect(isCodexCredentialFailure(error)).toBe(false)
+  })
+
+  it('classifies a credential the store refuses as a credential failure', async () => {
+    const store = await storeWith(liveCredential())
+    await rm(store.filename)
+    await mkdir(store.filename, { mode: 0o755 })
+
+    const error = await credentialFailure(readCodexRateLimits(store))
+
+    expect(error).toMatchObject({ code: INVALID_CREDENTIAL_CODE })
+    expect(isCodexCredentialFailure(error)).toBe(true)
   })
 })
 
