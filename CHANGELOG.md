@@ -4,9 +4,11 @@
 
 ### Changed
 
-- Adopt the shared provider-ui header from `dsh-llm-providers-ui` 0.1.10; remove the per-provider header fork.
+- Adopt the shared provider-ui header and quota cache from `dsh-llm-providers-ui` 0.1.12; remove the per-provider header fork.
 - Header quota loads collapsed with reuse on expansion and no refire; a failed read shows a truthful unavailable dash, never a fabricated percent.
-- Development dependency now points at the final `dsh-llm-providers-ui` 0.1.10 release URL with pinned integrity.
+- Host usage/auth failures that mean an unusable credential answer `INVALID_CREDENTIAL` so the shared quota cache can evict the previous account's reading.
+- Development dependency and install guidance point at the `dsh-llm-providers-ui` `v0.1.12-015rc1d` candidate tarball.
+- Verified runtimes now include DeepSeek Harness `0.1.5-rc.1` alongside Alpha.4 and `0.1.2-rc.1`.
 
 ## [0.3.14] - 2026-09-05
 

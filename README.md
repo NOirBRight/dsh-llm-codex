@@ -8,7 +8,7 @@ The package root exposes the Cordis plugin contract. The same artifact exports `
 
 ## Compatibility
 
-Verified runtimes are DeepSeek Harness `0.1.2-alpha.4` and `0.1.2-rc.1` on Cordis `4.0.2`; this record is evidence, not an allowlist.
+Verified runtimes are DeepSeek Harness `0.1.2-alpha.4`, `0.1.2-rc.1`, and `0.1.5-rc.1` on Cordis `4.0.2`; this record is evidence, not an allowlist.
 
 Unknown newer runtimes are attempted on a best-effort basis after one warning, and the plugin keeps its normal mount path.
 
@@ -21,9 +21,9 @@ Install directly from GitHub:
 
 ~~~sh
 dsh plugin --profile web add --force \
-  https://github.com/NOirBRight/dsh-llm-providers-ui/releases/download/v0.1.12-015rc1/dsh-llm-providers-ui-0.1.12.tgz
+  https://github.com/NOirBRight/dsh-llm-providers-ui/releases/download/v0.1.12-015rc1d/dsh-llm-providers-ui-0.1.12.tgz
 dsh plugin --profile web add --force \
-  https://github.com/NOirBRight/dsh-llm-codex/releases/download/v0.3.15/dsh-llm-codex-0.3.15.tgz
+  https://github.com/NOirBRight/dsh-llm-codex/releases/download/v0.3.15-015rc1c/dsh-llm-codex-0.3.15.tgz
 dsh web
 ~~~
 
@@ -116,7 +116,7 @@ MIT
 
 ## Release installation (Latest)
 
-ChatGPT Codex login, model catalog, usage, and optional search/image capabilities. The release artifact targets DeepSeek Harness 0.1.2-alpha.4 and 0.1.2-rc.1 and contains built Host/Client files only; it has no sibling-repository source, workstation path, link:, or workspace: dependency.
+ChatGPT Codex login, model catalog, usage, and optional search/image capabilities. The release artifact targets DeepSeek Harness 0.1.2-alpha.4, 0.1.2-rc.1, and 0.1.5-rc.1 and contains built Host/Client files only; it has no sibling-repository source, workstation path, link:, or workspace: dependency.
 
 The dsh-llm-providers-ui package owns the LLM Providers page, navigation, and shared order store. This package owns only its provider card, models, credentials, and Host route. Install the Owner first for Web; headless Host routing works without the Owner.
 
@@ -138,9 +138,9 @@ Fixed versions (reproducible):
 
 ~~~sh
 dsh plugin --profile web add --force \
-  https://github.com/NOirBRight/dsh-llm-providers-ui/releases/download/v0.1.12-015rc1/dsh-llm-providers-ui-0.1.12.tgz
+  https://github.com/NOirBRight/dsh-llm-providers-ui/releases/download/v0.1.12-015rc1d/dsh-llm-providers-ui-0.1.12.tgz
 dsh plugin --profile web add --force \
-  https://github.com/NOirBRight/dsh-llm-codex/releases/download/v0.3.15/dsh-llm-codex-0.3.15.tgz
+  https://github.com/NOirBRight/dsh-llm-codex/releases/download/v0.3.15-015rc1c/dsh-llm-codex-0.3.15.tgz
 ~~~
 
 Update, uninstall, and verify:
@@ -160,7 +160,7 @@ Configuration: use the plugin section in Settings for Web UI plugins, or the pro
 
 Rollback: rerun the fixed v0.3.7 command, verify the profile list, then restart the Web service once. Inspect journalctl --user -u dsh-web.service and dsh plugin --profile web doctor; never put a source checkout in the production profile.
 
-Release and integrity: [v0.3.14](https://github.com/NOirBRight/dsh-llm-codex/releases/tag/v0.3.14) · [SHA256SUMS](https://github.com/NOirBRight/dsh-llm-codex/releases/download/v0.3.14/SHA256SUMS).
+Release and integrity: [v0.3.15-015rc1c](https://github.com/NOirBRight/dsh-llm-codex/releases/tag/v0.3.15-015rc1c) · [SHA256SUMS](https://github.com/NOirBRight/dsh-llm-codex/releases/download/v0.3.15-015rc1c/SHA256SUMS).
 
 ## Independent Model Switch search
 

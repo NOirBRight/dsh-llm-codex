@@ -8,7 +8,7 @@ DeepSeek Harness 的 ChatGPT Codex 集成。独立提供方路由是 `codex`，�
 
 ## 兼容性
 
-已验证运行时是 DeepSeek Harness `0.1.2-alpha.4` 与 `0.1.2-rc.1`（Cordis `4.0.2`）；这份记录只是证据，不是 allowlist。
+已验证运行时是 DeepSeek Harness `0.1.2-alpha.4`、`0.1.2-rc.1` 与 `0.1.5-rc.1`（Cordis `4.0.2`）；这份记录只是证据，不是 allowlist。
 
 未知的新版本会先打一条 warning，再按正常挂载路径 best-effort 尝试，不会因为未验证而跳过。
 
@@ -21,9 +21,9 @@ DeepSeek Harness 的 ChatGPT Codex 集成。独立提供方路由是 `codex`，�
 
 ~~~sh
 dsh plugin --profile web add --force \
-  https://github.com/NOirBRight/dsh-llm-providers-ui/releases/download/v0.1.12-015rc1/dsh-llm-providers-ui-0.1.12.tgz
+  https://github.com/NOirBRight/dsh-llm-providers-ui/releases/download/v0.1.12-015rc1d/dsh-llm-providers-ui-0.1.12.tgz
 dsh plugin --profile web add --force \
-  https://github.com/NOirBRight/dsh-llm-codex/releases/download/v0.3.14/dsh-llm-codex-0.3.14.tgz
+  https://github.com/NOirBRight/dsh-llm-codex/releases/download/v0.3.15-015rc1c/dsh-llm-codex-0.3.15.tgz
 dsh web
 ~~~
 
@@ -129,16 +129,16 @@ dsh plugin --profile web add --force \
 
 ~~~sh
 dsh plugin --profile web add --force \
-  https://github.com/NOirBRight/dsh-llm-codex/releases/latest/download/dsh-llm-codex-0.3.14.tgz
+  https://github.com/NOirBRight/dsh-llm-codex/releases/latest/download/dsh-llm-codex-0.3.15.tgz
 ~~~
 
 固定版本（可复现）：
 
 ~~~sh
 dsh plugin --profile web add --force \
-  https://github.com/NOirBRight/dsh-llm-providers-ui/releases/download/v0.1.12-015rc1/dsh-llm-providers-ui-0.1.12.tgz
+  https://github.com/NOirBRight/dsh-llm-providers-ui/releases/download/v0.1.12-015rc1d/dsh-llm-providers-ui-0.1.12.tgz
 dsh plugin --profile web add --force \
-  https://github.com/NOirBRight/dsh-llm-codex/releases/download/v0.3.14/dsh-llm-codex-0.3.14.tgz
+  https://github.com/NOirBRight/dsh-llm-codex/releases/download/v0.3.15-015rc1c/dsh-llm-codex-0.3.15.tgz
 ~~~
 
 更新、卸载与验证：
@@ -146,7 +146,7 @@ dsh plugin --profile web add --force \
 ~~~sh
 # 更新到最新 Release
 dsh plugin --profile web add --force \
-  https://github.com/NOirBRight/dsh-llm-codex/releases/latest/download/dsh-llm-codex-0.3.14.tgz
+  https://github.com/NOirBRight/dsh-llm-codex/releases/latest/download/dsh-llm-codex-0.3.15.tgz
 # 验证加载与版本
 dsh plugin --profile web list
 dsh plugin --profile web doctor
@@ -158,7 +158,7 @@ dsh plugin --profile web remove dsh-llm-codex
 
 回滚：重新执行固定版本 v0.3.7 命令，确认插件列表后只重启一次 Web 服务。失败时查看 journalctl --user -u dsh-web.service 与 dsh plugin --profile web doctor，不要把源码 checkout 写入 production profile。
 
-Release 与完整性：[v0.3.14](https://github.com/NOirBRight/dsh-llm-codex/releases/tag/v0.3.14) · [SHA256SUMS](https://github.com/NOirBRight/dsh-llm-codex/releases/download/v0.3.14/SHA256SUMS)。
+Release 与完整性：[v0.3.15-015rc1c](https://github.com/NOirBRight/dsh-llm-codex/releases/tag/v0.3.15-015rc1c) · [SHA256SUMS](https://github.com/NOirBRight/dsh-llm-codex/releases/download/v0.3.15-015rc1c/SHA256SUMS)。
 
 ## 独立 Model Switch 搜索
 
