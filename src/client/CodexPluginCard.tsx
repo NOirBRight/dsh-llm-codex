@@ -1121,7 +1121,6 @@ export function CodexPluginCard(props: CodexPluginCardProps): ReactNode {
               </button>
             )
     return (
-      <li style={cardStyle} data-provider-card="" data-provider-role="llm">
         <SharedDetail
           name={title}
           role="llm"
@@ -1198,7 +1197,6 @@ export function CodexPluginCard(props: CodexPluginCardProps): ReactNode {
           advanced={capabilitiesSection}
           draft={draftBlock}
         />
-      </li>
     )
   }
 
