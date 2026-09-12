@@ -3,6 +3,7 @@
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { SettingsScopeSnapshot } from '../src/client/settings-scope.ts'
+import { ProviderDetail, providerDetailCopy } from 'dsh-llm-providers-ui/provider-detail'
 import { CodexPluginCard } from '../src/client/CodexPluginCard.tsx'
 import type { CodexAccountStatus, CodexPluginCardProps } from '../src/client/CodexPluginCard.tsx'
 import { en } from '../src/client/locales.ts'
@@ -108,6 +109,115 @@ describe('CodexPluginCard', () => {
     expect(screen.queryByRole('link', { name: en.openDevicePage })).toBeNull()
   })
 
+  it('re-reads the account status until quota appears after sign-in', async () => {
+    let signedIn = false
+    let signedInReads = 0
+    const readAuthStatus = vi.fn(async (): Promise<CodexAccountStatus> => {
+      if (!signedIn) return { status: 'signed-out' }
+      signedInReads += 1
+      // The provider publishes quota shortly after auth: the first signed-in
+      // answers carry none, so the card re-reads on its bounded cadence instead
+      // of waiting for the 60s interval.
+      return signedInReads < 3
+        ? { status: 'signed-in' }
+        : { status: 'signed-in', usage: { rateLimits: [{ id: 'primary', windows: [{ remainingPercent: 73, windowSeconds: 18000 }] }] } }
+    })
+    render(<CodexPluginCard {...props({
+      readAuthStatus,
+      startAuth: vi.fn(() => Promise.resolve({
+        verificationUri: 'https://chatgpt.com/device',
+        userCode: 'WAIT-CODE',
+        attemptId: 'attempt-wait',
+      })),
+      readAuthAttemptStatus: vi.fn(async () => { signedIn = true; return { status: 'succeeded' as const } }),
+    })} />)
+    expand()
+    await waitFor(() => { expect(screen.getByText(en.signedOut)).toBeTruthy() })
+    fireEvent.click(screen.getByRole('button', { name: en.signIn }))
+
+    const meters = await screen.findAllByRole('meter', { name: en.fiveHourLimit }, { timeout: 8000 })
+    expect(meters[0]?.getAttribute('aria-valuenow')).toBe('73')
+    expect(signedInReads).toBeGreaterThanOrEqual(3)
+  })
+
+  it('fills the header as soon as a fresh sign-in publishes quota, not at the 60s interval', async () => {
+    let signedIn = false
+    let signedInReads = 0
+    const readAuthStatus = vi.fn(async (): Promise<CodexAccountStatus> => {
+      if (!signedIn) return { status: 'signed-out' }
+      signedInReads += 1
+      // A just-signed-in account answers signed-in with an empty window list until the
+      // provider publishes rates. An answer carrying `usage` but no usable window must not
+      // end the settling, or the header waits out the full 60s interval as a dash.
+      return signedInReads < 3
+        ? { status: 'signed-in', usage: { rateLimits: [] } }
+        : { status: 'signed-in', usage: { rateLimits: [{ id: 'primary', windows: [{ remainingPercent: 41, windowSeconds: 18000 }] }] } }
+    })
+    render(<CodexPluginCard {...props({
+      readAuthStatus,
+      startAuth: vi.fn(() => Promise.resolve({
+        verificationUri: 'https://chatgpt.com/device',
+        userCode: 'LATE-CODE',
+        attemptId: 'attempt-late',
+      })),
+      readAuthAttemptStatus: vi.fn(async () => { signedIn = true; return { status: 'succeeded' as const } }),
+    })} />)
+    expand()
+    await waitFor(() => { expect(screen.getByText(en.signedOut)).toBeTruthy() })
+
+    fireEvent.click(screen.getByRole('button', { name: en.signIn }))
+
+    // The 20s bound is the assertion: waiting for the 60s interval fails it.
+    const meters = await screen.findAllByRole('meter', { name: en.fiveHourLimit }, { timeout: 20_000 })
+    expect(meters[0]?.getAttribute('aria-valuenow')).toBe('41')
+    expect(signedInReads).toBeGreaterThanOrEqual(3)
+  })
+
+  it('keeps the header withheld while a signed-in account keeps failing its quota read', async () => {
+    const usable = vi.fn(async (): Promise<CodexAccountStatus> => ({
+      status: 'signed-in',
+      usage: { rateLimits: [{ id: 'primary', windows: [{ remainingPercent: 76, windowSeconds: 18000 }] }] },
+    }))
+    const view = render(<CodexPluginCard {...props({ readAuthStatus: usable })} />)
+    expect((await screen.findByRole('meter', { name: en.fiveHourLimit })).getAttribute('aria-valuenow')).toBe('76')
+
+    // Retrying belongs to the expanded card: a collapsed one leaves no read running.
+    expand()
+    const failing = vi.fn(async (): Promise<CodexAccountStatus> => ({
+      status: 'signed-in',
+      usage: { rateLimits: [] },
+      quotaError: 'quota down',
+    }))
+    view.rerender(<CodexPluginCard {...props({ readAuthStatus: failing })} />)
+    await waitFor(() => { expect(document.querySelector('[data-provider-quota-mini] [data-provider-quota-missing]')).not.toBeNull() })
+    expect(screen.queryByRole('meter')).toBeNull()
+
+    // Retrying is fast, not the 60s interval — but it renders nothing: a further answer lands
+    // while the dash stays up, so the previous read's 76% never returns.
+    await waitFor(() => { expect(failing.mock.calls.length).toBeGreaterThanOrEqual(2) }, { timeout: 5000 })
+    expect(document.querySelector('[data-provider-quota-mini] [data-provider-quota-missing]')).not.toBeNull()
+    expect(screen.queryByRole('meter')).toBeNull()
+  })
+
+  it('leaves no quota read running while the card is collapsed, and resumes on expand', async () => {
+    const readAuthStatus = vi.fn(async (): Promise<CodexAccountStatus> => ({
+      // Signed in with no published window: the header never settles, so an open card
+      // keeps re-reading and a collapsed one must leave nothing scheduled.
+      status: 'signed-in',
+      usage: { rateLimits: [] },
+    }))
+    render(<CodexPluginCard {...props({ readAuthStatus })} />)
+
+    // The mount read is the only read a collapsed card makes; the first settle delay is
+    // 1.5s, so a second read inside this window means the loop ran while closed.
+    await waitFor(() => { expect(readAuthStatus).toHaveBeenCalledTimes(1) })
+    await new Promise(resolve => setTimeout(resolve, 2500))
+    expect(readAuthStatus).toHaveBeenCalledTimes(1)
+
+    expand()
+    await waitFor(() => { expect(readAuthStatus.mock.calls.length).toBeGreaterThan(1) }, { timeout: 5000 })
+  })
+
   it('falls back to textarea copy when Clipboard API rejects', async () => {
     const writeText = vi.fn(() => Promise.reject(new Error('denied')))
     Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText } })
@@ -175,13 +285,11 @@ describe('CodexPluginCard', () => {
     expect(pos(contextInput, visionBox)).toBe(-1)
     expect(pos(visionBox, thinkingBox)).toBe(-1)
     expect(pos(thinkingBox, defaultEffort)).toBe(-1)
-    // Context uses 36h inputStyle full width, select uses 32h selectStyle with arrow
+    // The expanded fields use the shared template classes in every layout.
     expect(catalogStyles.inputStyle.minHeight).toBe(36)
     expect(catalogStyles.selectStyle.minHeight).toBe(32)
-    expect(contextInput.style.minHeight || getComputedStyle(contextInput).minHeight).toContain('36')
-    expect(defaultEffort.style.minHeight || getComputedStyle(defaultEffort).minHeight).toContain('32')
-    expect(defaultEffort.style.backgroundImage).toContain('svg')
-    expect(defaultEffort.style.appearance).toBe('none')
+    expect(contextInput.className).toContain('c-input')
+    expect(defaultEffort.className).toContain('c-input')
     // shared tokens: rowInput 32h, modelDetail flex column, capabilities flex wrap
     expect(catalogStyles.rowInputStyle.minHeight).toBe(32)
     expect(catalogStyles.modelDetailStyle.flexDirection).toBe('column')
@@ -191,16 +299,18 @@ describe('CodexPluginCard', () => {
     expect(screen.queryByLabelText('Fast')).toBeNull()
   })
 
-  it('rereads usage when the card opens and when refresh is pressed', async () => {
+  it('does not reread usage when the card opens, but rereads when refresh is pressed', async () => {
     const readAuthStatus = vi.fn(async (): Promise<CodexAccountStatus> => ({
       status: 'signed-in',
       usage: { rateLimits: [] },
     }))
     render(<CodexPluginCard {...props({ readAuthStatus })} />)
+    await waitFor(() => { expect(readAuthStatus.mock.calls.length).toBe(1) })
     expand()
-    await waitFor(() => { expect(readAuthStatus.mock.calls.length).toBeGreaterThanOrEqual(2) })
+    await waitFor(() => { expect(screen.getByRole('button', { name: en.usageRefresh })).toBeTruthy() })
+    expect(readAuthStatus.mock.calls.length).toBe(1)
     fireEvent.click(screen.getByRole('button', { name: en.usageRefresh }))
-    await waitFor(() => { expect(readAuthStatus.mock.calls.length).toBeGreaterThanOrEqual(3) })
+    await waitFor(() => { expect(readAuthStatus.mock.calls.length).toBeGreaterThanOrEqual(2) })
   })
 
   it('does not offer sign-in while the host is still reading auth status', () => {
@@ -208,7 +318,7 @@ describe('CodexPluginCard', () => {
     render(<CodexPluginCard {...props({ readAuthStatus })} />)
     expand()
 
-    expect(screen.getByText(en.authLoading)).toBeTruthy()
+    expect(document.querySelector('[data-provider-header-status]')?.textContent).toBe(en.authLoading)
     expect(screen.queryByRole('button', { name: en.signIn })).toBeNull()
   })
 
@@ -244,9 +354,9 @@ describe('CodexPluginCard', () => {
     render(<CodexPluginCard {...props({ readAuthStatus })} />)
     expand()
     await waitFor(() => {
-      expect(screen.getByText(`GPT-5.3-Codex-Spark · ${en.fiveHourLimit}`)).toBeTruthy()
+      expect(screen.getAllByText(`GPT-5.3-Codex-Spark · ${en.fiveHourLimit}`).length).toBeGreaterThanOrEqual(2)
     })
-    expect(screen.getByText(`GPT-5.3-Codex-Spark · ${en.weeklyLimit}`)).toBeTruthy()
+    expect(screen.getAllByText(`GPT-5.3-Codex-Spark · ${en.weeklyLimit}`).length).toBeGreaterThanOrEqual(1)
   })
 
   it('uses official non-Fast models in the search dropdown and defaults to Luna', async () => {
@@ -283,5 +393,28 @@ describe('CodexPluginCard', () => {
     expect(optionValues).not.toContain('gpt-5.6-luna-fast')
     expect(optionValues).not.toContain('gpt-5.3-codex-spark')
   })
+  it('renders the shared detail template with folded advanced settings', () => {
+    const onRefresh = vi.fn()
+    const usage = {
+      status: 'ready' as const,
+      fetchedAt: '2026-09-12T00:00:00.000Z',
+      windows: [
+        { id: 'primary', label: 'Primary', shortLabel: 'P', remainingPercent: 84, valueText: '84%' },
+        { id: 'secondary', label: 'Secondary', shortLabel: 'S', remainingPercent: 61, valueText: '61%' },
+      ],
+    }
+    const { container } = render(<CodexPluginCard {...props({ mode: 'detail', usage, accountState: 'connected', onRefresh, copy: providerDetailCopy.en, template: ProviderDetail })} />)
 
+    expect(container.querySelector('[data-provider-detail]')).not.toBeNull()
+    expect(container.querySelectorAll('[data-c-quota]')).toHaveLength(1)
+    expect(container.textContent).toContain('84%')
+    expect(container.textContent).toContain('61%')
+    // Capabilities live in the folded advanced block, closed until the user opens it.
+    const advanced = container.querySelector('details.c-advanced')
+    expect(advanced).not.toBeNull()
+    expect((advanced as HTMLDetailsElement).open).toBe(false)
+    expect(advanced?.textContent).toContain(en.capabilities)
+    // The plugin's own usage header must not return in detail mode.
+    expect(container.querySelector('[aria-label="' + en.usage + '"]')).toBeNull()
+  })
 })

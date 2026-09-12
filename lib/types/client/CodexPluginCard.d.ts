@@ -5,6 +5,7 @@ import type { InjectFace, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import type { CodexCatalogModel } from '../catalog.ts';
 import type { CodexAccountStatus, CodexSaveResult, CodexSettingsView } from '../client-contract.ts';
 import type { CodexSettingsKey } from './locales.ts';
+import type { ProviderItemSlotContext } from 'dsh-llm-providers-ui/provider-detail';
 export type { CodexAccountStatus };
 export interface CodexPluginCardFace {
     t: (key: CodexSettingsKey) => string;
@@ -31,6 +32,6 @@ export interface CodexPluginCardFace {
     failModelPicker: (message: string) => void;
     closeModelPicker: () => void;
 }
-export type CodexPluginCardProps = PropsRuntime<'settings.provider.item'> & InjectFace<CodexPluginCardFace>;
+export type CodexPluginCardProps = PropsRuntime<'settings.provider.item'> & InjectFace<CodexPluginCardFace> & Partial<ProviderItemSlotContext>;
 export declare function CodexPluginCard(props: CodexPluginCardProps): ReactNode;
 //# sourceMappingURL=CodexPluginCard.d.ts.map

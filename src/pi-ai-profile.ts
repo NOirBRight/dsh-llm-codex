@@ -141,6 +141,7 @@ export function createCodexPiAiProfile(connection: CodexConnectionOptions): Reso
     retryPolicy: connection.retryPolicy,
     piProvider,
     configuredMaxTokens: new Map(),
+    modelErrors: new Map(),
   }
   return profile
 }

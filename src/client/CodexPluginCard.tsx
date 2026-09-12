@@ -23,23 +23,29 @@ import type {
   CodexSettingsView,
   CodexUsage,
 } from '../client-contract.ts'
+import { CODEX_SETTINGS_NAMESPACE } from '../client-contract.ts'
 import type { CodexSettingsKey } from './locales.ts'
 import { BrandMark } from './BrandMark.tsx'
-import { AuthToolbar, ProviderCardHeader, UsageHeader, UsageResetAt, UsageSkeleton, UsageUpdatedAt, formatProviderSummary, formatUsageClock, providerHeaderStyle, resetLabelOf } from './provider-chrome.tsx'
+import { AuthToolbar, ProviderCardHeader, ProviderQuotaMeter, UsageHeader, UsageSkeleton, UsageUpdatedAt, formatUsageClock, providerUiCss, providerQuotaHeaderProps, resetLabelOf, useProviderQuotaCache } from './provider-chrome.tsx'
+import type { ProviderQuotaState } from './provider-chrome.tsx'
 import { SortableList } from 'dsh-llm-providers-ui/sortable'
+import type { ProviderItemSlotContext } from 'dsh-llm-providers-ui/provider-detail'
+
+
+/** Display name recorded with the cached headline quota. */
+const USAGE_PROVIDER_NAME = 'Codex'
 import {
-  ModelCatalogCapabilities,
-  ModelCatalogDetails,
-  ModelCatalogRow,
-  fieldStyle,
-  inputStyle,
-  labelStyle,
   modelContentStyle,
   rowInputStyle,
-  selectStyle,
 } from './model-catalog-ui.tsx'
 
 export type { CodexAccountStatus }
+
+/** First re-read delay while a signed-in account has not published usable quota yet. */
+const USAGE_SETTLE_START_MS = 1_500
+
+/** Steady quota re-read cadence, and the ceiling on settle backoff: retrying never outpaces normal polling. */
+const USAGE_POLL_INTERVAL_MS = 60_000
 
 export interface CodexPluginCardFace {
   t: (key: CodexSettingsKey) => string
@@ -62,6 +68,8 @@ export interface CodexPluginCardFace {
 export type CodexPluginCardProps =
   PropsRuntime<'settings.provider.item'>
   & InjectFace<CodexPluginCardFace>
+  // Present only on the settings page; an older host renders the legacy card.
+  & Partial<ProviderItemSlotContext>
 
 interface ModelDraft {
   rowId: string
@@ -87,7 +95,6 @@ const cardStyle: CSSProperties = {
   borderRadius: 10,
   background: 'var(--dsw-alias-bg-module-platform)',
 }
-const headerStyle = providerHeaderStyle
 const bodyStyle: CSSProperties = {
   display: 'flex',
   flexDirection: 'column',
@@ -158,17 +165,7 @@ const disclosureStyle: CSSProperties = {
 }
 
 
-const checkboxStyle: CSSProperties = {
-  accentColor: 'var(--dsw-alias-brand-primary)',
-}
-const barTrackStyle: CSSProperties = {
-  boxSizing: 'border-box',
-  height: 14,
-  display: 'flex',
-  overflow: 'hidden',
-  borderRadius: 999,
-  background: 'color-mix(in srgb, var(--dsw-alias-label-primary) 14%, transparent)',
-}
+/* Selected-A quota meters come from the shared ProviderQuotaMeter; no local bar track. */
 
 let nextModelRow = 0
 
@@ -251,10 +248,6 @@ function messageOf(error: unknown, fallback: string): string {
   return error instanceof Error && error.message.length > 0 ? error.message : fallback
 }
 
-function formatPercent(percent: number): string {
-  return new Intl.NumberFormat(undefined, { maximumFractionDigits: 1 }).format(percent)
-}
-
 function interpolate(template: string, params: Record<string, unknown>): string {
   return template.replace(/\{(\w+)\}/gu, (_match, key: string) => String(params[key] ?? ''))
 }
@@ -266,25 +259,22 @@ function windowLabel(seconds: number, t: CodexPluginCardFace['t']): string {
   return Number.isInteger(hours) ? interpolate(t('hourLimit'), { count: hours }) : t('usageWindow')
 }
 
-function Capability({ label, checked, disabled, onChange }: {
-  label: string
-  checked: boolean
-  disabled: boolean
-  onChange: (checked: boolean) => void
-}): ReactNode {
-  return (
-    <label style={{ ...labelStyle, display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-      <input
-        type="checkbox"
-        style={checkboxStyle}
-        checked={checked}
-        disabled={disabled}
-        onChange={(event) => { onChange(event.target.checked) }}
-      />
-      {label}
-    </label>
-  )
+/** Headline remaining quota from real auth/usage; null when no window is available (never synthetic). */
+function headerQuotaOf(auth: CodexAccountStatus, lastUsage: CodexUsage | undefined, t: CodexPluginCardFace['t']): ProviderQuotaState | null {
+  const usage = auth.status === 'signed-in' ? auth.usage : lastUsage
+  const first = usage?.rateLimits[0]
+  const window = first?.windows[0]
+  if (first === undefined || window === undefined) return null
+  const remaining = window.remainingPercent
+  if (!Number.isFinite(remaining) || remaining < 0 || remaining > 100) return null
+  const label = windowLabel(window.windowSeconds, t)
+  const displayLabel = first.name === undefined || first.windows.length === 1
+    ? first.name ?? label
+    : first.name + ' · ' + label
+  const detail = resetLabelOf(window.resetsAt, { at: t('usageResetAt'), atDays: t('usageResetAtDays') })
+  return { remainingPercent: remaining, label: displayLabel, ...detail === undefined ? {} : { detail } }
 }
+
 
 function IconChevron({ open }: { open: boolean }): ReactNode {
   return (
@@ -348,36 +338,23 @@ function UsageLimits({ usage, quotaError, t }: {
       {usage.rateLimits.map(limit => (
         <div key={limit.id} style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           {limit.windows.map(window => {
-            const remaining = Math.max(0, Math.min(100, window.remainingPercent))
+            const remaining = window.remainingPercent
+            if (!Number.isFinite(remaining) || remaining < 0 || remaining > 100) return null
             const label = windowLabel(window.windowSeconds, t)
             const displayLabel = limit.name === undefined || limit.windows.length === 1
               ? limit.name ?? label
               : limit.name + ' · ' + label
+            const detail = resetLabelOf(window.resetsAt, {
+              at: t('usageResetAt'),
+              atDays: t('usageResetAtDays'),
+            })
             return (
-              <div key={label + String(window.windowSeconds)} style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10 }}>
-                  <span style={labelStyle}>{displayLabel}</span>
-                  <span style={hintStyle}>{interpolate(t('percentRemaining'), { percent: formatPercent(remaining) })}</span>
-                </div>
-                <div style={barTrackStyle} role="progressbar" aria-label={displayLabel} aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(remaining)}>
-                  <span
-                    data-usage-fill="true"
-                    style={{
-                      width: String(remaining) + '%',
-                      height: '100%',
-                      flex: 'none',
-                      background: 'var(--dsw-alias-state-business-primary)',
-                      transition: 'width 200ms ease',
-                    }}
-                  />
-                </div>
-                <UsageResetAt
-                  label={resetLabelOf(window.resetsAt, {
-                    at: t('usageResetAt'),
-                    atDays: t('usageResetAtDays'),
-                  })}
-                />
-              </div>
+              <ProviderQuotaMeter
+                key={label + String(window.windowSeconds)}
+                remainingPercent={remaining}
+                label={displayLabel}
+                {...detail === undefined ? {} : { detail }}
+              />
             )
           })}
         </div>
@@ -412,8 +389,11 @@ export function CodexPluginCard(props: CodexPluginCardProps): ReactNode {
   )
   const [sourceRevision, setSourceRevision] = useState<number | undefined>(snapshot.revision)
   const [auth, setAuth] = useState<CodexAccountStatus>({ status: 'loading' })
+  /** True once a status read has answered: before that, "loading" is only the initial state. */
+  const [authAnswered, setAuthAnswered] = useState(false)
   const [authChallenge, setAuthChallenge] = useState<{ url?: string; verificationUri?: string; userCode?: string; attemptId?: string } | undefined>()
   const [catalogOpen, setCatalogOpen] = useState(false)
+  const [modelSort, setModelSort] = useState(false)
   const [expandedModels, setExpandedModels] = useState<ReadonlySet<string>>(new Set())
   const [quotaRefreshing, setQuotaRefreshing] = useState(false)
   const [lastUsage, setLastUsage] = useState<CodexUsage | undefined>(undefined)
@@ -461,24 +441,42 @@ export function CodexPluginCard(props: CodexPluginCardProps): ReactNode {
 
   useEffect(() => () => { props.closeModelPicker() }, [props.closeModelPicker])
 
+  /** Fold one account-status answer into the card's state. */
+  const applyAuthStatus = useCallback((next: CodexAccountStatus): void => {
+    setAuthAnswered(true)
+    setAuth(next)
+    if (next.status !== 'signing-in') setAuthChallenge(undefined)
+    // In the shared detail the page owns quota, so the card keeps the account verdict only.
+    if (props.mode === 'detail') return
+    if (next.status === 'signed-in') {
+      if (next.quotaError === undefined) {
+        setLastUsage(next.usage)
+        setUsageUpdatedAt(new Date())
+        setRefreshError(undefined)
+      } else {
+        setRefreshError(t('usageRefreshFailed'))
+      }
+    } else if (next.status === 'signed-out') {
+      // Authoritative sign-out clears local usage state, not merely hides it:
+      // retained lastUsage would otherwise resurrect as live quota on a later
+      // reauth whose own read errors or reports no usable windows.
+      setLastUsage(undefined)
+      setUsageUpdatedAt(undefined)
+      setRefreshError(undefined)
+    }
+  }, [t, props.mode])
+
   const refreshAuth = useCallback(async (signal?: AbortSignal, spin = false): Promise<void> => {
     if (spin) setQuotaRefreshing(true)
+    // Generation guard: a superseded read (sign-out, sign-in, unmount) must not
+    // resurrect old-account usage into state or the persisted headline cache.
+    const attempt = authAttempt.current
     try {
       const next = await readAuthStatus(signal)
-      if (!mounted.current || signal?.aborted === true) return
-      setAuth(next)
-      if (next.status !== 'signing-in') setAuthChallenge(undefined)
-      if (next.status === 'signed-in') {
-        if (next.quotaError === undefined) {
-          setLastUsage(next.usage)
-          setUsageUpdatedAt(new Date())
-          setRefreshError(undefined)
-        } else {
-          setRefreshError(t('usageRefreshFailed'))
-        }
-      }
+      if (!liveAuthAttempt(attempt) || !mounted.current || signal?.aborted === true) return
+      applyAuthStatus(next)
     } catch (error: unknown) {
-      if (mounted.current && signal?.aborted !== true) {
+      if (liveAuthAttempt(attempt) && signal?.aborted !== true) {
         setRefreshError(t('usageRefreshFailed'))
         setAuth(current => current.status === 'signed-in'
           ? current
@@ -487,24 +485,53 @@ export function CodexPluginCard(props: CodexPluginCardProps): ReactNode {
     } finally {
       if (spin && mounted.current) setQuotaRefreshing(false)
     }
-  }, [readAuthStatus, t])
+  }, [applyAuthStatus, readAuthStatus, t])
 
+  // Header quota loads collapsed on mount; expansion reuses it and never refires the same read.
   useEffect(() => {
     const controller = new AbortController()
     void refreshAuth(controller.signal)
     return () => { controller.abort() }
   }, [refreshAuth])
 
+  const liveQuota = headerQuotaOf(auth, lastUsage, t)
+  // Signed-in and holding a usable headline window: the header is settled. Anything else —
+  // a provider that has not published quota since the sign-in, or a read that failed — is
+  // transient and must not wait out the 60s interval before the header can fill in.
+  const usageSettled = refreshError === undefined && liveQuota !== null
+
+  /**
+   * Re-read while the header is withheld with nothing scheduled: 1.5s doubling up to the
+   * steady interval, until a usable window arrives. The loop stops on settle, on any status
+   * change, on collapse, and on unmount, so a card that is closed — or one whose account
+   * never publishes a window — leaves no read running in the background; expanding it
+   * resumes settling. Retrying renders nothing by itself: every attempt still passes the
+   * generation guard, so a failing read keeps the previous account's quota withheld.
+   */
   useEffect(() => {
-    if (!open) return
+    if (!open || auth.status !== 'signed-in' || usageSettled) return
     const controller = new AbortController()
-    void refreshAuth(controller.signal, true)
-    return () => { controller.abort() }
-  }, [open, refreshAuth])
+    let stopped = false
+    const settle = async (): Promise<void> => {
+      let delay = USAGE_SETTLE_START_MS
+      while (!stopped && mounted.current) {
+        await new Promise(resolve => { window.setTimeout(resolve, delay) })
+        if (stopped || !mounted.current) return
+        await refreshAuth(controller.signal)
+        if (stopped || !mounted.current) return
+        delay = Math.min(delay * 2, USAGE_POLL_INTERVAL_MS)
+      }
+    }
+    void settle()
+    return () => { stopped = true; controller.abort() }
+  }, [open, auth.status, refreshAuth, usageSettled])
 
   useEffect(() => {
-    if (!open) return
-    const interval = auth.status === 'signing-in' ? 1000 : auth.status === 'signed-in' ? 60_000 : undefined
+    // The shared detail is not the legacy card: no collapsed header and no self-polled quota.
+    if (!open || props.mode === 'detail') return
+    const interval = auth.status === 'signing-in'
+      ? 1000
+      : auth.status === 'signed-in' && usageSettled ? USAGE_POLL_INTERVAL_MS : undefined
     if (interval === undefined) return
     const controller = new AbortController()
     const timer = window.setInterval(() => { void refreshAuth(controller.signal) }, interval)
@@ -512,7 +539,7 @@ export function CodexPluginCard(props: CodexPluginCardProps): ReactNode {
       window.clearInterval(timer)
       controller.abort()
     }
-  }, [open, auth.status, refreshAuth])
+  }, [open, auth.status, refreshAuth, usageSettled])
 
   useEffect(() => {
     if (!open || auth.status !== 'signing-in' || authChallenge?.attemptId === undefined) return
@@ -522,7 +549,12 @@ export function CodexPluginCard(props: CodexPluginCardProps): ReactNode {
       try {
         const result = await readAuthAttemptStatus(attemptId)
         if (stopped || !mounted.current) return
-        if (result.status === 'succeeded') { await refreshAuth(); return }
+        if (result.status === 'succeeded') {
+          // Applying the signed-in status reruns this effect, which stops the poll;
+          // quota settling then belongs to the settle effect.
+          await refreshAuth()
+          return
+        }
         if (result.status === 'failed') setAuth({ status: 'error', message: t('signInFailed') })
         else if (result.status === 'cancelled' || result.status === 'missing') setAuth({ status: 'signed-out' })
       } catch { /* generic status polling remains the safe fallback */ }
@@ -689,143 +721,78 @@ export function CodexPluginCard(props: CodexPluginCardProps): ReactNode {
           : auth.status === 'loading'
             ? t('authLoading')
             : t('signedOut')
-  const modelCount = Array.isArray(draft) ? draft.length : (snapshot.value?.models?.length ?? 0)
-  const headerSummary = formatProviderSummary(
-    auth.status === 'signed-in' ? t('summaryOn') : t('summaryOff'),
-    t('summaryModels').replace('{count}', String(modelCount)),
-  )
+  const modelCount = Array.isArray(draft) ? draft.length : snapshot.value?.models?.length
+  const headerModels = modelCount === undefined ? '' : t('summaryModels').replace('{count}', String(modelCount))
+  // Unknown auth is loading, not signed out: only an authoritative verdict earns On/Off.
+  const headerStatus = auth.status === 'signed-in' ? t('summaryOn') : auth.status === 'signed-out' ? t('summaryOff') : auth.status === 'error' ? t('statusFailed') : t('authLoading')
+  // The verdict gates the entire header quota, not only the persisted fallback: stale
+  // local lastUsage must not look fresh on error or unsupported either. The shared
+  // cache supplies the first frame, and only a known sign-out drops the stored entry.
+  const quotaUnsupported = auth.status === 'signed-in' && usageUpdatedAt !== undefined && liveQuota === null
+  const quotaWithheld = auth.status === 'signed-out' || auth.status === 'reauth-required' || refreshError !== undefined || quotaUnsupported
+  const headerQuota: ProviderQuotaState | null = useProviderQuotaCache(CODEX_SETTINGS_NAMESPACE, USAGE_PROVIDER_NAME, liveQuota, {
+    answered: authAnswered,
+    signedOut: auth.status === 'signed-out' || auth.status === 'reauth-required',
+    withheld: quotaWithheld,
+  })
+  // Both the loading frame and the settled frame carry the meter; a settled query without
+  // usable quota shows the unavailable dash instead.
+  const quotaProps = providerQuotaHeaderProps(headerQuota, {
+    dashLabel: t('usage'),
+    settled: auth.status === 'signed-in' && (refreshError !== undefined || usageUpdatedAt !== undefined),
+  })
 
   if (snapshot.status === 'unavailable') {
     return (
-      <li style={cardStyle}>
-        <button type="button" style={headerStyle} aria-expanded={open} onClick={() => { setOpen(!open) }}>
-          <ProviderCardHeader title={title} mark={<BrandMark />} summary={headerSummary} open={open} />
+      <li style={cardStyle} data-provider-card="" data-provider-role="llm">
+        <style>{providerUiCss}</style>
+        <button type="button" data-provider-card-header="" aria-expanded={open} onClick={() => { setOpen(!open) }}>
+          <ProviderCardHeader title={title} mark={<BrandMark />} summary={headerModels} status={headerStatus} open={open} role="llm" />
         </button>
-        {open ? <div style={bodyStyle}><p style={statusStyle} role="status">{t('remoteAccess')}</p></div> : null}
+        {open ? <div style={bodyStyle} data-provider-body=""><p style={statusStyle} role="status">{t('remoteAccess')}</p></div> : null}
       </li>
     )
   }
 
   if (snapshot.status !== 'ready' || draft === undefined || capabilities === undefined) {
     return (
-      <li style={cardStyle}>
-        <button type="button" style={headerStyle} aria-expanded={open} onClick={() => { setOpen(!open) }}>
-          <ProviderCardHeader title={title} mark={<BrandMark />} summary={headerSummary} open={open} />
+      <li style={cardStyle} data-provider-card="" data-provider-role="llm">
+        <style>{providerUiCss}</style>
+        <button type="button" data-provider-card-header="" aria-expanded={open} onClick={() => { setOpen(!open) }}>
+          <ProviderCardHeader title={title} mark={<BrandMark />} summary={headerModels} status={headerStatus} open={open} role="llm" {...quotaProps} />
         </button>
-        {open ? <div style={bodyStyle}><p style={statusStyle}>{t('loading')}</p></div> : null}
+        {open ? <div style={bodyStyle} data-provider-body=""><p style={statusStyle}>{t('loading')}</p></div> : null}
       </li>
     )
   }
 
-  return (
-    <li style={cardStyle}>
-      <button type="button" style={headerStyle} aria-expanded={open} onClick={() => { setOpen(!open) }}>
-        <ProviderCardHeader
-          title={title}
-          mark={<BrandMark />}
-          summary={headerSummary}
-          open={open}
-          unsaved={dirty}
-          unsavedLabel={t('unsaved')}
-        />
-      </button>
-      {open
-        ? (
-          <div style={bodyStyle}>
-            <p style={hintStyle}>{t('description')}</p>
-            <section style={sectionStyle}>
-              <AuthToolbar
-                status={<p style={{ ...statusStyle, margin: 0 }} role="status">{statusLabel}</p>}
-                action={auth.status === 'signed-in'
-                  ? <button type="button" style={buttonStyle} disabled={authBusy} onClick={() => { void onSignOut() }}>{t('signOut')}</button>
-                  : auth.status === 'loading'
-                    ? null
-                    : auth.status === 'signing-in'
-                      ? <button type="button" style={buttonStyle} disabled={authBusy} onClick={() => { void onCancelAuth() }}>{t('cancel')}</button>
-                      : <button type="button" style={primaryButtonStyle} disabled={authBusy} onClick={() => { void onSignIn() }}>
-                          {auth.status === 'error' || auth.status === 'reauth-required' ? t('signInAgain') : t('signIn')}
-                        </button>}
-              />
-              {auth.status === 'error' || auth.status === 'reauth-required'
-                ? <p style={errorStyle}>{auth.message}</p>
-                : null}
-              {authChallenge !== undefined
-                ? (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                      {authChallenge.userCode === undefined
-                        ? null
-                        : <><p style={hintStyle}>{t('deviceInstructions')}</p><DeviceCodeRow key={authChallenge.userCode} code={authChallenge.userCode} t={t} /></>}
-                      {authChallenge.verificationUri === undefined
-                        ? authChallenge.url === undefined ? null : <a href={authChallenge.url} target="_blank" rel="noreferrer">{t('openChatGPT')}</a>
-                        : <a href={authChallenge.verificationUri} target="_blank" rel="noreferrer">{t('openDevicePage')}</a>}
-                    </div>
-                  )
-                : null}
-              {auth.status === 'signed-in' || auth.status === 'loading'
-                ? (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                    <UsageHeader
-                      title={t('usage')}
-                      spinning={auth.status === 'loading' || quotaRefreshing}
-                      disabled={auth.status === 'loading' || quotaRefreshing}
-                      refreshLabel={t('usageRefresh')}
-                      busyLabel={t('usageLoading')}
-                      {...refreshError === undefined ? {} : { error: refreshError }}
-                      onRefresh={() => { void refreshAuth(undefined, true) }}
-                    />
-                    {(() => {
-                      if (quotaRefreshing || auth.status === 'loading') {
-                        const known = lastUsage?.rateLimits.reduce((count, limit) => count + limit.windows.length, 0) ?? 0
-                        return <UsageSkeleton rows={known > 0 ? known : 2} />
-                      }
-                      const usageView = auth.status === 'signed-in' ? auth.usage : lastUsage
-                      return usageView === undefined
-                        ? <UsageSkeleton rows={2} />
-                        : <UsageLimits usage={usageView} t={t} />
-                    })()}
-                    <UsageUpdatedAt
-                      at={usageUpdatedAt}
-                      label={usageUpdatedAt === undefined ? '' : t('usageUpdatedAt').replace('{time}', formatUsageClock(usageUpdatedAt))}
-                    />
-                  </div>
-                )
-                : null}
-            </section>
-
-            <section style={sectionStyle} aria-label={t('models')}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
-                <button
-                  type="button"
-                  style={disclosureStyle}
-                  aria-expanded={catalogOpen}
-                  aria-label={t('models')}
-                  onClick={() => { setCatalogOpen(!catalogOpen) }}
-                >
-                  <IconChevron open={catalogOpen} />
-                  <span style={sectionTitleStyle}>{t('models')}</span>
-                  <span style={hintStyle}>{customModels ? t('customized') : t('inherited')}</span>
-                </button>
-                <button type="button" style={buttonStyle} disabled={disabled || fetching} onClick={() => { void chooseFromOfficial() }}>
-                  {fetching ? t('fetchingModels') : t('fetchModels')}
-                </button>
-              </div>
-              {catalogOpen
-                ? (
-                  <>
+  // Prototype C pieces, shared by the legacy card and the migrated detail.
+  const modelsList = (
+    <>
                     <SortableList
                       items={draft}
                       getId={item => item.rowId}
                       disabled={disabled}
+                      sorting={modelSort}
+                      moveButtons={modelSort}
                       dragLabel={(item, index) => {
                         const label = item.id.trim().length > 0 ? item.id.trim() : String(index + 1)
                         return t('dragModel') + ': ' + label
+                      }}
+                      moveUpLabel={(item, index) => {
+                        const label = item.id.trim().length > 0 ? item.id.trim() : String(index + 1)
+                        return t('moveUp') + ': ' + label
+                      }}
+                      moveDownLabel={(item, index) => {
+                        const label = item.id.trim().length > 0 ? item.id.trim() : String(index + 1)
+                        return t('moveDown') + ': ' + label
                       }}
                       onReorder={patchDraft}
                       renderItem={(item, index) => {
                         const expanded = expandedModels.has(item.rowId)
                         const label = item.id.trim().length > 0 ? item.id.trim() : String(index + 1)
                         return (
-                          <div data-model-row={label} style={modelContentStyle}>
+                          <div data-model-row={label} data-provider-model="" style={modelContentStyle}>
                             <input
                               style={rowInputStyle}
                               value={item.id}
@@ -879,74 +846,7 @@ export function CodexPluginCard(props: CodexPluginCardProps): ReactNode {
                             >
                               <IconTrash />
                             </button>
-                            {expanded
-                              ? (
-                                <ModelCatalogDetails>
-                                  <ModelCatalogRow>
-                                    <label style={fieldStyle}>
-                                      <span style={labelStyle}>{t('contextWindow')}</span>
-                                      <input
-                                        style={inputStyle}
-                                        inputMode="numeric"
-                                        placeholder={officialModelFor(item.id.trim()) === undefined ? t('contextWindowDefault') : undefined}
-                                        value={item.contextWindow}
-                                        disabled={disabled}
-                                        aria-label={t('contextWindow')}
-                                        onChange={(event) => {
-                                          const contextWindow = event.target.value
-                                          patchDraft(draft.map((model, at) => at === index ? { ...model, contextWindow } : model))
-                                        }}
-                                      />
-                                    </label>
-                                  </ModelCatalogRow>
-                                  <ModelCatalogCapabilities>
-                                    <Capability label={t('vision')} checked={item.vision === true} disabled={disabled} onChange={(checked) => {
-                                      patchDraft(draft.map((model, at) => at === index ? { ...model, vision: checked } : model))
-                                    }} />
-                                    <Capability label={t('thinking')} checked={item.thinking === true} disabled={disabled} onChange={(checked) => {
-                                      patchDraft(draft.map((model, at) => {
-                                        if (at !== index) return model
-                                        const next = { ...model, thinking: checked }
-                                        if (!checked) delete next.defaultEffort
-                                        return next
-                                      }))
-                                    }} />
-                                    {(() => {
-                                      const efforts = effortsForCodexModel(modelSettingsOf(item))
-                                      if (efforts.length === 0) return null
-                                      const suggested = officialModelFor(item.id.trim()) === undefined
-                                        ? efforts[0]
-                                        : defaultCodexReasoningEffort(item.id.trim())
-                                      return (
-                                        <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6, ...labelStyle }}>
-                                          <span style={labelStyle}>{t('defaultEffort')}</span>
-                                          <select
-                                            style={selectStyle}
-                                            value={item.defaultEffort ?? suggested ?? ''}
-                                            disabled={disabled}
-                                            aria-label={t('defaultEffort')}
-                                            onChange={(event) => {
-                                              const effort = efforts.find(entry => entry === event.target.value)
-                                              patchDraft(draft.map((model, at) => {
-                                                if (at !== index) return model
-                                                const next = { ...model }
-                                                if (effort === undefined) delete next.defaultEffort
-                                                else next.defaultEffort = effort
-                                                return next
-                                              }))
-                                            }}
-                                          >
-                                            {efforts.map(effort => (
-                                              <option key={effort} value={effort}>{CODEX_EFFORT_LABELS[effort] ?? effort}</option>
-                                            ))}
-                                          </select>
-                                        </label>
-                                      )
-                                    })()}
-                                  </ModelCatalogCapabilities>
-                                </ModelCatalogDetails>
-                              )
-                              : null}
+                            {expanded ? modelExtra(item, index) : null}
                           </div>
                         )
                       }}
@@ -963,120 +863,151 @@ export function CodexPluginCard(props: CodexPluginCardProps): ReactNode {
                     >
                       {t('addModel')}
                     </button>
-                  </>
-                )
-                : null}
-            </section>
-
-            <section style={sectionStyle}>
-              <h3 style={sectionTitleStyle}>{t('capabilities')}</h3>
-              <p style={hintStyle}>{t('capabilitiesIntro')}</p>
-              <Capability
-                label={t('enableSearch')}
-                checked={capabilities.enableSearch}
-                disabled={disabled}
-                onChange={(checked) => { setCapabilities({ ...capabilities, enableSearch: checked }); setNotice(undefined) }}
-              />
-              <p style={hintStyle}>{t('enableSearchHelp')}</p>
-              {capabilities.enableSearch
+    </>
+  )
+  const authChallengeBlock = (
+    <>
+              {authChallenge !== undefined
                 ? (
-                  <>
-                    <label style={labelStyle}>
-                      {t('searchModel')}
-                      <select
-                        style={inputStyle}
-                        value={capabilities.searchModel}
-                        disabled={disabled}
-                        onChange={(event) => { setCapabilities({ ...capabilities, searchModel: event.target.value }); setNotice(undefined) }}
-                      >
-                        {CODEX_OFFICIAL_MODELS.map(model => (
-                          <option key={model.id} value={model.id}>{model.name}</option>
-                        ))}
-                      </select>
-                    </label>
-                    <label style={labelStyle}>
-                      {t('searchMode')}
-                      <select
-                        style={inputStyle}
-                        value={capabilities.searchMode}
-                        disabled={disabled}
-                        onChange={(event) => {
-                          setCapabilities({ ...capabilities, searchMode: event.target.value as CodexSearchMode })
-                          setNotice(undefined)
-                        }}
-                      >
-                        <option value="cached">{t('modeCached')}</option>
-                        <option value="indexed">{t('modeIndexed')}</option>
-                        <option value="live">{t('modeLive')}</option>
-                      </select>
-                    </label>
-                    <label style={labelStyle}>
-                      {t('searchContextSize')}
-                      <select
-                        style={inputStyle}
-                        value={capabilities.searchContextSize}
-                        disabled={disabled}
-                        onChange={(event) => {
-                          setCapabilities({ ...capabilities, searchContextSize: event.target.value as CodexSearchContextSize })
-                          setNotice(undefined)
-                        }}
-                      >
-                        <option value="low">{t('contextLow')}</option>
-                        <option value="medium">{t('contextMedium')}</option>
-                        <option value="high">{t('contextHigh')}</option>
-                      </select>
-                    </label>
-                    <label style={labelStyle}>
-                      {t('searchMaxOutputTokens')}
-                      <input
-                        style={inputStyle}
-                        type="number"
-                        min={1}
-                        step={1}
-                        value={capabilities.searchMaxOutputTokens}
-                        disabled={disabled}
-                        onChange={(event) => {
-                          setCapabilities({ ...capabilities, searchMaxOutputTokens: Number(event.target.value) })
-                          setNotice(undefined)
-                        }}
-                      />
-                    </label>
-                  </>
-                )
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                      {authChallenge.userCode === undefined
+                        ? null
+                        : <><p style={hintStyle}>{t('deviceInstructions')}</p><DeviceCodeRow key={authChallenge.userCode} code={authChallenge.userCode} t={t} /></>}
+                      {authChallenge.verificationUri === undefined
+                        ? authChallenge.url === undefined ? null : <a href={authChallenge.url} target="_blank" rel="noreferrer">{t('openChatGPT')}</a>
+                        : <a href={authChallenge.verificationUri} target="_blank" rel="noreferrer">{t('openDevicePage')}</a>}
+                    </div>
+                  )
                 : null}
-              <Capability
-                label={t('enableImageTool')}
-                checked={capabilities.enableImageTool}
-                disabled={disabled}
-                onChange={(checked) => { setCapabilities({ ...capabilities, enableImageTool: checked }); setNotice(undefined) }}
-              />
-              <p style={hintStyle}>{t('enableImageToolHelp')}</p>
-              <Capability
-                label={t('enableImageGeneration')}
-                checked={capabilities.enableImageGeneration}
-                disabled={disabled}
-                onChange={(checked) => { setCapabilities({ ...capabilities, enableImageGeneration: checked }); setNotice(undefined) }}
-              />
-              <p style={hintStyle}>{t('enableImageGenerationHelp')}</p>
-              {capabilities.enableImageGeneration
-                ? (
-                  <label style={labelStyle}>
-                    {t('imageGenerationModel')}
-                    <select
-                      style={inputStyle}
-                      value={capabilities.imageGenerationModel}
-                      disabled={disabled}
-                      onChange={(event) => { setCapabilities({ ...capabilities, imageGenerationModel: event.target.value }); setNotice(undefined) }}
-                    >
-                      {imageGenerationPickerModels(capabilities.imageGenerationModel).map(model => (
-                        <option key={model.id} value={model.id}>{model.name}</option>
-                      ))}
-                    </select>
-                  </label>
-                )
-                : null}
-            </section>
-
+    </>
+  )
+  const capabilitiesSection = (
+    <>
+      <div className="c-control">
+        <label className="c-checkbox-field">
+          <input
+            type="checkbox"
+            checked={capabilities.enableSearch}
+            disabled={disabled}
+            onChange={(event) => { setCapabilities({ ...capabilities, enableSearch: event.target.checked }); setNotice(undefined) }}
+          />
+          {t('enableSearch')}
+        </label>
+        <p className="c-field-hint">{t('enableSearchHelp')}</p>
+        {capabilities.enableSearch
+          ? (
+            <div className="c-extra-grid">
+              <label className="c-field">
+                <span className="c-field-label">{t('searchModel')}</span>
+                <select
+                  className="c-input"
+                  value={capabilities.searchModel}
+                  disabled={disabled}
+                  onChange={(event) => { setCapabilities({ ...capabilities, searchModel: event.target.value }); setNotice(undefined) }}
+                >
+                  {CODEX_OFFICIAL_MODELS.map(model => (
+                    <option key={model.id} value={model.id}>{model.name}</option>
+                  ))}
+                </select>
+              </label>
+              <label className="c-field">
+                <span className="c-field-label">{t('searchMode')}</span>
+                <select
+                  className="c-input"
+                  value={capabilities.searchMode}
+                  disabled={disabled}
+                  onChange={(event) => {
+                    setCapabilities({ ...capabilities, searchMode: event.target.value as CodexSearchMode })
+                    setNotice(undefined)
+                  }}
+                >
+                  <option value="cached">{t('modeCached')}</option>
+                  <option value="indexed">{t('modeIndexed')}</option>
+                  <option value="live">{t('modeLive')}</option>
+                </select>
+              </label>
+              <label className="c-field">
+                <span className="c-field-label">{t('searchContextSize')}</span>
+                <select
+                  className="c-input"
+                  value={capabilities.searchContextSize}
+                  disabled={disabled}
+                  onChange={(event) => {
+                    setCapabilities({ ...capabilities, searchContextSize: event.target.value as CodexSearchContextSize })
+                    setNotice(undefined)
+                  }}
+                >
+                  <option value="low">{t('contextLow')}</option>
+                  <option value="medium">{t('contextMedium')}</option>
+                  <option value="high">{t('contextHigh')}</option>
+                </select>
+              </label>
+              <label className="c-field">
+                <span className="c-field-label">{t('searchMaxOutputTokens')}</span>
+                <input
+                  className="c-input"
+                  type="number"
+                  min={1}
+                  step={1}
+                  value={capabilities.searchMaxOutputTokens}
+                  disabled={disabled}
+                  onChange={(event) => {
+                    setCapabilities({ ...capabilities, searchMaxOutputTokens: Number(event.target.value) })
+                    setNotice(undefined)
+                  }}
+                />
+              </label>
+            </div>
+          )
+          : null}
+      </div>
+      <div className="c-control">
+        <label className="c-checkbox-field">
+          <input
+            type="checkbox"
+            checked={capabilities.enableImageTool}
+            disabled={disabled}
+            onChange={(event) => { setCapabilities({ ...capabilities, enableImageTool: event.target.checked }); setNotice(undefined) }}
+          />
+          {t('enableImageTool')}
+        </label>
+        <p className="c-field-hint">{t('enableImageToolHelp')}</p>
+      </div>
+      <div className="c-control">
+        <label className="c-checkbox-field">
+          <input
+            type="checkbox"
+            checked={capabilities.enableImageGeneration}
+            disabled={disabled}
+            onChange={(event) => { setCapabilities({ ...capabilities, enableImageGeneration: event.target.checked }); setNotice(undefined) }}
+          />
+          {t('enableImageGeneration')}
+        </label>
+        <p className="c-field-hint">{t('enableImageGenerationHelp')}</p>
+        {capabilities.enableImageGeneration
+          ? (
+            <div className="c-extra-grid">
+              <label className="c-field">
+                <span className="c-field-label">{t('imageGenerationModel')}</span>
+                <select
+                  className="c-input"
+                  value={capabilities.imageGenerationModel}
+                  disabled={disabled}
+                  onChange={(event) => { setCapabilities({ ...capabilities, imageGenerationModel: event.target.value }); setNotice(undefined) }}
+                >
+                  {imageGenerationPickerModels(capabilities.imageGenerationModel).map(model => (
+                    <option key={model.id} value={model.id}>{model.name}</option>
+                  ))}
+                </select>
+              </label>
+            </div>
+          )
+          : null}
+      </div>
+    </>
+  )
+  const draftBlock = (
+    <>
             {invalidModels ? <p style={errorStyle}>{t('invalidModel')}</p> : null}
             {invalidCaps && capabilities.searchModel.trim().length === 0 ? <p style={errorStyle}>{t('invalidSearchModel')}</p> : null}
             {invalidCaps && capabilities.imageGenerationModel.trim().length === 0 ? <p style={errorStyle}>{t('invalidImageGenerationModel')}</p> : null}
@@ -1089,6 +1020,285 @@ export function CodexPluginCard(props: CodexPluginCardProps): ReactNode {
                 {busy ? t('saving') : t('save')}
               </button>
             </div>
+    </>
+  )
+
+
+  /** Provider-specific fields for one expanded model row; shared by both layouts. */
+  const modelExtra = (item: ModelDraft, index: number): ReactNode => (
+    <div className="c-extra-grid">
+      <label className="c-field">
+        <span className="c-field-label">{t('contextWindow')}</span>
+        <input
+          className="c-input"
+          inputMode="numeric"
+          placeholder={officialModelFor(item.id.trim()) === undefined ? t('contextWindowDefault') : undefined}
+          value={item.contextWindow}
+          disabled={disabled}
+          aria-label={t('contextWindow')}
+          onChange={(event) => {
+            const contextWindow = event.target.value
+            patchDraft(draft.map((model, at) => at === index ? { ...model, contextWindow } : model))
+          }}
+        />
+      </label>
+      <div className="c-extra-checks">
+        <label>
+          <input
+            type="checkbox"
+            checked={item.vision === true}
+            disabled={disabled}
+            onChange={(event) => {
+              const vision = event.target.checked
+              patchDraft(draft.map((model, at) => at === index ? { ...model, vision } : model))
+            }}
+          />
+          {t('vision')}
+        </label>
+        <label>
+          <input
+            type="checkbox"
+            checked={item.thinking === true}
+            disabled={disabled}
+            onChange={(event) => {
+              const thinking = event.target.checked
+              patchDraft(draft.map((model, at) => {
+                if (at !== index) return model
+                const next = { ...model, thinking }
+                if (!thinking) delete next.defaultEffort
+                return next
+              }))
+            }}
+          />
+          {t('thinking')}
+        </label>
+      </div>
+      {(() => {
+        const efforts = effortsForCodexModel(modelSettingsOf(item))
+        if (efforts.length === 0) return null
+        const suggested = officialModelFor(item.id.trim()) === undefined
+          ? efforts[0]
+          : defaultCodexReasoningEffort(item.id.trim())
+        return (
+          <label className="c-field">
+            <span className="c-field-label">{t('defaultEffort')}</span>
+            <select
+              className="c-input"
+              value={item.defaultEffort ?? suggested ?? ''}
+              disabled={disabled}
+              aria-label={t('defaultEffort')}
+              onChange={(event) => {
+                const effort = efforts.find(entry => entry === event.target.value)
+                patchDraft(draft.map((model, at) => {
+                  if (at !== index) return model
+                  const next = { ...model }
+                  if (effort === undefined) delete next.defaultEffort
+                  else next.defaultEffort = effort
+                  return next
+                }))
+              }}
+            >
+              {efforts.map(effort => (
+                <option key={effort} value={effort}>{CODEX_EFFORT_LABELS[effort] ?? effort}</option>
+              ))}
+            </select>
+          </label>
+        )
+      })()}
+    </div>
+  )
+
+  // Prototype C detail: the shared template owns the layout, this card owns Codex's data.
+  const SharedDetail = props.template
+  const detailCopy = props.copy
+  if (props.mode === 'detail' && SharedDetail !== undefined && detailCopy !== undefined) {
+    const accountActions = auth.status === 'signed-in'
+      ? <button type="button" style={buttonStyle} disabled={authBusy} onClick={() => { void onSignOut() }}>{t('signOut')}</button>
+      : auth.status === 'loading'
+        ? null
+        : auth.status === 'signing-in'
+          ? <button type="button" style={buttonStyle} disabled={authBusy} onClick={() => { void onCancelAuth() }}>{t('cancel')}</button>
+          : (
+              <button type="button" style={primaryButtonStyle} disabled={authBusy} onClick={() => { void onSignIn() }}>
+                {auth.status === 'error' || auth.status === 'reauth-required' ? t('signInAgain') : t('signIn')}
+              </button>
+            )
+    return (
+        <SharedDetail
+          name={title}
+          role="llm"
+          mark={<BrandMark />}
+          copy={detailCopy}
+          notice={t('description')}
+          account={{
+            state: auth.status === 'signed-in' ? 'connected' : 'unconnected',
+            label: statusLabel,
+            actions: accountActions,
+            ...(authChallenge === undefined ? {} : { body: authChallengeBlock }),
+          }}
+          quota={{
+            status: props.usage?.status ?? 'loading',
+            windows: props.usage?.windows ?? [],
+            ...(props.onRefresh === undefined ? {} : { onRefresh: props.onRefresh }),
+          }}
+          models={{
+            count: modelCount ?? 0,
+            allOpen: catalogOpen,
+            onToggleAll: () => { setCatalogOpen(value => !value) },
+            sorting: modelSort,
+            onToggleSorting: () => { setModelSort(current => !current) },
+            sortDisabled: disabled || draft.length < 2,
+            onChooseFromAccount: () => { void chooseFromOfficial() },
+            chooseDisabled: disabled || fetching,
+            items: draft.map(model => ({
+              rowId: model.rowId,
+              id: model.id,
+              ...(model.name === undefined ? {} : { name: model.name }),
+            })),
+            expanded: [...expandedModels],
+            onPatch: (rowId, patch) => {
+              const index = draft.findIndex(model => model.rowId === rowId)
+              if (index < 0) return
+              patchDraft(draft.map((model, at) => {
+                if (at !== index) return model
+                const next = { ...model }
+                if (patch.id !== undefined) next.id = patch.id
+                if ('name' in patch) {
+                  if (patch.name === undefined) delete next.name
+                  else next.name = patch.name
+                }
+                return next
+              }))
+            },
+            onRemove: (rowId) => {
+              patchDraft(draft.filter(model => model.rowId !== rowId))
+            },
+            onToggle: (rowId) => {
+              setExpandedModels(current => {
+                const next = new Set(current)
+                if (!next.delete(rowId)) next.add(rowId)
+                return next
+              })
+            },
+            onReorder: (rowIds) => {
+              const byId = new Map(draft.map(model => [model.rowId, model]))
+              const next = rowIds.map(rowId => byId.get(rowId)).filter((model): model is ModelDraft => model !== undefined)
+              if (next.length === draft.length) patchDraft(next)
+            },
+            onAdd: () => {
+              const model: ModelDraft = { rowId: newModelRowId(), id: '', contextWindow: '' }
+              patchDraft([...draft, model])
+              setExpandedModels(current => new Set(current).add(model.rowId))
+            },
+            addDisabled: disabled,
+            extra: (row) => {
+              const index = draft.findIndex(model => model.rowId === row.rowId)
+              const model = draft[index]
+              return index < 0 || model === undefined ? null : modelExtra(model, index)
+            },
+          }}
+          advanced={capabilitiesSection}
+          draft={draftBlock}
+        />
+    )
+  }
+
+  return (
+    <li style={cardStyle} data-provider-card="" data-provider-role="llm">
+      <style>{providerUiCss}</style>
+      <button type="button" data-provider-card-header="" aria-expanded={open} onClick={() => { setOpen(!open) }}>
+        <ProviderCardHeader
+          title={title}
+          mark={<BrandMark />}
+          summary={headerModels}
+          status={headerStatus}
+          open={open}
+          unsaved={dirty}
+          unsavedLabel={t('unsaved')}
+          role="llm"
+          {...quotaProps}
+        />
+      </button>
+      {open
+        ? (
+          <div style={bodyStyle} data-provider-body="">
+            <p style={hintStyle}>{t('description')}</p>
+            <section style={sectionStyle}>
+              <AuthToolbar
+                status={<p style={{ ...statusStyle, margin: 0 }} role="status">{statusLabel}</p>}
+                action={auth.status === 'signed-in'
+                  ? <button type="button" style={buttonStyle} disabled={authBusy} onClick={() => { void onSignOut() }}>{t('signOut')}</button>
+                  : auth.status === 'loading'
+                    ? null
+                    : auth.status === 'signing-in'
+                      ? <button type="button" style={buttonStyle} disabled={authBusy} onClick={() => { void onCancelAuth() }}>{t('cancel')}</button>
+                      : <button type="button" style={primaryButtonStyle} disabled={authBusy} onClick={() => { void onSignIn() }}>
+                          {auth.status === 'error' || auth.status === 'reauth-required' ? t('signInAgain') : t('signIn')}
+                        </button>}
+              />
+              {auth.status === 'error' || auth.status === 'reauth-required'
+                ? <p style={errorStyle}>{auth.message}</p>
+                : null}
+              {authChallenge === undefined ? null : authChallengeBlock}
+              {auth.status === 'signed-in' || auth.status === 'loading'
+                ? (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                    <UsageHeader
+                      title={t('usage')}
+                      spinning={auth.status === 'loading' || quotaRefreshing}
+                      disabled={auth.status === 'loading' || quotaRefreshing}
+                      refreshLabel={t('usageRefresh')}
+                      busyLabel={t('usageLoading')}
+                      {...refreshError === undefined ? {} : { error: refreshError }}
+                      onRefresh={() => { void refreshAuth(undefined, true) }}
+                    />
+                    {(() => {
+                      if (quotaRefreshing || auth.status === 'loading') {
+                        const known = lastUsage?.rateLimits.reduce((count, limit) => count + limit.windows.length, 0) ?? 0
+                        return <UsageSkeleton rows={known > 0 ? known : 2} />
+                      }
+                      const usageView = auth.status === 'signed-in' ? auth.usage : lastUsage
+                      return usageView === undefined
+                        ? <UsageSkeleton rows={2} />
+                        : <UsageLimits usage={usageView} t={t} />
+                    })()}
+                    <UsageUpdatedAt
+                      at={usageUpdatedAt}
+                      label={usageUpdatedAt === undefined ? '' : t('usageUpdatedAt').replace('{time}', formatUsageClock(usageUpdatedAt))}
+                    />
+                  </div>
+                )
+                : null}
+            </section>
+
+            <section style={sectionStyle} aria-label={t('models')}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+                <button
+                  type="button"
+                  style={disclosureStyle}
+                  aria-expanded={catalogOpen}
+                  aria-label={t('models')}
+                  onClick={() => { setCatalogOpen(!catalogOpen) }}
+                >
+                  <IconChevron open={catalogOpen} />
+                  <span style={sectionTitleStyle}>{t('models')}</span>
+                  <span style={hintStyle}>{customModels ? t('customized') : t('inherited')}</span>
+                </button>
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, flex: 'none' }}>
+                  <button type="button" style={buttonStyle} disabled={disabled} onClick={() => { setModelSort(current => !current) }} aria-pressed={modelSort}>
+                    {modelSort ? t('doneSorting') : t('sortModels')}
+                  </button>
+                  <button type="button" style={buttonStyle} disabled={disabled || fetching} onClick={() => { void chooseFromOfficial() }}>
+                    {fetching ? t('fetchingModels') : t('fetchModels')}
+                  </button>
+                </span>
+              </div>
+              {catalogOpen ? modelsList : null}
+            </section>
+
+            {capabilitiesSection}
+
+            {draftBlock}
           </div>
         )
         : null}

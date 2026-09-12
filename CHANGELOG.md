@@ -1,4 +1,23 @@
+## v0.3.16
+
+- 详情页改用共享模板 `ProviderDetail`（由设置页通过 slot 上下文下发，插件不再自带模板与样式）。
+- 模型行交给模板渲染：`items`（行数据）+ `extra`（该行的上下文窗口、能力勾选、默认思考等级等私有字段），插件不再画行卡片；行内字段固定列槽、排序态只读并收起、单层圆角。
+- 详情模式下插件不再自行请求额度（`props.mode === 'detail'` 时直接返回），额度由设置页的共享缓存提供，右上角刷新走 `props.onRefresh`。
+- 高级设置按原型：分隔线区块 + 折叠箭头 + 右侧说明，选项为「复选框 + 缩进说明」。
+- 移动端：工具栏与标题同一行（无换行、无溢出），窄屏自动收紧。
+- 依赖 `dsh-llm-providers-ui` 升级到 `0.2.0`（破坏性接口：必须使用 slot 下发的 `template`/`copy` 与 `items`/`extra`）。
+
 # Changelog
+
+## [0.3.15] - 2026-09-07
+
+### Changed
+
+- Adopt the shared provider-ui header and quota cache from `dsh-llm-providers-ui` 0.1.12; remove the per-provider header fork.
+- Header quota loads collapsed with reuse on expansion and no refire; a failed read shows a truthful unavailable dash, never a fabricated percent.
+- Host usage/auth failures that mean an unusable credential answer `INVALID_CREDENTIAL` so the shared quota cache can evict the previous account's reading.
+- Development dependency and install guidance point at the `dsh-llm-providers-ui` `v0.1.12-015rc1d` candidate tarball.
+- Verified runtimes now include DeepSeek Harness `0.1.5-rc.1` alongside Alpha.4 and `0.1.2-rc.1`.
 
 ## [0.3.14] - 2026-09-05
 

@@ -8,6 +8,14 @@ import type { Credential, CredentialInfo, CredentialStore } from '@earendil-work
 export declare const OPENAI_CODEX_PROVIDER = "openai-codex";
 /** Basename of the OAuth document inside the Harness home. */
 export declare const CODEX_AUTH_FILENAME = "codex-oauth.json";
+/**
+ * The stored credential cannot serve a request: the store refuses its file mode
+ * or cannot parse it into a supported document. Says nothing about a transient
+ * store failure (I/O, locking), which leaves the credential's usability unknown.
+ */
+export declare class CodexCredentialUnusableError extends Error {
+    constructor(message: string);
+}
 /** Resolve the default OAuth document path. */
 export declare function codexAuthPath(dshHome?: string): string;
 /** File-backed pi-ai store scoped to the single OpenAI Codex provider. */

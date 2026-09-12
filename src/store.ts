@@ -21,6 +21,18 @@ interface AuthDocument {
   credential: OAuthCredential
 }
 
+/**
+ * The stored credential cannot serve a request: the store refuses its file mode
+ * or cannot parse it into a supported document. Says nothing about a transient
+ * store failure (I/O, locking), which leaves the credential's usability unknown.
+ */
+export class CodexCredentialUnusableError extends Error {
+  constructor(message: string) {
+    super(message)
+    this.name = 'CodexCredentialUnusableError'
+  }
+}
+
 function isENOENT(error: unknown): boolean {
   return (error as NodeJS.ErrnoException | null)?.code === 'ENOENT'
 }
@@ -35,46 +47,47 @@ async function assertOwnerOnly(filename: string): Promise<void> {
   }
   if (process.platform === 'win32') return
   if ((mode & 0o077) !== 0) {
-    throw new Error(
+    throw new CodexCredentialUnusableError(
       `codex: ${filename} is readable beyond its owner (mode ${(mode & 0o777).toString(8)});`
       + ` run "chmod 600 ${filename}" before starting again`,
     )
   }
 }
 
+/** Parse one stored document, refusing anything this store cannot serve as a credential. */
 function parseDocument(text: string, filename: string): AuthDocument {
   let value: unknown
   try {
     value = JSON.parse(text)
   } catch {
-    throw new Error(`codex: ${filename} is not valid JSON`)
+    throw new CodexCredentialUnusableError(`codex: ${filename} is not valid JSON`)
   }
   if (typeof value !== 'object' || value === null || Array.isArray(value)) {
-    throw new Error(`codex: ${filename} must contain an object`)
+    throw new CodexCredentialUnusableError(`codex: ${filename} must contain an object`)
   }
   const document = value as Record<string, unknown>
   if (document['version'] !== AUTH_FORMAT_VERSION) {
-    throw new Error(`codex: ${filename} has unsupported auth format version ${String(document['version'])}`)
+    throw new CodexCredentialUnusableError(`codex: ${filename} has unsupported auth format version ${String(document['version'])}`)
   }
   if (Object.keys(document).some(key => key !== 'version' && key !== 'credential')) {
-    throw new Error(`codex: ${filename} contains an unknown top-level field`)
+    throw new CodexCredentialUnusableError(`codex: ${filename} contains an unknown top-level field`)
   }
   const raw = document['credential']
   if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) {
-    throw new Error(`codex: ${filename} credential must be an object`)
+    throw new CodexCredentialUnusableError(`codex: ${filename} credential must be an object`)
   }
   const credential = raw as Record<string, unknown>
   if (Object.keys(credential).some(key => !['type', 'access', 'refresh', 'expires', 'accountId'].includes(key))) {
-    throw new Error(`codex: ${filename} credential contains an unknown field`)
+    throw new CodexCredentialUnusableError(`codex: ${filename} credential contains an unknown field`)
   }
-  if (credential['type'] !== 'oauth') throw new Error(`codex: ${filename} credential type must be oauth`)
+  if (credential['type'] !== 'oauth') throw new CodexCredentialUnusableError(`codex: ${filename} credential type must be oauth`)
   for (const key of ['access', 'refresh', 'accountId'] as const) {
     if (typeof credential[key] !== 'string' || credential[key].length === 0) {
-      throw new Error(`codex: ${filename} credential ${key} must be a non-empty string`)
+      throw new CodexCredentialUnusableError(`codex: ${filename} credential ${key} must be a non-empty string`)
     }
   }
   if (typeof credential['expires'] !== 'number' || !Number.isFinite(credential['expires']) || credential['expires'] <= 0) {
-    throw new Error(`codex: ${filename} credential expires must be a positive finite number`)
+    throw new CodexCredentialUnusableError(`codex: ${filename} credential expires must be a positive finite number`)
   }
   return { version: AUTH_FORMAT_VERSION, credential: credential as unknown as OAuthCredential }
 }
