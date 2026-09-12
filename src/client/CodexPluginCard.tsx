@@ -446,6 +446,8 @@ export function CodexPluginCard(props: CodexPluginCardProps): ReactNode {
     setAuthAnswered(true)
     setAuth(next)
     if (next.status !== 'signing-in') setAuthChallenge(undefined)
+    // In the shared detail the page owns quota, so the card keeps the account verdict only.
+    if (props.mode === 'detail') return
     if (next.status === 'signed-in') {
       if (next.quotaError === undefined) {
         setLastUsage(next.usage)
@@ -462,7 +464,7 @@ export function CodexPluginCard(props: CodexPluginCardProps): ReactNode {
       setUsageUpdatedAt(undefined)
       setRefreshError(undefined)
     }
-  }, [t])
+  }, [t, props.mode])
 
   const refreshAuth = useCallback(async (signal?: AbortSignal, spin = false): Promise<void> => {
     if (spin) setQuotaRefreshing(true)
@@ -525,7 +527,8 @@ export function CodexPluginCard(props: CodexPluginCardProps): ReactNode {
   }, [open, auth.status, refreshAuth, usageSettled])
 
   useEffect(() => {
-    if (!open) return
+    // The shared detail is not the legacy card: no collapsed header and no self-polled quota.
+    if (!open || props.mode === 'detail') return
     const interval = auth.status === 'signing-in'
       ? 1000
       : auth.status === 'signed-in' && usageSettled ? USAGE_POLL_INTERVAL_MS : undefined
