@@ -1145,6 +1145,7 @@ export function CodexPluginCard(props: CodexPluginCardProps): ReactNode {
             onToggleAll: () => { setCatalogOpen(value => !value) },
             sorting: modelSort,
             onToggleSorting: () => { setModelSort(current => !current) },
+            sortDisabled: disabled || draft.length < 2,
             onChooseFromAccount: () => { void chooseFromOfficial() },
             chooseDisabled: disabled || fetching,
             items: draft.map(model => ({
