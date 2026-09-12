@@ -3,7 +3,7 @@
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { SettingsScopeSnapshot } from '../src/client/settings-scope.ts'
-import { providerDetailCopy } from 'dsh-llm-providers-ui/provider-detail'
+import { ProviderDetail, providerDetailCopy } from 'dsh-llm-providers-ui/provider-detail'
 import { CodexPluginCard } from '../src/client/CodexPluginCard.tsx'
 import type { CodexAccountStatus, CodexPluginCardProps } from '../src/client/CodexPluginCard.tsx'
 import { en } from '../src/client/locales.ts'
@@ -405,7 +405,7 @@ describe('CodexPluginCard', () => {
         { id: 'secondary', label: 'Secondary', shortLabel: 'S', remainingPercent: 61, valueText: '61%' },
       ],
     }
-    const { container } = render(<CodexPluginCard {...props({ mode: 'detail', usage, accountState: 'connected', onRefresh, copy: providerDetailCopy.en })} />)
+    const { container } = render(<CodexPluginCard {...props({ mode: 'detail', usage, accountState: 'connected', onRefresh, copy: providerDetailCopy.en, template: ProviderDetail })} />)
 
     expect(container.querySelector('[data-provider-detail]')).not.toBeNull()
     expect(container.querySelectorAll('[data-c-quota]')).toHaveLength(1)

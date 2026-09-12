@@ -29,7 +29,7 @@ import { BrandMark } from './BrandMark.tsx'
 import { AuthToolbar, ProviderCardHeader, ProviderQuotaMeter, UsageHeader, UsageSkeleton, UsageUpdatedAt, formatUsageClock, providerUiCss, providerQuotaHeaderProps, resetLabelOf, useProviderQuotaCache } from './provider-chrome.tsx'
 import type { ProviderQuotaState } from './provider-chrome.tsx'
 import { SortableList } from 'dsh-llm-providers-ui/sortable'
-import { ProviderDetail, providerDetailCopy, type ProviderItemSlotContext } from 'dsh-llm-providers-ui/provider-detail'
+import type { ProviderItemSlotContext } from 'dsh-llm-providers-ui/provider-detail'
 
 
 /** Display name recorded with the cached headline quota. */
@@ -1103,7 +1103,9 @@ export function CodexPluginCard(props: CodexPluginCardProps): ReactNode {
 
 
   // Prototype C detail: the shared template owns the layout, this card owns Codex's data.
-  if (props.mode === 'detail') {
+  const SharedDetail = props.template
+  const detailCopy = props.copy
+  if (props.mode === 'detail' && SharedDetail !== undefined && detailCopy !== undefined) {
     const accountActions = auth.status === 'signed-in'
       ? <button type="button" style={buttonStyle} disabled={authBusy} onClick={() => { void onSignOut() }}>{t('signOut')}</button>
       : auth.status === 'loading'
@@ -1117,10 +1119,10 @@ export function CodexPluginCard(props: CodexPluginCardProps): ReactNode {
             )
     return (
       <li style={cardStyle} data-provider-card="" data-provider-role="llm">
-        <ProviderDetail
+        <SharedDetail
           name={title}
           role="llm"
-          copy={props.copy ?? providerDetailCopy.en}
+          copy={detailCopy}
           notice={t('description')}
           account={{
             state: auth.status === 'signed-in' ? 'connected' : 'unconnected',

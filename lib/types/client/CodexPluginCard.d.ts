@@ -5,7 +5,7 @@ import type { InjectFace, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import type { CodexCatalogModel } from '../catalog.ts';
 import type { CodexAccountStatus, CodexSaveResult, CodexSettingsView } from '../client-contract.ts';
 import type { CodexSettingsKey } from './locales.ts';
-import { type ProviderItemSlotContext } from 'dsh-llm-providers-ui/provider-detail';
+import type { ProviderItemSlotContext } from 'dsh-llm-providers-ui/provider-detail';
 export type { CodexAccountStatus };
 export interface CodexPluginCardFace {
     t: (key: CodexSettingsKey) => string;

@@ -15,8 +15,8 @@ importers:
         specifier: 0.85.1
         version: 0.85.1(ws@8.21.3)(zod@4.6.1)
       dsh-llm-providers-ui:
-        specifier: file:/home/noirbright/.dsh-lab/tmp/dsh-llm-providers-ui-0.1.12-preview.3.tgz
-        version: file:../../../../.dsh-lab/tmp/dsh-llm-providers-ui-0.1.12-preview.3.tgz(3bb8ba16cd61eb053ca5f0b7661f9a1e)
+        specifier: file:/home/noirbright/.dsh-lab/tmp/dsh-llm-providers-ui-0.1.12-preview.9.tgz
+        version: file:../../../../.dsh-lab/tmp/dsh-llm-providers-ui-0.1.12-preview.9.tgz(3bb8ba16cd61eb053ca5f0b7661f9a1e)
     devDependencies:
       '@deepseek-ai/cordis':
         specifier: 4.0.2
@@ -1939,8 +1939,8 @@ packages:
   dom-accessibility-api@0.5.16:
     resolution: {integrity: sha512-X7BJ2yElsnOJ30pZF4uIIDfBEVgF4XEBxL9Bxhy6dnrm5hkzqmsWHGTiHqRiITNhMyFLyAiWndIJP7Z1NTteDg==}
 
-  dsh-llm-providers-ui@file:../../../../.dsh-lab/tmp/dsh-llm-providers-ui-0.1.12-preview.3.tgz:
-    resolution: {integrity: sha512-L5OwzdD+8Api7XuAzFIgpfE9Q0LYT5lI5fYbZVgeGbzOyh266FB68YQzIOgEyBLrlpOfrzX7aE2Lk/X3qwaXFA==, tarball: file:../../../../.dsh-lab/tmp/dsh-llm-providers-ui-0.1.12-preview.3.tgz}
+  dsh-llm-providers-ui@file:../../../../.dsh-lab/tmp/dsh-llm-providers-ui-0.1.12-preview.9.tgz:
+    resolution: {integrity: sha512-grriqKbweT2wki903s0qt5UZtVbYtoRscO16laZKCc6EsoOZdsMrdYd6hy6pBIR+YvdVybXWECs8F1LaooYWEA==, tarball: file:../../../../.dsh-lab/tmp/dsh-llm-providers-ui-0.1.12-preview.9.tgz}
     version: 0.1.12
     engines: {node: ^22.19.0 || >=24.0.0}
     peerDependencies:
@@ -4562,7 +4562,7 @@ snapshots:
 
   dom-accessibility-api@0.5.16: {}
 
-  dsh-llm-providers-ui@file:../../../../.dsh-lab/tmp/dsh-llm-providers-ui-0.1.12-preview.3.tgz(3bb8ba16cd61eb053ca5f0b7661f9a1e):
+  dsh-llm-providers-ui@file:../../../../.dsh-lab/tmp/dsh-llm-providers-ui-0.1.12-preview.9.tgz(3bb8ba16cd61eb053ca5f0b7661f9a1e):
     dependencies:
       '@deepseek-ai/cordis': 4.0.2(@deepseek-ai/cordis-plugin-include@1.0.7)(@deepseek-ai/cordis-plugin-loader@1.0.3)
       '@deepseek-ai/dsh-client-locale': 0.1.5-rc.1(@deepseek-ai/cordis@4.0.2)
