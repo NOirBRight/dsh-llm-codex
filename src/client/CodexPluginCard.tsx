@@ -35,8 +35,6 @@ import type { ProviderItemSlotContext } from 'dsh-llm-providers-ui/provider-deta
 /** Display name recorded with the cached headline quota. */
 const USAGE_PROVIDER_NAME = 'Codex'
 import {
-  inputStyle,
-  labelStyle,
   modelContentStyle,
   rowInputStyle,
 } from './model-catalog-ui.tsx'
@@ -167,9 +165,6 @@ const disclosureStyle: CSSProperties = {
 }
 
 
-const checkboxStyle: CSSProperties = {
-  accentColor: 'var(--dsw-alias-brand-primary)',
-}
 /* Selected-A quota meters come from the shared ProviderQuotaMeter; no local bar track. */
 
 let nextModelRow = 0
@@ -280,25 +275,6 @@ function headerQuotaOf(auth: CodexAccountStatus, lastUsage: CodexUsage | undefin
   return { remainingPercent: remaining, label: displayLabel, ...detail === undefined ? {} : { detail } }
 }
 
-function Capability({ label, checked, disabled, onChange }: {
-  label: string
-  checked: boolean
-  disabled: boolean
-  onChange: (checked: boolean) => void
-}): ReactNode {
-  return (
-    <label style={{ ...labelStyle, display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-      <input
-        type="checkbox"
-        style={checkboxStyle}
-        checked={checked}
-        disabled={disabled}
-        onChange={(event) => { onChange(event.target.checked) }}
-      />
-      {label}
-    </label>
-  )
-}
 
 function IconChevron({ open }: { open: boolean }): ReactNode {
   return (
@@ -903,114 +879,129 @@ export function CodexPluginCard(props: CodexPluginCardProps): ReactNode {
     </>
   )
   const capabilitiesSection = (
-            <section style={sectionStyle}>
-              <h3 style={sectionTitleStyle}>{t('capabilities')}</h3>
-              <p style={hintStyle}>{t('capabilitiesIntro')}</p>
-              <Capability
-                label={t('enableSearch')}
-                checked={capabilities.enableSearch}
-                disabled={disabled}
-                onChange={(checked) => { setCapabilities({ ...capabilities, enableSearch: checked }); setNotice(undefined) }}
-              />
-              <p style={hintStyle}>{t('enableSearchHelp')}</p>
-              {capabilities.enableSearch
-                ? (
-                  <>
-                    <label style={labelStyle}>
-                      {t('searchModel')}
-                      <select
-                        style={inputStyle}
-                        value={capabilities.searchModel}
-                        disabled={disabled}
-                        onChange={(event) => { setCapabilities({ ...capabilities, searchModel: event.target.value }); setNotice(undefined) }}
-                      >
-                        {CODEX_OFFICIAL_MODELS.map(model => (
-                          <option key={model.id} value={model.id}>{model.name}</option>
-                        ))}
-                      </select>
-                    </label>
-                    <label style={labelStyle}>
-                      {t('searchMode')}
-                      <select
-                        style={inputStyle}
-                        value={capabilities.searchMode}
-                        disabled={disabled}
-                        onChange={(event) => {
-                          setCapabilities({ ...capabilities, searchMode: event.target.value as CodexSearchMode })
-                          setNotice(undefined)
-                        }}
-                      >
-                        <option value="cached">{t('modeCached')}</option>
-                        <option value="indexed">{t('modeIndexed')}</option>
-                        <option value="live">{t('modeLive')}</option>
-                      </select>
-                    </label>
-                    <label style={labelStyle}>
-                      {t('searchContextSize')}
-                      <select
-                        style={inputStyle}
-                        value={capabilities.searchContextSize}
-                        disabled={disabled}
-                        onChange={(event) => {
-                          setCapabilities({ ...capabilities, searchContextSize: event.target.value as CodexSearchContextSize })
-                          setNotice(undefined)
-                        }}
-                      >
-                        <option value="low">{t('contextLow')}</option>
-                        <option value="medium">{t('contextMedium')}</option>
-                        <option value="high">{t('contextHigh')}</option>
-                      </select>
-                    </label>
-                    <label style={labelStyle}>
-                      {t('searchMaxOutputTokens')}
-                      <input
-                        style={inputStyle}
-                        type="number"
-                        min={1}
-                        step={1}
-                        value={capabilities.searchMaxOutputTokens}
-                        disabled={disabled}
-                        onChange={(event) => {
-                          setCapabilities({ ...capabilities, searchMaxOutputTokens: Number(event.target.value) })
-                          setNotice(undefined)
-                        }}
-                      />
-                    </label>
-                  </>
-                )
-                : null}
-              <Capability
-                label={t('enableImageTool')}
-                checked={capabilities.enableImageTool}
-                disabled={disabled}
-                onChange={(checked) => { setCapabilities({ ...capabilities, enableImageTool: checked }); setNotice(undefined) }}
-              />
-              <p style={hintStyle}>{t('enableImageToolHelp')}</p>
-              <Capability
-                label={t('enableImageGeneration')}
-                checked={capabilities.enableImageGeneration}
-                disabled={disabled}
-                onChange={(checked) => { setCapabilities({ ...capabilities, enableImageGeneration: checked }); setNotice(undefined) }}
-              />
-              <p style={hintStyle}>{t('enableImageGenerationHelp')}</p>
-              {capabilities.enableImageGeneration
-                ? (
-                  <label style={labelStyle}>
-                    {t('imageGenerationModel')}
-                    <select
-                      style={inputStyle}
-                      value={capabilities.imageGenerationModel}
-                      disabled={disabled}
-                      onChange={(event) => { setCapabilities({ ...capabilities, imageGenerationModel: event.target.value }); setNotice(undefined) }}
-                    >
-                      {imageGenerationPickerModels(capabilities.imageGenerationModel).map(model => (
-                        <option key={model.id} value={model.id}>{model.name}</option>
-                      ))}
-                    </select>
-                  </label>
-                )
-                : null}
-            </section>
+    <>
+      <div className="c-control">
+        <label className="c-checkbox-field">
+          <input
+            type="checkbox"
+            checked={capabilities.enableSearch}
+            disabled={disabled}
+            onChange={(event) => { setCapabilities({ ...capabilities, enableSearch: event.target.checked }); setNotice(undefined) }}
+          />
+          {t('enableSearch')}
+        </label>
+        <p className="c-field-hint">{t('enableSearchHelp')}</p>
+        {capabilities.enableSearch
+          ? (
+            <div className="c-extra-grid">
+              <label className="c-field">
+                <span className="c-field-label">{t('searchModel')}</span>
+                <select
+                  className="c-input"
+                  value={capabilities.searchModel}
+                  disabled={disabled}
+                  onChange={(event) => { setCapabilities({ ...capabilities, searchModel: event.target.value }); setNotice(undefined) }}
+                >
+                  {CODEX_OFFICIAL_MODELS.map(model => (
+                    <option key={model.id} value={model.id}>{model.name}</option>
+                  ))}
+                </select>
+              </label>
+              <label className="c-field">
+                <span className="c-field-label">{t('searchMode')}</span>
+                <select
+                  className="c-input"
+                  value={capabilities.searchMode}
+                  disabled={disabled}
+                  onChange={(event) => {
+                    setCapabilities({ ...capabilities, searchMode: event.target.value as CodexSearchMode })
+                    setNotice(undefined)
+                  }}
+                >
+                  <option value="cached">{t('modeCached')}</option>
+                  <option value="indexed">{t('modeIndexed')}</option>
+                  <option value="live">{t('modeLive')}</option>
+                </select>
+              </label>
+              <label className="c-field">
+                <span className="c-field-label">{t('searchContextSize')}</span>
+                <select
+                  className="c-input"
+                  value={capabilities.searchContextSize}
+                  disabled={disabled}
+                  onChange={(event) => {
+                    setCapabilities({ ...capabilities, searchContextSize: event.target.value as CodexSearchContextSize })
+                    setNotice(undefined)
+                  }}
+                >
+                  <option value="low">{t('contextLow')}</option>
+                  <option value="medium">{t('contextMedium')}</option>
+                  <option value="high">{t('contextHigh')}</option>
+                </select>
+              </label>
+              <label className="c-field">
+                <span className="c-field-label">{t('searchMaxOutputTokens')}</span>
+                <input
+                  className="c-input"
+                  type="number"
+                  min={1}
+                  step={1}
+                  value={capabilities.searchMaxOutputTokens}
+                  disabled={disabled}
+                  onChange={(event) => {
+                    setCapabilities({ ...capabilities, searchMaxOutputTokens: Number(event.target.value) })
+                    setNotice(undefined)
+                  }}
+                />
+              </label>
+            </div>
+          )
+          : null}
+      </div>
+      <div className="c-control">
+        <label className="c-checkbox-field">
+          <input
+            type="checkbox"
+            checked={capabilities.enableImageTool}
+            disabled={disabled}
+            onChange={(event) => { setCapabilities({ ...capabilities, enableImageTool: event.target.checked }); setNotice(undefined) }}
+          />
+          {t('enableImageTool')}
+        </label>
+        <p className="c-field-hint">{t('enableImageToolHelp')}</p>
+      </div>
+      <div className="c-control">
+        <label className="c-checkbox-field">
+          <input
+            type="checkbox"
+            checked={capabilities.enableImageGeneration}
+            disabled={disabled}
+            onChange={(event) => { setCapabilities({ ...capabilities, enableImageGeneration: event.target.checked }); setNotice(undefined) }}
+          />
+          {t('enableImageGeneration')}
+        </label>
+        <p className="c-field-hint">{t('enableImageGenerationHelp')}</p>
+        {capabilities.enableImageGeneration
+          ? (
+            <div className="c-extra-grid">
+              <label className="c-field">
+                <span className="c-field-label">{t('imageGenerationModel')}</span>
+                <select
+                  className="c-input"
+                  value={capabilities.imageGenerationModel}
+                  disabled={disabled}
+                  onChange={(event) => { setCapabilities({ ...capabilities, imageGenerationModel: event.target.value }); setNotice(undefined) }}
+                >
+                  {imageGenerationPickerModels(capabilities.imageGenerationModel).map(model => (
+                    <option key={model.id} value={model.id}>{model.name}</option>
+                  ))}
+                </select>
+              </label>
+            </div>
+          )
+          : null}
+      </div>
+    </>
   )
   const draftBlock = (
     <>
