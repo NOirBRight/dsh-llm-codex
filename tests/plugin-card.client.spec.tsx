@@ -285,13 +285,11 @@ describe('CodexPluginCard', () => {
     expect(pos(contextInput, visionBox)).toBe(-1)
     expect(pos(visionBox, thinkingBox)).toBe(-1)
     expect(pos(thinkingBox, defaultEffort)).toBe(-1)
-    // Context uses 36h inputStyle full width, select uses 32h selectStyle with arrow
+    // The expanded fields use the shared template classes in every layout.
     expect(catalogStyles.inputStyle.minHeight).toBe(36)
     expect(catalogStyles.selectStyle.minHeight).toBe(32)
-    expect(contextInput.style.minHeight || getComputedStyle(contextInput).minHeight).toContain('36')
-    expect(defaultEffort.style.minHeight || getComputedStyle(defaultEffort).minHeight).toContain('32')
-    expect(defaultEffort.style.backgroundImage).toContain('svg')
-    expect(defaultEffort.style.appearance).toBe('none')
+    expect(contextInput.className).toContain('c-input')
+    expect(defaultEffort.className).toContain('c-input')
     // shared tokens: rowInput 32h, modelDetail flex column, capabilities flex wrap
     expect(catalogStyles.rowInputStyle.minHeight).toBe(32)
     expect(catalogStyles.modelDetailStyle.flexDirection).toBe('column')

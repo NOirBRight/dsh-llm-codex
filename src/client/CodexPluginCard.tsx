@@ -35,15 +35,10 @@ import type { ProviderItemSlotContext } from 'dsh-llm-providers-ui/provider-deta
 /** Display name recorded with the cached headline quota. */
 const USAGE_PROVIDER_NAME = 'Codex'
 import {
-  ModelCatalogCapabilities,
-  ModelCatalogDetails,
-  ModelCatalogRow,
-  fieldStyle,
   inputStyle,
   labelStyle,
   modelContentStyle,
   rowInputStyle,
-  selectStyle,
 } from './model-catalog-ui.tsx'
 
 export type { CodexAccountStatus }
@@ -872,74 +867,7 @@ export function CodexPluginCard(props: CodexPluginCardProps): ReactNode {
                             >
                               <IconTrash />
                             </button>
-                            {expanded
-                              ? (
-                                <ModelCatalogDetails>
-                                  <ModelCatalogRow>
-                                    <label style={fieldStyle}>
-                                      <span style={labelStyle}>{t('contextWindow')}</span>
-                                      <input
-                                        style={inputStyle}
-                                        inputMode="numeric"
-                                        placeholder={officialModelFor(item.id.trim()) === undefined ? t('contextWindowDefault') : undefined}
-                                        value={item.contextWindow}
-                                        disabled={disabled}
-                                        aria-label={t('contextWindow')}
-                                        onChange={(event) => {
-                                          const contextWindow = event.target.value
-                                          patchDraft(draft.map((model, at) => at === index ? { ...model, contextWindow } : model))
-                                        }}
-                                      />
-                                    </label>
-                                  </ModelCatalogRow>
-                                  <ModelCatalogCapabilities>
-                                    <Capability label={t('vision')} checked={item.vision === true} disabled={disabled} onChange={(checked) => {
-                                      patchDraft(draft.map((model, at) => at === index ? { ...model, vision: checked } : model))
-                                    }} />
-                                    <Capability label={t('thinking')} checked={item.thinking === true} disabled={disabled} onChange={(checked) => {
-                                      patchDraft(draft.map((model, at) => {
-                                        if (at !== index) return model
-                                        const next = { ...model, thinking: checked }
-                                        if (!checked) delete next.defaultEffort
-                                        return next
-                                      }))
-                                    }} />
-                                    {(() => {
-                                      const efforts = effortsForCodexModel(modelSettingsOf(item))
-                                      if (efforts.length === 0) return null
-                                      const suggested = officialModelFor(item.id.trim()) === undefined
-                                        ? efforts[0]
-                                        : defaultCodexReasoningEffort(item.id.trim())
-                                      return (
-                                        <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6, ...labelStyle }}>
-                                          <span style={labelStyle}>{t('defaultEffort')}</span>
-                                          <select
-                                            style={selectStyle}
-                                            value={item.defaultEffort ?? suggested ?? ''}
-                                            disabled={disabled}
-                                            aria-label={t('defaultEffort')}
-                                            onChange={(event) => {
-                                              const effort = efforts.find(entry => entry === event.target.value)
-                                              patchDraft(draft.map((model, at) => {
-                                                if (at !== index) return model
-                                                const next = { ...model }
-                                                if (effort === undefined) delete next.defaultEffort
-                                                else next.defaultEffort = effort
-                                                return next
-                                              }))
-                                            }}
-                                          >
-                                            {efforts.map(effort => (
-                                              <option key={effort} value={effort}>{CODEX_EFFORT_LABELS[effort] ?? effort}</option>
-                                            ))}
-                                          </select>
-                                        </label>
-                                      )
-                                    })()}
-                                  </ModelCatalogCapabilities>
-                                </ModelCatalogDetails>
-                              )
-                              : null}
+                            {expanded ? modelExtra(item, index) : null}
                           </div>
                         )
                       }}
@@ -1102,6 +1030,90 @@ export function CodexPluginCard(props: CodexPluginCardProps): ReactNode {
   )
 
 
+  /** Provider-specific fields for one expanded model row; shared by both layouts. */
+  const modelExtra = (item: ModelDraft, index: number): ReactNode => (
+    <div className="c-extra-grid">
+      <label className="c-field">
+        <span className="c-field-label">{t('contextWindow')}</span>
+        <input
+          className="c-input"
+          inputMode="numeric"
+          placeholder={officialModelFor(item.id.trim()) === undefined ? t('contextWindowDefault') : undefined}
+          value={item.contextWindow}
+          disabled={disabled}
+          aria-label={t('contextWindow')}
+          onChange={(event) => {
+            const contextWindow = event.target.value
+            patchDraft(draft.map((model, at) => at === index ? { ...model, contextWindow } : model))
+          }}
+        />
+      </label>
+      <div className="c-extra-checks">
+        <label>
+          <input
+            type="checkbox"
+            checked={item.vision === true}
+            disabled={disabled}
+            onChange={(event) => {
+              const vision = event.target.checked
+              patchDraft(draft.map((model, at) => at === index ? { ...model, vision } : model))
+            }}
+          />
+          {t('vision')}
+        </label>
+        <label>
+          <input
+            type="checkbox"
+            checked={item.thinking === true}
+            disabled={disabled}
+            onChange={(event) => {
+              const thinking = event.target.checked
+              patchDraft(draft.map((model, at) => {
+                if (at !== index) return model
+                const next = { ...model, thinking }
+                if (!thinking) delete next.defaultEffort
+                return next
+              }))
+            }}
+          />
+          {t('thinking')}
+        </label>
+      </div>
+      {(() => {
+        const efforts = effortsForCodexModel(modelSettingsOf(item))
+        if (efforts.length === 0) return null
+        const suggested = officialModelFor(item.id.trim()) === undefined
+          ? efforts[0]
+          : defaultCodexReasoningEffort(item.id.trim())
+        return (
+          <label className="c-field">
+            <span className="c-field-label">{t('defaultEffort')}</span>
+            <select
+              className="c-input"
+              value={item.defaultEffort ?? suggested ?? ''}
+              disabled={disabled}
+              aria-label={t('defaultEffort')}
+              onChange={(event) => {
+                const effort = efforts.find(entry => entry === event.target.value)
+                patchDraft(draft.map((model, at) => {
+                  if (at !== index) return model
+                  const next = { ...model }
+                  if (effort === undefined) delete next.defaultEffort
+                  else next.defaultEffort = effort
+                  return next
+                }))
+              }}
+            >
+              {efforts.map(effort => (
+                <option key={effort} value={effort}>{CODEX_EFFORT_LABELS[effort] ?? effort}</option>
+              ))}
+            </select>
+          </label>
+        )
+      })()}
+    </div>
+  )
+
   // Prototype C detail: the shared template owns the layout, this card owns Codex's data.
   const SharedDetail = props.template
   const detailCopy = props.copy
@@ -1122,6 +1134,7 @@ export function CodexPluginCard(props: CodexPluginCardProps): ReactNode {
         <SharedDetail
           name={title}
           role="llm"
+          mark={<BrandMark />}
           copy={detailCopy}
           notice={t('description')}
           account={{
@@ -1143,7 +1156,52 @@ export function CodexPluginCard(props: CodexPluginCardProps): ReactNode {
             onToggleSorting: () => { setModelSort(current => !current) },
             onChooseFromAccount: () => { void chooseFromOfficial() },
             chooseDisabled: disabled || fetching,
-            list: modelsList,
+            items: draft.map(model => ({
+              rowId: model.rowId,
+              id: model.id,
+              ...(model.name === undefined ? {} : { name: model.name }),
+            })),
+            expanded: [...expandedModels],
+            onPatch: (rowId, patch) => {
+              const index = draft.findIndex(model => model.rowId === rowId)
+              if (index < 0) return
+              patchDraft(draft.map((model, at) => {
+                if (at !== index) return model
+                const next = { ...model }
+                if (patch.id !== undefined) next.id = patch.id
+                if ('name' in patch) {
+                  if (patch.name === undefined) delete next.name
+                  else next.name = patch.name
+                }
+                return next
+              }))
+            },
+            onRemove: (rowId) => {
+              patchDraft(draft.filter(model => model.rowId !== rowId))
+            },
+            onToggle: (rowId) => {
+              setExpandedModels(current => {
+                const next = new Set(current)
+                if (!next.delete(rowId)) next.add(rowId)
+                return next
+              })
+            },
+            onReorder: (rowIds) => {
+              const byId = new Map(draft.map(model => [model.rowId, model]))
+              const next = rowIds.map(rowId => byId.get(rowId)).filter((model): model is ModelDraft => model !== undefined)
+              if (next.length === draft.length) patchDraft(next)
+            },
+            onAdd: () => {
+              const model: ModelDraft = { rowId: newModelRowId(), id: '', contextWindow: '' }
+              patchDraft([...draft, model])
+              setExpandedModels(current => new Set(current).add(model.rowId))
+            },
+            addDisabled: disabled,
+            extra: (row) => {
+              const index = draft.findIndex(model => model.rowId === row.rowId)
+              const model = draft[index]
+              return index < 0 || model === undefined ? null : modelExtra(model, index)
+            },
           }}
           advanced={capabilitiesSection}
           draft={draftBlock}
