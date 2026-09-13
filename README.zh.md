@@ -8,12 +8,9 @@ DeepSeek Harness 的 ChatGPT Codex 集成。独立提供方路由是 `codex`，�
 
 ## 兼容性
 
-已验证运行时是 DeepSeek Harness `0.1.2-alpha.4`、`0.1.2-rc.1` 与 `0.1.5-rc.1`（Cordis `4.0.2`）；这份记录只是证据，不是 allowlist。
+宿主 `@deepseek-ai/dsh-*` 不锁定发行号：peer 为 `*` 且 optional。`devDependencies` 钉编译目标（`0.1.5-rc.1`）。Cordis 保持 `>=4.0.2 <5.0.0`。
 
-未知的新版本会先打一条 warning，再按正常挂载路径 best-effort 尝试，不会因为未验证而跳过。
-
-只有复现过的故障才会加入 blocklist；受影响版本、原因和证据见[兼容性记录](package.json)。
-
+`package.json#dsh.compatibility.dshReleases` 里的已验证宿主是证据，不是允许列表。未知的新宿主告警一次后仍按正常路径挂载。只有复现过的故障才会加入 blocklist。
 
 ## 安装
 
@@ -23,7 +20,7 @@ DeepSeek Harness 的 ChatGPT Codex 集成。独立提供方路由是 `codex`，�
 dsh plugin --profile web add --force \
   https://github.com/NOirBRight/dsh-llm-providers-ui/releases/download/v0.1.12-015rc1e/dsh-llm-providers-ui-0.1.12.tgz
 dsh plugin --profile web add --force \
-  https://github.com/NOirBRight/dsh-llm-codex/releases/download/v0.3.15-015rc1d/dsh-llm-codex-0.3.15.tgz
+  https://github.com/NOirBRight/dsh-llm-codex/releases/download/v0.3.19/dsh-llm-codex-0.3.19.tgz
 dsh web
 ~~~
 
@@ -124,7 +121,7 @@ Latest（Owner + 本插件；Web 必须一起装）：
 dsh plugin --profile web add --force \
   https://github.com/NOirBRight/dsh-llm-providers-ui/releases/latest/download/dsh-llm-providers-ui-0.1.12.tgz
 dsh plugin --profile web add --force \
-  https://github.com/NOirBRight/dsh-llm-codex/releases/latest/download/dsh-llm-codex-0.3.15.tgz
+  https://github.com/NOirBRight/dsh-llm-codex/releases/latest/download/dsh-llm-codex-0.3.19.tgz
 ~~~
 
 固定版本（可复现）：
@@ -133,7 +130,7 @@ dsh plugin --profile web add --force \
 dsh plugin --profile web add --force \
   https://github.com/NOirBRight/dsh-llm-providers-ui/releases/download/v0.1.12-015rc1e/dsh-llm-providers-ui-0.1.12.tgz
 dsh plugin --profile web add --force \
-  https://github.com/NOirBRight/dsh-llm-codex/releases/download/v0.3.15-015rc1d/dsh-llm-codex-0.3.15.tgz
+  https://github.com/NOirBRight/dsh-llm-codex/releases/download/v0.3.19/dsh-llm-codex-0.3.19.tgz
 ~~~
 
 更新、卸载与验证：
@@ -143,7 +140,7 @@ dsh plugin --profile web add --force \
 dsh plugin --profile web add --force \
   https://github.com/NOirBRight/dsh-llm-providers-ui/releases/latest/download/dsh-llm-providers-ui-0.1.12.tgz
 dsh plugin --profile web add --force \
-  https://github.com/NOirBRight/dsh-llm-codex/releases/latest/download/dsh-llm-codex-0.3.15.tgz
+  https://github.com/NOirBRight/dsh-llm-codex/releases/latest/download/dsh-llm-codex-0.3.19.tgz
 # 验证加载与版本
 dsh plugin --profile web list
 dsh plugin --profile web doctor
@@ -155,7 +152,7 @@ dsh plugin --profile web remove dsh-llm-codex
 
 回滚：重新执行固定版本 v0.3.7 命令，确认插件列表后只重启一次 Web 服务。失败时查看 journalctl --user -u dsh-web.service 与 dsh plugin --profile web doctor，不要把源码 checkout 写入 production profile。
 
-Release 与完整性：[v0.3.15-015rc1d](https://github.com/NOirBRight/dsh-llm-codex/releases/tag/v0.3.15-015rc1d) · [SHA256SUMS](https://github.com/NOirBRight/dsh-llm-codex/releases/download/v0.3.15-015rc1d/SHA256SUMS)。
+Release 与完整性：[v0.3.19](https://github.com/NOirBRight/dsh-llm-codex/releases/tag/v0.3.19) · [SHA256SUMS](https://github.com/NOirBRight/dsh-llm-codex/releases/download/v0.3.19/SHA256SUMS)。
 
 ## 独立 Model Switch 搜索
 
