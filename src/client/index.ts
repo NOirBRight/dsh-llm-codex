@@ -17,17 +17,26 @@ import { createCodexUsageReader, dropPersistedUsageKeys } from 'dsh-llm-provider
  * @param ctx - client context carrying the Provider directory.
  * @param modelCount - reads the current active model count from plugin state.
  */
-function installProviderDirectory(ctx: ClientContext, modelCount: () => number | undefined): void {
+function installProviderDirectory(
+  ctx: ClientContext,
+  modelCount: () => number | undefined,
+  extras: { catalogId: string, account: () => { state: 'connected' | 'configured' | 'unconnected' | 'unknown' } },
+): void {
   ctx.inject(['providerDirectory'], scope => {
-    scope.effect(() => scope.providerDirectory.register({
-      key: CODEX_SETTINGS_NAMESPACE,
-      name: 'Codex',
-      header: 'shared',
-      // The card renders the shared detail template; the settings page adds only the breadcrumb.
-      detail: 'shared',
-      usage: createCodexUsageReader(),
-      modelCount,
-    }), 'dsh-llm-codex: provider directory registration')
+    scope.effect(() => {
+      const declaration = Object.assign({
+        key: CODEX_SETTINGS_NAMESPACE,
+        name: 'Codex',
+        header: 'shared' as const,
+        detail: 'shared' as const,
+        usage: createCodexUsageReader(),
+        modelCount,
+      }, {
+        catalogId: extras.catalogId,
+        account: extras.account,
+      })
+      return scope.providerDirectory.register(declaration as Parameters<typeof scope.providerDirectory.register>[0])
+    }, 'dsh-llm-codex: provider directory registration')
   })
 }
 
@@ -88,18 +97,28 @@ export function apply(ctx: ClientContext): void {
     set: async () => { throw new Error('Use Codex management settings/save') },
     unset: async () => { throw new Error('Use Codex management settings/save') },
   }
+  const account = { state: 'unknown' as 'connected' | 'configured' | 'unconnected' | 'unknown' }
+  let closed = false
+  const publishAccount = (state: typeof account.state): void => {
+    if (closed || account.state === state) return
+    account.state = state
+    try { ctx.get('providerDirectory')?.update(CODEX_SETTINGS_NAMESPACE) } catch { /* providerDirectory is optional in lab */ }
+  }
   // Registered after the snapshot exists so the published count always reads live state.
-  installProviderDirectory(ctx, () => currentSnapshot.value?.models.length)
+  installProviderDirectory(ctx, () => currentSnapshot.value?.models.length, {
+    catalogId: 'codex',
+    account: () => ({ state: account.state }),
+  })
 
   const refreshSettings = async (): Promise<void> => {
     const result = await rpc.call(CODEX_RPC_CHANNEL, CODEX_SETTINGS_READ_ENDPOINT, {})
     if (!result.ok) throw new Error(result.error.message)
     const value = decodeCodexSaveResult(result.value)
     if (value === undefined) throw new Error('invalid settings/read response')
+    if (closed) return
     currentSnapshot = { ...currentSnapshot, status: 'ready', value: value.settings, revision: value.revision }
     listeners.forEach(listener => listener())
   }
-  void refreshSettings().catch(() => { currentSnapshot = { ...currentSnapshot, status: 'unavailable' }; listeners.forEach(listener => listener()) })
 
   let authGeneration = 0
   /** Purge every bundle copy, even without providerDirectory. Stale reads check currency first. */
@@ -114,7 +133,9 @@ export function apply(ctx: ClientContext): void {
     if (!result.ok) throw new Error(result.error.message)
     const decoded = decodeCodexAuthStatus(result.value)
     if (decoded === undefined) throw new Error('invalid auth status')
-    if (decoded.status === 'signed-out' && generation === authGeneration) invalidateUsageCache()
+    if (generation !== authGeneration || closed) return decoded
+    if (decoded.status === 'signed-out') invalidateUsageCache()
+    publishAccount(decoded.status === 'signed-in' ? 'connected' : 'unconnected')
     return decoded
   }
 
@@ -137,13 +158,16 @@ export function apply(ctx: ClientContext): void {
   }
 
   const readAuthAttemptStatus: CodexPluginCardFace['readAuthAttemptStatus'] = async (attemptId) => {
+    const generation = authGeneration
     const result = await rpc.call(CODEX_RPC_CHANNEL, CODEX_AUTH_ATTEMPT_STATUS_ENDPOINT, { attemptId })
     if (!result.ok) throw new Error(result.error.message)
     const decoded = decodeCodexAuthAttemptStatus(result.value)
     if (decoded === undefined) throw new Error('invalid auth attempt status')
+    if (generation !== authGeneration || closed) return decoded
     if (decoded.status === 'succeeded') {
       authGeneration += 1
       invalidateUsageCache()
+      publishAccount('connected')
     }
     return decoded
   }
@@ -158,6 +182,7 @@ export function apply(ctx: ClientContext): void {
     if (!result.ok || decodeCodexAuthLogoutReply(result.value) === undefined) throw new Error(result.ok ? 'invalid logout response' : result.error.message)
     authGeneration += 1
     invalidateUsageCache()
+    publishAccount('unconnected')
   }
 
   const fetchModels: CodexPluginCardFace['fetchModels'] = async () => {
@@ -188,6 +213,20 @@ export function apply(ctx: ClientContext): void {
     listeners.forEach(listener => listener())
     return accepted
   }
+
+  ctx.effect(() => {
+    const ac = new AbortController()
+    void refreshSettings().catch(() => {
+      if (closed) return
+      currentSnapshot = { ...currentSnapshot, status: 'unavailable' }
+      listeners.forEach(listener => listener())
+    })
+    void readAuthStatus(ac.signal).catch(() => { /* overview stays unknown until a later card read */ })
+    return () => {
+      ac.abort()
+      closed = true
+    }
+  }, 'dsh-llm-codex: account snapshot')
 
   ctx.slots.inject('shell.overlay', () => ctx.slots.register({
     name: 'shell.overlay',

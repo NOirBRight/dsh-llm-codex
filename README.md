@@ -12,6 +12,8 @@ Host `@deepseek-ai/dsh-*` packages are not version-locked: peers are `*` and opt
 
 Verified Hosts in `package.json#dsh.compatibility.dshReleases` are evidence, not an allowlist. Unknown newer Hosts warn once and keep the normal mount path. Only a reproduced failure is blocklisted.
 
+`catalogId` and the unresolved `unknown` account state are attached at runtime. Published `dsh-llm-providers-ui` 0.2.8 omits those fields and treats `unknown` as unconnected; they only take effect on a newer Owner.
+
 ## Installation
 
 Install directly from GitHub:

@@ -12,6 +12,8 @@ DeepSeek Harness 的 ChatGPT Codex 集成。独立提供方路由是 `codex`，�
 
 `package.json#dsh.compatibility.dshReleases` 里的已验证宿主是证据，不是允许列表。未知的新宿主告警一次后仍按正常路径挂载。只有复现过的故障才会加入 blocklist。
 
+`catalogId` 与未解析的 `unknown` 账户状态在运行时挂上。已发布的 `dsh-llm-providers-ui` 0.2.8 不含这些字段，并把 `unknown` 当成未连接；只有更新的 Owner 才会生效。
+
 ## 安装
 
 直接从 GitHub 安装：
