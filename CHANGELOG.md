@@ -1,3 +1,7 @@
+## v0.3.20
+
+Register catalogId/unknown against providers-ui 0.2.9.
+
 ## v0.3.19
 
 DSH Host packages are no longer version-locked. `@deepseek-ai/dsh-*` peers are `*` and optional; unknown Hosts warn once and still mount. Cordis stays `>=4.0.2 <5.0.0`. Compile-target `devDependencies` remain `0.1.5-rc.1`.

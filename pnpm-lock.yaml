@@ -127,8 +127,8 @@ importers:
         specifier: ~18.3.1
         version: 18.3.7(@types/react@18.3.31)
       dsh-llm-providers-ui:
-        specifier: https://github.com/NOirBRight/dsh-llm-providers-ui/releases/download/v0.2.8/dsh-llm-providers-ui-0.2.8.tgz
-        version: https://github.com/NOirBRight/dsh-llm-providers-ui/releases/download/v0.2.8/dsh-llm-providers-ui-0.2.8.tgz(3bb8ba16cd61eb053ca5f0b7661f9a1e)
+        specifier: https://github.com/NOirBRight/dsh-llm-providers-ui/releases/download/v0.2.9/dsh-llm-providers-ui-0.2.9.tgz
+        version: https://github.com/NOirBRight/dsh-llm-providers-ui/releases/download/v0.2.9/dsh-llm-providers-ui-0.2.9.tgz(3bb8ba16cd61eb053ca5f0b7661f9a1e)
       dsh-model-switch:
         specifier: https://github.com/NOirBRight/dsh-model-switch/releases/download/v0.4.6/dsh-model-switch-0.4.6.tgz
         version: https://github.com/NOirBRight/dsh-model-switch/releases/download/v0.4.6/dsh-model-switch-0.4.6.tgz(730bc04d713965faed28980d0940b9fd)
@@ -1939,9 +1939,9 @@ packages:
   dom-accessibility-api@0.5.16:
     resolution: {integrity: sha512-X7BJ2yElsnOJ30pZF4uIIDfBEVgF4XEBxL9Bxhy6dnrm5hkzqmsWHGTiHqRiITNhMyFLyAiWndIJP7Z1NTteDg==}
 
-  dsh-llm-providers-ui@https://github.com/NOirBRight/dsh-llm-providers-ui/releases/download/v0.2.8/dsh-llm-providers-ui-0.2.8.tgz:
-    resolution: {tarball: https://github.com/NOirBRight/dsh-llm-providers-ui/releases/download/v0.2.8/dsh-llm-providers-ui-0.2.8.tgz}
-    version: 0.2.8
+  dsh-llm-providers-ui@https://github.com/NOirBRight/dsh-llm-providers-ui/releases/download/v0.2.9/dsh-llm-providers-ui-0.2.9.tgz:
+    resolution: {integrity: sha512-HUXjuXOHsLVGFPz6dr0UDpi1468TZRG4LvFpwlSHUkEryuMDLcoSzV66FPQs8VfYOKCW6LC7pe5JKxGJ9wpG7Q==, tarball: https://github.com/NOirBRight/dsh-llm-providers-ui/releases/download/v0.2.9/dsh-llm-providers-ui-0.2.9.tgz}
+    version: 0.2.9
     engines: {node: ^22.19.0 || >=24.0.0}
     peerDependencies:
       '@deepseek-ai/cordis': '>=4.0.2 <5.0.0'
@@ -4572,7 +4572,7 @@ snapshots:
 
   dom-accessibility-api@0.5.16: {}
 
-  dsh-llm-providers-ui@https://github.com/NOirBRight/dsh-llm-providers-ui/releases/download/v0.2.8/dsh-llm-providers-ui-0.2.8.tgz(3bb8ba16cd61eb053ca5f0b7661f9a1e):
+  dsh-llm-providers-ui@https://github.com/NOirBRight/dsh-llm-providers-ui/releases/download/v0.2.9/dsh-llm-providers-ui-0.2.9.tgz(3bb8ba16cd61eb053ca5f0b7661f9a1e):
     dependencies:
       '@deepseek-ai/cordis': 4.0.2(@deepseek-ai/cordis-plugin-include@1.0.7)(@deepseek-ai/cordis-plugin-loader@1.0.3)
       '@deepseek-ai/schemastery': 3.18.2
