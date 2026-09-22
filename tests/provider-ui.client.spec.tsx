@@ -126,6 +126,7 @@ describe('Codex provider directory shared header', () => {
     ctx.provide('locale', { register: () => () => undefined, bind: () => (key: string) => key } as never)
     const rpc = { call: async (_c: string, e: string) => ({ ok: true, value: e === CODEX_SETTINGS_READ_ENDPOINT ? { settings: DEFAULT_CODEX_SETTINGS, revision: 1 } : { status: 'signed-out' } }) }
     ctx.provide('connection', { rpc } as never)
+    ctx.provide('webServer', { register: () => () => {} } as never)
     const fiber = ctx.plugin({ inject: [...inject], apply })
     await fiber.await()
     await waitFor(() => { expect(register).toHaveBeenCalled() })
@@ -160,6 +161,7 @@ describe('Codex provider directory shared header', () => {
       return { ok: true, value: { status: 'signed-out' } }
     }) }
     ctx.provide('connection', { rpc } as never)
+    ctx.provide('webServer', { register: () => () => {} } as never)
     const fiber = ctx.plugin({ inject: [...inject], apply })
     await fiber.await()
     const face = slots.entries('settings.provider.item')[0]?.inject?.() as { logout: () => Promise<void> }

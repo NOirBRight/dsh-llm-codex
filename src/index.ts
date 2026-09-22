@@ -160,7 +160,7 @@ export { createCodexPiAiProfile, CODEX_CHAT_BASE_URL, codexResponsesApi } from '
 export { registerCodexAuthRoutes, trustedRequest, CodexWebAuth } from './auth-routes.ts'
 
 export const name = 'llm-codex'
-export const inject = ['llm']
+export const inject = ['llm', 'webServer']
 
 const NS = CODEX_SETTINGS_NAMESPACE
 
@@ -437,7 +437,7 @@ export function apply(ctx: Context, config: Config): void {
   }
 
   ctx.inject(['webServer'], webCtx => registerCodexAuthRoutes(webCtx, credentials, auth))
-  ctx.inject(['connection'], (connectionCtx) => {
+  ctx.inject(['connection', 'webServer'], (connectionCtx) => {
     connectionCtx.effect(() => connectionCtx.connection.rpc.handle(CODEX_RPC_CHANNEL, createCodexManagementRpcHandler(ctx, auth, () => refreshCodexModelCatalog(credentials))), 'dsh-llm-codex: management RPC')
   })
 

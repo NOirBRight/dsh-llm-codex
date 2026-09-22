@@ -38,6 +38,7 @@ async function bench(rpc: { call: (...args: unknown[]) => Promise<unknown> } = {
     bind: () => (key: string) => key,
   } as never)
   ctx.provide('connection', { rpc } as never)
+  ctx.provide('webServer', { register: () => () => {} } as never)
   return { ctx, slots }
 }
 

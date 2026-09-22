@@ -44,6 +44,7 @@ async function loadComposition(): Promise<{ ctx: Context }> {
   const ctx = new Context()
   context = ctx
   ctx.baseUrl = pathToFileURL(root).href + '/'
+  ctx.provide('webServer', { register: () => () => {} } as never)
   await ctx.plugin(Loader)
   ctx.loader.builtins.include = Include
   const modules = new Map<string, unknown>([
@@ -70,7 +71,7 @@ describe('llm-codex real composition', () => {
     const { ctx } = await loadComposition()
 
     expect(LlmCodex.name).toBe('llm-codex')
-    expect(LlmCodex.inject).toEqual(['llm'])
+    expect(LlmCodex.inject).toEqual(['llm', 'webServer'])
     expect(ctx.llm.listConfigurableProviders()).toEqual([
       { provider: 'codex', displayName: 'Codex', settingsNs: 'llm-codex', settingsPath: [] },
     ])
