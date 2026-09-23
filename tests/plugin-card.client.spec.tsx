@@ -393,6 +393,26 @@ describe('CodexPluginCard', () => {
     expect(optionValues).not.toContain('gpt-5.6-luna-fast')
     expect(optionValues).not.toContain('gpt-5.3-codex-spark')
   })
+  it('finishes browser sign-in in the shared detail without expanding a card', async () => {
+    let signedIn = false
+    render(<CodexPluginCard {...props({
+      mode: 'detail',
+      copy: providerDetailCopy.en,
+      template: ProviderDetail,
+      readAuthStatus: vi.fn(async (): Promise<CodexAccountStatus> => signedIn
+        ? { status: 'signed-in', usage: { rateLimits: [] } }
+        : { status: 'signed-out' }),
+      startAuth: vi.fn(async () => ({ url: 'https://chatgpt.com/oauth', attemptId: 'detail-login' })),
+      readAuthAttemptStatus: vi.fn(async () => {
+        signedIn = true
+        return { status: 'succeeded' as const }
+      }),
+    })} />)
+    await screen.findByRole('button', { name: en.signIn })
+    fireEvent.click(screen.getByRole('button', { name: en.signIn }))
+    expect(await screen.findByRole('button', { name: en.signOut })).toBeTruthy()
+  })
+
   it('renders the shared detail template with folded advanced settings', () => {
     const onRefresh = vi.fn()
     const usage = {

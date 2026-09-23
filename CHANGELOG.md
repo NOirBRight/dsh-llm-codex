@@ -1,3 +1,8 @@
+## Unreleased
+
+- Fetch the account catalog beyond the upstream client-version gate so GPT-6 Sol and Luna can be discovered without hard-coded picker rows.
+- Resume Codex browser sign-in polling in the shared provider detail, so a completed OAuth callback updates the account from waiting to connected without reopening settings.
+
 ## v0.3.20
 
 ## 0.3.21

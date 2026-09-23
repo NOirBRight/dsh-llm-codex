@@ -49,6 +49,7 @@ The conversation picker uses the displayed catalog stored as `settings.models`. 
 - `gpt-5.6-luna` / `gpt-5.6-luna-fast`
 
 Fast and 1M are first-class picker rows, not checkboxes. Chat still uses the official wire id; Fast rows send `service_tier: "priority"`. 1M rows (`gpt-5.6-sol-1m`, `gpt-5.6-sol-1m-fast`, and the Terra/Luna equivalents) set `contextWindow` to 1,000,000 so DSH compaction waits until 80% of that budget (800k). They are not in the default six-row catalog; add them from the official picker. The overlay can also add `gpt-5.5`, `gpt-5.4`, `gpt-5.4-mini`, `gpt-5.3-codex-spark`, and Fast variants. Custom ids can be added manually.
+The official picker fetches the live account catalog using an unfiltered discovery client version; newer models (including `gpt-6-sol` and `gpt-6-luna`) appear without updating the static defaults. Choosing rows does not add them to conversations until saved. Offline, the last successful catalog is reused; discovery alone does not guarantee chat compatibility with future models.
 
 Picker ids may also use a generic context suffix `-<n>k` or `-<n>m` (for example `gpt-5.6-sol-272k` or `gpt-5.6-sol-272k-fast`). The plugin peels that suffix before talking to ChatGPT and uses `n×1000` / `n×1,000,000` as the DSH compaction budget, so a 272K row starts compacting earlier than a 1M row. Product names such as `kimi-k3-max` are not treated as a context tier. The composer picker groups sibling rows that share a base id.
 

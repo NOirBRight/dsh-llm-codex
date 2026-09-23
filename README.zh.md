@@ -47,6 +47,7 @@ dsh web
 - `gpt-5.6-luna` / `gpt-5.6-luna-fast`
 
 Fast 和 1M 都是独立选择器行，不是复选框。聊天仍使用官方 wire id；Fast 行发送 `service_tier: "priority"`。1M 行（`gpt-5.6-sol-1m`、`gpt-5.6-sol-1m-fast` 以及 Terra/Luna 对应行）把 `contextWindow` 设为 1,000,000，DSH 压缩仍按默认 80%（800k）触发。它们不在默认 6 行里，需从官方选择器添加。覆盖层还可以加入 `gpt-5.5`、`gpt-5.4`、`gpt-5.4-mini`、`gpt-5.3-codex-spark` 以及 Fast 行。也可以手动添加自定义 id。
+官方选择器以不受客户端版本筛选的发现版本拉取当前账号目录；`gpt-6-sol`、`gpt-6-luna` 等新模型不必等待插件更新静态默认值。勾选后仍需保存才会加入对话选择器；离线时使用上次成功的目录。发现新模型不等于保证未来型号的聊天协议兼容。
 
 选择器 id 还可以用通用上下文后缀 `-<n>k` 或 `-<n>m`（例如 `gpt-5.6-sol-272k` 或 `gpt-5.6-sol-272k-fast`）。插件在发给 ChatGPT 前剥掉该后缀，并用 `n×1000` / `n×1,000,000` 作为 DSH 压缩预算，所以 272K 行会比 1M 行更早开始压缩。`kimi-k3-max` 这类产品名不算档位。Composer picker 按剥后缀后的 base 把兄弟行收成一个家族。
 

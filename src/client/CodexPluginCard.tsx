@@ -542,7 +542,7 @@ export function CodexPluginCard(props: CodexPluginCardProps): ReactNode {
   }, [open, auth.status, refreshAuth, usageSettled])
 
   useEffect(() => {
-    if (!open || auth.status !== 'signing-in' || authChallenge?.attemptId === undefined) return
+    if ((!open && props.mode !== 'detail') || auth.status !== 'signing-in' || authChallenge?.attemptId === undefined) return
     const attemptId = authChallenge.attemptId
     let stopped = false
     const poll = async (): Promise<void> => {
@@ -562,7 +562,7 @@ export function CodexPluginCard(props: CodexPluginCardProps): ReactNode {
     void poll()
     const timer = window.setInterval(() => { void poll() }, 1000)
     return () => { stopped = true; window.clearInterval(timer) }
-  }, [auth.status, authChallenge?.attemptId, open, readAuthAttemptStatus, refreshAuth, t])
+  }, [auth.status, authChallenge?.attemptId, open, props.mode, readAuthAttemptStatus, refreshAuth, t])
 
   const patchDraft = (models: ModelDraft[]): void => {
     setDraft(models)
