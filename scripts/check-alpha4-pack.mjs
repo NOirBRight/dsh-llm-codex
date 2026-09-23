@@ -215,7 +215,8 @@ function installOffline(target, fixture) {
     const child = fixture.byIdentity.get(edge.to)
     if (child) overrides[edge.from + '>' + edge.dependency] = 'file:' + child.file
   }
-  writeFileSync(join(consumer, 'package.json'), JSON.stringify({ name: root.name + '-pack-consumer', private: true, type: 'module', dependencies: Object.fromEntries([...direct].map(([name, file]) => [name, 'file:' + file])), pnpm: { autoInstallPeers: false, overrides } }, null, 2) + '\n')
+  writeFileSync(join(consumer, 'package.json'), JSON.stringify({ name: root.name + '-pack-consumer', private: true, type: 'module', dependencies: Object.fromEntries([...direct].map(([name, file]) => [name, 'file:' + file])) }, null, 2) + '\n')
+  writeFileSync(join(consumer, 'pnpm-workspace.yaml'), JSON.stringify({ overrides }, null, 2) + '\n')
   run('pnpm', ['install', '--offline', '--ignore-scripts', '--config.strict-peer-dependencies=false', '--registry=' + INVALID_REGISTRY, '--config.audit=false', '--config.fund=false', '--config.auto-install-peers=false', '--store-dir', join(workRoot, 'store')], { cwd: consumer, packageManager: true })
   const installed = join(consumer, 'node_modules', root.name)
   if (!statSync(join(installed, 'package.json')).isFile()) fail('offline install did not produce the plugin')
