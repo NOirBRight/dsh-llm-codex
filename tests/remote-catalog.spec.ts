@@ -87,6 +87,35 @@ describe('refreshCodexModelCatalog', () => {
     expect(cached.models).toEqual(models)
   })
 
+  it('discovers models gated by the upstream client version', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'dsh-codex-models-'))
+    const store = await authenticatedStore(root)
+    const newModels = [
+      ...['gpt-6-sol', 'gpt-6-luna'].map(slug => ({
+        slug, display_name: slug, visibility: 'list', supported_in_api: true,
+        minimal_client_version: '0.155.0', input_modalities: ['text', 'image'],
+      })),
+      {
+        slug: 'future-model', display_name: 'Future model', visibility: 'list', supported_in_api: true,
+        minimal_client_version: '0.200.0', input_modalities: ['text'],
+      },
+    ]
+    const request = vi.fn<typeof fetch>(async (url) => {
+      const version = new URL(String(url)).searchParams.get('client_version') ?? ''
+      const [major, minor] = version.split('.').map(Number)
+      const visible = newModels.filter(model => major! > 0 || minor! >= Number(model.minimal_client_version.split('.')[1]))
+      return new Response(JSON.stringify({ models: visible }), { status: 200 })
+    })
+
+    const models = await refreshCodexModelCatalog(store, request)
+
+    expect(models).toEqual(expect.arrayContaining([
+      expect.objectContaining({ id: 'gpt-6-sol', vision: true }),
+      expect.objectContaining({ id: 'gpt-6-luna', vision: true }),
+    ]))
+    expect(models.map(model => model.id)).toContain('future-model')
+  })
+
   it('returns discovered models when only local cache persistence fails', async () => {
     const root = await mkdtemp(join(tmpdir(), 'dsh-codex-models-'))
     const store = await authenticatedStore(root)

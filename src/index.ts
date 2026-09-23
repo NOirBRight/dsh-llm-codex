@@ -437,7 +437,7 @@ export function apply(ctx: Context, config: Config): void {
   }
 
   ctx.inject(['webServer'], webCtx => registerCodexAuthRoutes(webCtx, credentials, auth))
-  ctx.inject(['connection'], (connectionCtx) => {
+  ctx.inject(['connection', 'webServer'], (connectionCtx) => {
     connectionCtx.effect(() => connectionCtx.connection.rpc.handle(CODEX_RPC_CHANNEL, createCodexManagementRpcHandler(ctx, auth, () => refreshCodexModelCatalog(credentials))), 'dsh-llm-codex: management RPC')
   })
 
@@ -590,6 +590,7 @@ export function apply(ctx: Context, config: Config): void {
         current = source as () => Config
       },
       onChange: scheduleCapabilities,
+      validate: value => { resolveAdapterOptions(value) },
     })
   })
   scheduleCapabilities()

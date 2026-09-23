@@ -44,6 +44,7 @@ async function setup(models?: Array<{ id: string; name: string; vision: boolean 
   await context.plugin(LocalAttachmentStore, { dshHome })
   await context.plugin(LlmRuntime)
   await context.plugin(WebRuntime)
+  context.provide('webServer', { register: () => () => {} } as never)
   await context.plugin(Codex, {
     enableImageTool: true,
     ...models === undefined ? {} : { models },
@@ -82,6 +83,7 @@ describe('view_image', () => {
     await context.plugin(LocalAttachmentStore, { dshHome })
     await context.plugin(LlmRuntime)
     await context.plugin(WebRuntime)
+  context.provide('webServer', { register: () => () => {} } as never)
     await context.plugin(Codex, { enableImageTool: false })
     expect(context.tools.get(Codex.VIEW_IMAGE_TOOL_NAME)).toBeUndefined()
   })

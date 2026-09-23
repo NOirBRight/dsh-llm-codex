@@ -66,11 +66,10 @@ async function loadComposition(): Promise<{ ctx: Context }> {
 }
 
 describe('llm-codex real composition', () => {
-  it('boots from cordis.yml as provider codex without apiKeyEnv', async () => {
+  it('boots headless from cordis.yml as provider codex without apiKeyEnv', async () => {
     const { ctx } = await loadComposition()
 
     expect(LlmCodex.name).toBe('llm-codex')
-    expect(LlmCodex.inject).toEqual(['llm'])
     expect(ctx.llm.listConfigurableProviders()).toEqual([
       { provider: 'codex', displayName: 'Codex', settingsNs: 'llm-codex', settingsPath: [] },
     ])

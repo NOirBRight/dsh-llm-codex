@@ -82,12 +82,14 @@ function agentOn(model = 'gpt-5.6-sol'): object {
 describe('codex_generate_image registration', () => {
   it('does not register the tool when enableImageGeneration is off', async () => {
     const context = await setupRuntime()
+  context.provide('webServer', { register: () => () => {} } as never)
     await context.plugin(Codex, { enableImageGeneration: false })
     expect(context.tools.get(Codex.GENERATE_IMAGE_TOOL_NAME)).toBeUndefined()
   })
 
   it('registers the tool when enableImageGeneration is on', async () => {
     const context = await setupRuntime()
+  context.provide('webServer', { register: () => () => {} } as never)
     await context.plugin(Codex, { enableImageGeneration: true })
     expect(context.tools.get(Codex.GENERATE_IMAGE_TOOL_NAME)?.name).toBe('codex_generate_image')
   })
@@ -215,6 +217,7 @@ describe('codex_generate_image execute', () => {
 
   it('presents the prompt on the pending card', async () => {
     const context = await setupRuntime()
+  context.provide('webServer', { register: () => () => {} } as never)
     await context.plugin(Codex, { enableImageGeneration: true })
     const definition = context.tools.get(Codex.GENERATE_IMAGE_TOOL_NAME)
     expect(definition?.presentCall?.({ prompt: 'a lamp', path: 'hero.png' })).toMatchObject({

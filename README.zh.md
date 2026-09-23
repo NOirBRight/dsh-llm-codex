@@ -8,12 +8,11 @@ DeepSeek Harness 的 ChatGPT Codex 集成。独立提供方路由是 `codex`，�
 
 ## 兼容性
 
-已验证运行时是 DeepSeek Harness `0.1.2-alpha.4`、`0.1.2-rc.1` 与 `0.1.5-rc.1`（Cordis `4.0.2`）；这份记录只是证据，不是 allowlist。
+宿主 `@deepseek-ai/dsh-*` 不锁定发行号：peer 为 `*` 且 optional。`devDependencies` 钉编译目标（`0.1.5-rc.1`）。Cordis 保持 `>=4.0.2 <5.0.0`。
 
-未知的新版本会先打一条 warning，再按正常挂载路径 best-effort 尝试，不会因为未验证而跳过。
+`package.json#dsh.compatibility.dshReleases` 里的已验证宿主是证据，不是允许列表。未知的新宿主告警一次后仍按正常路径挂载。只有复现过的故障才会加入 blocklist。
 
-只有复现过的故障才会加入 blocklist；受影响版本、原因和证据见[兼容性记录](package.json)。
-
+`catalogId` 与未解析的 `unknown` 账户状态在运行时挂上。已发布的 `dsh-llm-providers-ui` 0.2.8 不含这些字段，并把 `unknown` 当成未连接；只有更新的 Owner 才会生效。
 
 ## 安装
 
@@ -21,9 +20,9 @@ DeepSeek Harness 的 ChatGPT Codex 集成。独立提供方路由是 `codex`，�
 
 ~~~sh
 dsh plugin --profile web add --force \
-  https://github.com/NOirBRight/dsh-llm-providers-ui/releases/download/v0.1.12-015rc1e/dsh-llm-providers-ui-0.1.12.tgz
+  https://github.com/NOirBRight/dsh-llm-providers-ui/releases/download/v0.2.9/dsh-llm-providers-ui-0.2.9.tgz
 dsh plugin --profile web add --force \
-  https://github.com/NOirBRight/dsh-llm-codex/releases/download/v0.3.15-015rc1d/dsh-llm-codex-0.3.15.tgz
+  https://github.com/NOirBRight/dsh-llm-codex/releases/download/v0.3.20/dsh-llm-codex-0.3.20.tgz
 dsh web
 ~~~
 
@@ -48,12 +47,21 @@ dsh web
 - `gpt-5.6-luna` / `gpt-5.6-luna-fast`
 
 Fast 和 1M 都是独立选择器行，不是复选框。聊天仍使用官方 wire id；Fast 行发送 `service_tier: "priority"`。1M 行（`gpt-5.6-sol-1m`、`gpt-5.6-sol-1m-fast` 以及 Terra/Luna 对应行）把 `contextWindow` 设为 1,000,000，DSH 压缩仍按默认 80%（800k）触发。它们不在默认 6 行里，需从官方选择器添加。覆盖层还可以加入 `gpt-5.5`、`gpt-5.4`、`gpt-5.4-mini`、`gpt-5.3-codex-spark` 以及 Fast 行。也可以手动添加自定义 id。
+官方选择器以不受客户端版本筛选的发现版本拉取当前账号目录；`gpt-6-sol`、`gpt-6-luna` 等新模型不必等待插件更新静态默认值。勾选后仍需保存才会加入对话选择器；离线时使用上次成功的目录。发现新模型不等于保证未来型号的聊天协议兼容。
 
 选择器 id 还可以用通用上下文后缀 `-<n>k` 或 `-<n>m`（例如 `gpt-5.6-sol-272k` 或 `gpt-5.6-sol-272k-fast`）。插件在发给 ChatGPT 前剥掉该后缀，并用 `n×1000` / `n×1,000,000` 作为 DSH 压缩预算，所以 272K 行会比 1M 行更早开始压缩。`kimi-k3-max` 这类产品名不算档位。Composer picker 按剥后缀后的 base 把兄弟行收成一个家族。
 
 思考等级默认按模型设置，并可在行上改：Luna 用 `max`，Terra 用 `xhigh`，Sol 用 `high`，其他官方 Codex 模型用 `xhigh`。Fast / 1M 行沿用基础型号；会话中用户手动选择的等级优先。
 
 聊天走 pi-ai `openai-codex-responses`，目标是 `https://chatgpt.com/backend-api`。未登录聊天会失败为 `MISSING_CREDENTIAL`。已存会话刷新失败则报 `AUTH`。之后若在没有任何模型内容前收到 `AUTH`（HTTP 401），会强制 refresh 再打一次请求；仍失败的 `AUTH` 进入 bundle 默认的八次 normal 重试。
+
+### 远端压缩（尚未启用）
+
+ChatGPT Codex Responses 支持[原生 V2 压缩](https://github.com/can1357/oh-my-pi/blob/v18.2.10/packages/agent/src/compaction/compaction-v2-streaming.ts)：流式请求附加 `compaction_trigger`，随后把返回的不透明 `compaction` 项原样放入后续请求。这不是独立的 `/responses/compact` 接口。当前 DSH 的 `@deepseek-ai/dsh-compaction-basic` 只把文本摘要持久化为 user 检查点，`@deepseek-ai/dsh-llm-pi-ai` 也不会把 user 消息上的不透明元数据透传给 Codex。在本适配器中单独调用 V2，会在下一轮或重启／分支后丢掉压缩项。**插件不启用远端压缩，继续使用 DSH 现有的本地压缩。**
+
+所需上游接口：允许供应商压缩处理器返回供应商专属的不透明替代历史；与压缩检查点原子持久化，并在后续请求（包括恢复、分支）回传到同一供应商。历史裁剪、取消及供应商／模型不支持 V2 时回退到文本摘要仍由 Host 负责。pi-ai 桥接层必须原样序列化该项，不能将其转为 user 文本。在官方 DSH 发布此接口前，插件不能宣称或开启远端压缩。
+
+验收要检查**压缩后的下一次实际请求**包含加密项和保留的 user 轮次、不包含已丢弃的轮次；恢复／分支后也要重复检查。模拟 usage 值或只发送 `prompt_cache_key`，都不能证明缓存命中。固定会话与路由标识、保持至少 1,024 tokens 的共同前缀，再看重复发起的压缩后请求中服务端返回的 `usage.input_tokens_details.cached_tokens`。必须和**不透明项之前的实测 token 位置**比较：只缓存了 instructions 不等于压缩历史命中。仅限 lab 的 Codex 协议探测完成了 V2 和回放；不透明项之前的请求有 3,318 个输入 tokens，重复续聊分别得到 3,328、3,200、0 个缓存 tokens。命中取决于服务端，插件级 3082 验收仍受上游接口阻塞。参见 [OpenAI 提示缓存](https://developers.openai.com/api/docs/guides/prompt-caching)与[压缩](https://developers.openai.com/api/docs/guides/compaction)。
 
 ### Model Switch 集成
 
@@ -122,18 +130,18 @@ Latest（Owner + 本插件；Web 必须一起装）：
 
 ~~~sh
 dsh plugin --profile web add --force \
-  https://github.com/NOirBRight/dsh-llm-providers-ui/releases/latest/download/dsh-llm-providers-ui-0.1.12.tgz
+  https://github.com/NOirBRight/dsh-llm-providers-ui/releases/latest/download/dsh-llm-providers-ui-0.2.9.tgz
 dsh plugin --profile web add --force \
-  https://github.com/NOirBRight/dsh-llm-codex/releases/latest/download/dsh-llm-codex-0.3.15.tgz
+  https://github.com/NOirBRight/dsh-llm-codex/releases/latest/download/dsh-llm-codex-0.3.20.tgz
 ~~~
 
 固定版本（可复现）：
 
 ~~~sh
 dsh plugin --profile web add --force \
-  https://github.com/NOirBRight/dsh-llm-providers-ui/releases/download/v0.1.12-015rc1e/dsh-llm-providers-ui-0.1.12.tgz
+  https://github.com/NOirBRight/dsh-llm-providers-ui/releases/download/v0.2.9/dsh-llm-providers-ui-0.2.9.tgz
 dsh plugin --profile web add --force \
-  https://github.com/NOirBRight/dsh-llm-codex/releases/download/v0.3.15-015rc1d/dsh-llm-codex-0.3.15.tgz
+  https://github.com/NOirBRight/dsh-llm-codex/releases/download/v0.3.20/dsh-llm-codex-0.3.20.tgz
 ~~~
 
 更新、卸载与验证：
@@ -141,9 +149,9 @@ dsh plugin --profile web add --force \
 ~~~sh
 # 更新 Owner + 本插件到 Latest
 dsh plugin --profile web add --force \
-  https://github.com/NOirBRight/dsh-llm-providers-ui/releases/latest/download/dsh-llm-providers-ui-0.1.12.tgz
+  https://github.com/NOirBRight/dsh-llm-providers-ui/releases/latest/download/dsh-llm-providers-ui-0.2.9.tgz
 dsh plugin --profile web add --force \
-  https://github.com/NOirBRight/dsh-llm-codex/releases/latest/download/dsh-llm-codex-0.3.15.tgz
+  https://github.com/NOirBRight/dsh-llm-codex/releases/latest/download/dsh-llm-codex-0.3.20.tgz
 # 验证加载与版本
 dsh plugin --profile web list
 dsh plugin --profile web doctor
@@ -153,9 +161,9 @@ dsh plugin --profile web remove dsh-llm-codex
 
 配置入口：Web 使用「设置」中的本插件页面；Host-only 插件使用 profile 的 dsh.profile.bundles 配置。先复制本 README 的最小 YAML/JSON 示例，再填写凭据或后端地址。
 
-回滚：重新执行固定版本 v0.3.7 命令，确认插件列表后只重启一次 Web 服务。失败时查看 journalctl --user -u dsh-web.service 与 dsh plugin --profile web doctor，不要把源码 checkout 写入 production profile。
+回滚：重新执行固定版本 v0.3.20 命令，确认插件列表后只重启一次 Web 服务。失败时查看 journalctl --user -u dsh-web.service 与 dsh plugin --profile web doctor，不要把源码 checkout 写入 production profile。
 
-Release 与完整性：[v0.3.15-015rc1d](https://github.com/NOirBRight/dsh-llm-codex/releases/tag/v0.3.15-015rc1d) · [SHA256SUMS](https://github.com/NOirBRight/dsh-llm-codex/releases/download/v0.3.15-015rc1d/SHA256SUMS)。
+Release 与完整性：[v0.3.20](https://github.com/NOirBRight/dsh-llm-codex/releases/tag/v0.3.20) · [SHA256SUMS](https://github.com/NOirBRight/dsh-llm-codex/releases/download/v0.3.20/SHA256SUMS)。
 
 ## 独立 Model Switch 搜索
 

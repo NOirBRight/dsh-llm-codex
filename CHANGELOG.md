@@ -1,3 +1,20 @@
+## Unreleased
+
+- Fetch the account catalog beyond the upstream client-version gate so GPT-6 Sol and Luna can be discovered without hard-coded picker rows.
+- Resume Codex browser sign-in polling in the shared provider detail, so a completed OAuth callback updates the account from waiting to connected without reopening settings.
+
+## v0.3.20
+
+## 0.3.21
+
+- Declare `webServer` on the Host `inject` list (and nested Connection scope) so management RPC mounts on DSH 0.1.6+ inject enforcement.
+
+Register catalogId/unknown against providers-ui 0.2.9.
+
+## v0.3.19
+
+DSH Host packages are no longer version-locked. `@deepseek-ai/dsh-*` peers are `*` and optional; unknown Hosts warn once and still mount. Cordis stays `>=4.0.2 <5.0.0`. Compile-target `devDependencies` remain `0.1.5-rc.1`.
+
 ## v0.3.18
 
 - 详情页改用共享模板 `ProviderDetail`（由设置页通过 slot 上下文下发，插件不再自带模板与样式）。

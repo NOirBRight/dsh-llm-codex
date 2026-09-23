@@ -38,6 +38,7 @@ async function bench(rpc: { call: (...args: unknown[]) => Promise<unknown> } = {
     bind: () => (key: string) => key,
   } as never)
   ctx.provide('connection', { rpc } as never)
+  ctx.provide('webServer', { register: () => () => {} } as never)
   return { ctx, slots }
 }
 
@@ -193,7 +194,8 @@ describe('Codex client plugin registration', () => {
     const { ctx, slots } = await bench({ call: async (...args: unknown[]) => {
       if (args[1] === CODEX_AUTH_STATUS_ENDPOINT) {
         statusCalls += 1
-        if (statusCalls === 1) return new Promise<unknown>(resolve => { resolveOld = resolve })
+        if (statusCalls === 2) return new Promise<unknown>(resolve => { resolveOld = resolve })
+        return { ok: true, value: { status: 'signed-in' } }
       }
       if (args[1] === CODEX_AUTH_ATTEMPT_STATUS_ENDPOINT) return { ok: true, value: { status: 'succeeded' } }
       return { ok: true, value: {} }
@@ -227,6 +229,99 @@ describe('Codex client plugin registration', () => {
     expect(peekCachedUsage('llm-codex')).toBeUndefined()
     clearProviderUsageCache()
     await fiber.dispose()
+    await ctx.fiber.dispose()
+  })
+
+  it('does not publish a stale signed-out account after a later login', async () => {
+    let resolveOld: ((value: unknown) => void) | undefined
+    let statusCalls = 0
+    let account = (): { state: string } => ({ state: 'unknown' })
+    const { ctx, slots } = await bench({ call: async (...args: unknown[]) => {
+      if (args[1] === CODEX_AUTH_STATUS_ENDPOINT) {
+        statusCalls += 1
+        if (statusCalls === 1) return new Promise<unknown>(resolve => { resolveOld = resolve })
+        return { ok: true, value: { status: 'signed-in' } }
+      }
+      if (args[1] === CODEX_AUTH_ATTEMPT_STATUS_ENDPOINT) return { ok: true, value: { status: 'succeeded' } }
+      return { ok: true, value: {} }
+    } })
+    ctx.provide('providerDirectory', {
+      register: (declaration: { account?: () => { state: string } }) => {
+        if (declaration.account !== undefined) account = declaration.account
+        return () => undefined
+      },
+      update: () => undefined,
+      invalidateUsage: () => undefined,
+    } as never)
+    const fiber = ctx.plugin({ inject: [...inject], apply })
+    await fiber.await()
+    const face = slots.entries('settings.provider.item')[0]!.inject!() as {
+      readAuthAttemptStatus: (attemptId: string) => Promise<unknown>
+    }
+    await face.readAuthAttemptStatus('attempt-1')
+    expect(account()).toEqual({ state: 'connected' })
+    resolveOld?.({ ok: true, value: { status: 'signed-out' } })
+    await Promise.resolve()
+    expect(account()).toEqual({ state: 'connected' })
+    await fiber.dispose()
+    await ctx.fiber.dispose()
+  })
+
+  it('does not restore an account when an earlier sign-in poll finishes after logout', async () => {
+    let resolveAttempt: ((value: unknown) => void) | undefined
+    let account = (): { state: string } => ({ state: 'unknown' })
+    const { ctx, slots } = await bench({ call: async (...args: unknown[]) => {
+      if (args[1] === CODEX_AUTH_ATTEMPT_STATUS_ENDPOINT) return new Promise<unknown>(resolve => { resolveAttempt = resolve })
+      if (args[1] === CODEX_AUTH_LOGOUT_ENDPOINT) return { ok: true, value: { ok: true } }
+      if (args[1] === CODEX_AUTH_STATUS_ENDPOINT) return { ok: true, value: { status: 'signed-out' } }
+      return { ok: true, value: {} }
+    } })
+    ctx.provide('providerDirectory', {
+      register: (declaration: { account?: () => { state: string } }) => {
+        if (declaration.account !== undefined) account = declaration.account
+        return () => undefined
+      },
+      update: () => undefined,
+      invalidateUsage: () => undefined,
+    } as never)
+    const fiber = ctx.plugin({ inject: [...inject], apply })
+    await fiber.await()
+    const face = slots.entries('settings.provider.item')[0]!.inject!() as {
+      readAuthAttemptStatus: (attemptId: string) => Promise<unknown>
+      logout: () => Promise<void>
+    }
+    const poll = face.readAuthAttemptStatus('attempt-1')
+    await face.logout()
+    expect(account()).toEqual({ state: 'unconnected' })
+    resolveAttempt?.({ ok: true, value: { status: 'succeeded' } })
+    await expect(poll).resolves.toEqual({ status: 'succeeded' })
+    expect(account()).toEqual({ state: 'unconnected' })
+    await fiber.dispose()
+    await ctx.fiber.dispose()
+  })
+
+  it('drops a startup auth reply after the client plugin unloads', async () => {
+    let resolveStatus: ((value: unknown) => void) | undefined
+    let account = (): { state: string } => ({ state: 'unknown' })
+    const { ctx } = await bench({ call: async (...args: unknown[]) => {
+      if (args[1] === CODEX_AUTH_STATUS_ENDPOINT) return new Promise<unknown>(resolve => { resolveStatus = resolve })
+      return { ok: true, value: {} }
+    } })
+    ctx.provide('providerDirectory', {
+      register: (declaration: { account?: () => { state: string } }) => {
+        if (declaration.account !== undefined) account = declaration.account
+        return () => undefined
+      },
+      update: () => undefined,
+      invalidateUsage: () => undefined,
+    } as never)
+    const fiber = ctx.plugin({ inject: [...inject], apply })
+    await fiber.await()
+    expect(account()).toEqual({ state: 'unknown' })
+    await fiber.dispose()
+    resolveStatus?.({ ok: true, value: { status: 'signed-in' } })
+    await Promise.resolve()
+    expect(account()).toEqual({ state: 'unknown' })
     await ctx.fiber.dispose()
   })
 })

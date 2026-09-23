@@ -146,7 +146,8 @@ function verifyFixture() {
   if (!Array.isArray(provenance.packages) || !Array.isArray(provenance.edges)) fail('fixture provenance has no package or edge list')
   const root = readJson(join(ROOT, 'package.json'))
   const rootArchiveName = archiveName(root.name, root.version)
-  const names = readdirSync(TARBALL_ROOT).filter(value => value.endsWith('.tgz') && value !== rootArchiveName).sort()
+  const rootPrefix = (root.name.startsWith('@') ? root.name.slice(1).replaceAll('/', '-') : root.name) + '-'
+  const names = readdirSync(TARBALL_ROOT).filter(value => value.endsWith('.tgz') && !(value.startsWith(rootPrefix) && value.endsWith('.tgz'))).sort()
   const records = [...provenance.packages].sort((left, right) => String(left.file).localeCompare(String(right.file)))
   if (names.length !== records.length || names.some((name, index) => name !== records[index].file)) fail('fixture archives and provenance records differ')
   const byIdentity = new Map()

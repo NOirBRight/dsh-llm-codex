@@ -8,12 +8,11 @@ The package root exposes the Cordis plugin contract. The same artifact exports `
 
 ## Compatibility
 
-Verified runtimes are DeepSeek Harness `0.1.2-alpha.4`, `0.1.2-rc.1`, and `0.1.5-rc.1` on Cordis `4.0.2`; this record is evidence, not an allowlist.
+Host `@deepseek-ai/dsh-*` packages are not version-locked: peers are `*` and optional. `devDependencies` pin the compile target (`0.1.5-rc.1`). Cordis stays `>=4.0.2 <5.0.0`.
 
-Unknown newer runtimes are attempted on a best-effort basis after one warning, and the plugin keeps its normal mount path.
+Verified Hosts in `package.json#dsh.compatibility.dshReleases` are evidence, not an allowlist. Unknown newer Hosts warn once and keep the normal mount path. Only a reproduced failure is blocklisted.
 
-A reproduced failure is blocklisted only afterward; see the [compatibility records](package.json) for the affected version, reason, and evidence.
-
+`catalogId` and the unresolved `unknown` account state are attached at runtime. Published `dsh-llm-providers-ui` 0.2.8 omits those fields and treats `unknown` as unconnected; they only take effect on a newer Owner.
 
 ## Installation
 
@@ -21,9 +20,9 @@ Install directly from GitHub:
 
 ~~~sh
 dsh plugin --profile web add --force \
-  https://github.com/NOirBRight/dsh-llm-providers-ui/releases/download/v0.1.12-015rc1e/dsh-llm-providers-ui-0.1.12.tgz
+  https://github.com/NOirBRight/dsh-llm-providers-ui/releases/download/v0.2.9/dsh-llm-providers-ui-0.2.9.tgz
 dsh plugin --profile web add --force \
-  https://github.com/NOirBRight/dsh-llm-codex/releases/download/v0.3.15-015rc1d/dsh-llm-codex-0.3.15.tgz
+  https://github.com/NOirBRight/dsh-llm-codex/releases/download/v0.3.20/dsh-llm-codex-0.3.20.tgz
 dsh web
 ~~~
 
@@ -50,12 +49,21 @@ The conversation picker uses the displayed catalog stored as `settings.models`. 
 - `gpt-5.6-luna` / `gpt-5.6-luna-fast`
 
 Fast and 1M are first-class picker rows, not checkboxes. Chat still uses the official wire id; Fast rows send `service_tier: "priority"`. 1M rows (`gpt-5.6-sol-1m`, `gpt-5.6-sol-1m-fast`, and the Terra/Luna equivalents) set `contextWindow` to 1,000,000 so DSH compaction waits until 80% of that budget (800k). They are not in the default six-row catalog; add them from the official picker. The overlay can also add `gpt-5.5`, `gpt-5.4`, `gpt-5.4-mini`, `gpt-5.3-codex-spark`, and Fast variants. Custom ids can be added manually.
+The official picker fetches the live account catalog using an unfiltered discovery client version; newer models (including `gpt-6-sol` and `gpt-6-luna`) appear without updating the static defaults. Choosing rows does not add them to conversations until saved. Offline, the last successful catalog is reused; discovery alone does not guarantee chat compatibility with future models.
 
 Picker ids may also use a generic context suffix `-<n>k` or `-<n>m` (for example `gpt-5.6-sol-272k` or `gpt-5.6-sol-272k-fast`). The plugin peels that suffix before talking to ChatGPT and uses `n×1000` / `n×1,000,000` as the DSH compaction budget, so a 272K row starts compacting earlier than a 1M row. Product names such as `kimi-k3-max` are not treated as a context tier. The composer picker groups sibling rows that share a base id.
 
 Default reasoning effort is per model and editable on the row: Luna uses `max`, Terra `xhigh`, Sol `high`, and every other official Codex model `xhigh`. Fast and 1M rows use their base model's default. A reasoning effort explicitly selected in a conversation takes precedence.
 
 Chat goes through pi-ai `openai-codex-responses` against `https://chatgpt.com/backend-api`. Chat without a session fails `MISSING_CREDENTIAL`. A stored session whose refresh fails is reported as `AUTH`. A later content-less `AUTH` (HTTP 401) force-refreshes the session and retries the request once; remaining `AUTH` failures are eligible for the bundle's eight normal retries.
+
+### Remote compaction (not enabled)
+
+The ChatGPT Codex Responses endpoint supports [native V2 compaction](https://github.com/can1357/oh-my-pi/blob/v18.2.10/packages/agent/src/compaction/compaction-v2-streaming.ts): append `compaction_trigger` to a streaming request and replay the returned opaque `compaction` item in later requests. This is not the standalone `/responses/compact` API. DSH currently persists only a text summary as a user checkpoint through `@deepseek-ai/dsh-compaction-basic`; `@deepseek-ai/dsh-llm-pi-ai` does not pass opaque user-message metadata through to the Codex request. Calling V2 from this adapter alone would lose the item on the next turn or after a restart/branch. **The plugin leaves remote compaction off and continues using DSH's existing local compaction.**
+
+Upstream seam needed: let a provider-specific compaction handler return an opaque, provider-scoped replacement history; persist it atomically with the compaction checkpoint and pass it back to the same provider on subsequent requests, including resume and branch. The Host must retain ownership of history trimming, cancellation, and fallback to text summarization when the provider/model does not support V2. The pi-ai bridge must serialize the opaque item unchanged rather than converting it to user text. Until this is available in an official DSH release, the plugin must not advertise or enable remote compaction.
+
+Acceptance requires checking the **next wire request** for the encrypted item and retained user turns (and the discarded turns' absence), then repeating after resume/branch; a mocked usage value or `prompt_cache_key` alone does not prove cache reuse. With a stable session/routing identity and a shared prefix of at least 1,024 tokens, check the provider's `usage.input_tokens_details.cached_tokens` on repeated post-compaction requests. Compare that count to the measured token position **before the opaque item**: a hit confined to instructions does not demonstrate reuse of the compressed history. A lab-only Codex protocol probe completed V2 and replay; the pre-item request used 3,318 input tokens, while repeated continuation requests reported 3,328, 3,200, and 0 cached tokens. Cache hits are provider-dependent, and plugin-level 3082 acceptance remains blocked on the upstream seam. See [OpenAI prompt caching](https://developers.openai.com/api/docs/guides/prompt-caching) and [compaction](https://developers.openai.com/api/docs/guides/compaction).
 
 ### Model Switch integration
 
@@ -116,7 +124,7 @@ MIT
 
 ## Release installation (Latest)
 
-ChatGPT Codex login, model catalog, usage, and optional search/image capabilities. The release artifact targets DeepSeek Harness 0.1.2-alpha.4, 0.1.2-rc.1, and 0.1.5-rc.1 and contains built Host/Client files only; it has no sibling-repository source, workstation path, link:, or workspace: dependency.
+ChatGPT Codex login, model catalog, usage, and optional search/image capabilities. The release artifact targets DeepSeek Harness 0.1.2-alpha.4, 0.1.2-rc.1, 0.1.5-rc.1, and 0.1.5-rc.2 and contains built Host/Client files only; it has no sibling-repository source, workstation path, link:, or workspace: dependency.
 
 The dsh-llm-providers-ui package owns the LLM Providers page, navigation, and shared order store. This package owns only its provider card, models, credentials, and Host route. Install the Owner first for Web; headless Host routing works without the Owner.
 
@@ -124,18 +132,18 @@ Latest (Owner + this plugin; required together on Web):
 
 ~~~sh
 dsh plugin --profile web add --force \
-  https://github.com/NOirBRight/dsh-llm-providers-ui/releases/latest/download/dsh-llm-providers-ui-0.1.12.tgz
+  https://github.com/NOirBRight/dsh-llm-providers-ui/releases/latest/download/dsh-llm-providers-ui-0.2.9.tgz
 dsh plugin --profile web add --force \
-  https://github.com/NOirBRight/dsh-llm-codex/releases/latest/download/dsh-llm-codex-0.3.15.tgz
+  https://github.com/NOirBRight/dsh-llm-codex/releases/latest/download/dsh-llm-codex-0.3.20.tgz
 ~~~
 
 Fixed versions (reproducible):
 
 ~~~sh
 dsh plugin --profile web add --force \
-  https://github.com/NOirBRight/dsh-llm-providers-ui/releases/download/v0.1.12-015rc1e/dsh-llm-providers-ui-0.1.12.tgz
+  https://github.com/NOirBRight/dsh-llm-providers-ui/releases/download/v0.2.9/dsh-llm-providers-ui-0.2.9.tgz
 dsh plugin --profile web add --force \
-  https://github.com/NOirBRight/dsh-llm-codex/releases/download/v0.3.15-015rc1d/dsh-llm-codex-0.3.15.tgz
+  https://github.com/NOirBRight/dsh-llm-codex/releases/download/v0.3.20/dsh-llm-codex-0.3.20.tgz
 ~~~
 
 Update, uninstall, and verify:
@@ -143,9 +151,9 @@ Update, uninstall, and verify:
 ~~~sh
 # Update Owner + this plugin to Latest
 dsh plugin --profile web add --force \
-  https://github.com/NOirBRight/dsh-llm-providers-ui/releases/latest/download/dsh-llm-providers-ui-0.1.12.tgz
+  https://github.com/NOirBRight/dsh-llm-providers-ui/releases/latest/download/dsh-llm-providers-ui-0.2.9.tgz
 dsh plugin --profile web add --force \
-  https://github.com/NOirBRight/dsh-llm-codex/releases/latest/download/dsh-llm-codex-0.3.15.tgz
+  https://github.com/NOirBRight/dsh-llm-codex/releases/latest/download/dsh-llm-codex-0.3.20.tgz
 # Verify the loaded version
 dsh plugin --profile web list
 dsh plugin --profile web doctor
@@ -155,9 +163,9 @@ dsh plugin --profile web remove dsh-llm-codex
 
 Configuration: use the plugin section in Settings for Web UI plugins, or the profile dsh.profile.bundles entry for Host-only plugins. Start with this README's minimal YAML/JSON example and provide credentials/backend addresses explicitly.
 
-Rollback: rerun the fixed v0.3.7 command, verify the profile list, then restart the Web service once. Inspect journalctl --user -u dsh-web.service and dsh plugin --profile web doctor; never put a source checkout in the production profile.
+Rollback: rerun the fixed v0.3.20 command, verify the profile list, then restart the Web service once. Inspect journalctl --user -u dsh-web.service and dsh plugin --profile web doctor; never put a source checkout in the production profile.
 
-Release and integrity: [v0.3.15-015rc1d](https://github.com/NOirBRight/dsh-llm-codex/releases/tag/v0.3.15-015rc1d) · [SHA256SUMS](https://github.com/NOirBRight/dsh-llm-codex/releases/download/v0.3.15-015rc1d/SHA256SUMS).
+Release and integrity: [v0.3.20](https://github.com/NOirBRight/dsh-llm-codex/releases/tag/v0.3.20) · [SHA256SUMS](https://github.com/NOirBRight/dsh-llm-codex/releases/download/v0.3.20/SHA256SUMS).
 
 ## Independent Model Switch search
 

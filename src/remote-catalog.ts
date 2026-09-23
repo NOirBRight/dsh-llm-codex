@@ -15,8 +15,9 @@ export const CODEX_MODELS_URL = 'https://chatgpt.com/backend-api/codex/models'
 export const CODEX_MODEL_CACHE_FILENAME = 'codex-models.json'
 const CACHE_FORMAT_VERSION = 1
 const REQUEST_TIMEOUT_MS = 15_000
-// NOTE: the endpoint validates semver today; configure this if OpenAI gates catalogs by client version.
-const CLIENT_VERSION = '0.0.0'
+// Catalog discovery needs models gated behind newer client versions, independently of the installed Codex CLI.
+// This version is only used for listing; the adapter still owns request compatibility.
+const CLIENT_VERSION = '999.0.0'
 
 function reasoningEfforts(value: unknown): CodexReasoningEffort[] {
   if (!Array.isArray(value)) return []
