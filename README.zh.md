@@ -55,6 +55,14 @@ Fast 和 1M 都是独立选择器行，不是复选框。聊天仍使用官方 w
 
 聊天走 pi-ai `openai-codex-responses`，目标是 `https://chatgpt.com/backend-api`。未登录聊天会失败为 `MISSING_CREDENTIAL`。已存会话刷新失败则报 `AUTH`。之后若在没有任何模型内容前收到 `AUTH`（HTTP 401），会强制 refresh 再打一次请求；仍失败的 `AUTH` 进入 bundle 默认的八次 normal 重试。
 
+### 远端压缩（尚未启用）
+
+ChatGPT Codex Responses 支持[原生 V2 压缩](https://github.com/can1357/oh-my-pi/blob/v18.2.10/packages/agent/src/compaction/compaction-v2-streaming.ts)：流式请求附加 `compaction_trigger`，随后把返回的不透明 `compaction` 项原样放入后续请求。这不是独立的 `/responses/compact` 接口。当前 DSH 的 `@deepseek-ai/dsh-compaction-basic` 只把文本摘要持久化为 user 检查点，`@deepseek-ai/dsh-llm-pi-ai` 也不会把 user 消息上的不透明元数据透传给 Codex。在本适配器中单独调用 V2，会在下一轮或重启／分支后丢掉压缩项。**插件不启用远端压缩，继续使用 DSH 现有的本地压缩。**
+
+所需上游接口：允许供应商压缩处理器返回供应商专属的不透明替代历史；与压缩检查点原子持久化，并在后续请求（包括恢复、分支）回传到同一供应商。历史裁剪、取消及供应商／模型不支持 V2 时回退到文本摘要仍由 Host 负责。pi-ai 桥接层必须原样序列化该项，不能将其转为 user 文本。在官方 DSH 发布此接口前，插件不能宣称或开启远端压缩。
+
+验收要检查**压缩后的下一次实际请求**包含加密项和保留的 user 轮次、不包含已丢弃的轮次；恢复／分支后也要重复检查。模拟 usage 值或只发送 `prompt_cache_key`，都不能证明缓存命中。固定会话与路由标识、保持至少 1,024 tokens 的共同前缀，再看重复发起的压缩后请求中服务端返回的 `usage.input_tokens_details.cached_tokens`。必须和**不透明项之前的实测 token 位置**比较：只缓存了 instructions 不等于压缩历史命中。仅限 lab 的 Codex 协议探测完成了 V2 和回放；不透明项之前的请求有 3,318 个输入 tokens，重复续聊分别得到 3,328、3,200、0 个缓存 tokens。命中取决于服务端，插件级 3082 验收仍受上游接口阻塞。参见 [OpenAI 提示缓存](https://developers.openai.com/api/docs/guides/prompt-caching)与[压缩](https://developers.openai.com/api/docs/guides/compaction)。
+
 ### Model Switch 集成
 
 安装 `dsh-model-switch` v0.2+ 后，Codex 会注册复用本插件认证客户端的 Search 与 Image Adapter。Model Switch 保留官方 `web_search` 所有权，也不改变 `view_image` / `codex_generate_image`；不会注册 Vision Adapter。
