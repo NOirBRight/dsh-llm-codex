@@ -1,13 +1,17 @@
 ## Unreleased
 
-- Fetch the account catalog beyond the upstream client-version gate so GPT-6 Sol and Luna can be discovered without hard-coded picker rows.
-- Resume Codex browser sign-in polling in the shared provider detail, so a completed OAuth callback updates the account from waiting to connected without reopening settings.
+## v0.3.22
 
-## v0.3.20
+- Discover GPT-6 Sol and Luna from the live account catalog without hard-coded picker rows.
+- Complete browser sign-in in the shared provider detail without reopening Settings.
+- Keep the Codex Host route active without `webServer`; Web auth and management RPC still mount when it is available.
+- Record the remote compaction V2 seam and cache acceptance evidence; leave remote compaction disabled.
 
-## 0.3.21
+## v0.3.21
 
 - Declare `webServer` on the Host `inject` list (and nested Connection scope) so management RPC mounts on DSH 0.1.6+ inject enforcement.
+
+## v0.3.20
 
 Register catalogId/unknown against providers-ui 0.2.9.
 
