@@ -160,7 +160,7 @@ export { createCodexPiAiProfile, CODEX_CHAT_BASE_URL, codexResponsesApi } from '
 export { registerCodexAuthRoutes, trustedRequest, CodexWebAuth } from './auth-routes.ts'
 
 export const name = 'llm-codex'
-export const inject = ['llm', 'webServer']
+export const inject = ['llm']
 
 const NS = CODEX_SETTINGS_NAMESPACE
 

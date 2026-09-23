@@ -44,7 +44,6 @@ async function loadComposition(): Promise<{ ctx: Context }> {
   const ctx = new Context()
   context = ctx
   ctx.baseUrl = pathToFileURL(root).href + '/'
-  ctx.provide('webServer', { register: () => () => {} } as never)
   await ctx.plugin(Loader)
   ctx.loader.builtins.include = Include
   const modules = new Map<string, unknown>([
@@ -67,11 +66,10 @@ async function loadComposition(): Promise<{ ctx: Context }> {
 }
 
 describe('llm-codex real composition', () => {
-  it('boots from cordis.yml as provider codex without apiKeyEnv', async () => {
+  it('boots headless from cordis.yml as provider codex without apiKeyEnv', async () => {
     const { ctx } = await loadComposition()
 
     expect(LlmCodex.name).toBe('llm-codex')
-    expect(LlmCodex.inject).toEqual(['llm', 'webServer'])
     expect(ctx.llm.listConfigurableProviders()).toEqual([
       { provider: 'codex', displayName: 'Codex', settingsNs: 'llm-codex', settingsPath: [] },
     ])
