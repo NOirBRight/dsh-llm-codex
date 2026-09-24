@@ -1,16 +1,17 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { Context, Service } from '@deepseek-ai/cordis'
 import type { ConfigFormSnapshot } from '@deepseek-ai/dsh-client-ui-settings/client'
 import { CodexPluginCard } from '../src/client/CodexPluginCard.tsx'
-import type { CodexAccountStatus, CodexPluginCardProps } from '../src/client/CodexPluginCard.tsx'
+import type { CodexAccountStatus, CodexPluginCardFace, CodexPluginCardProps } from '../src/client/CodexPluginCard.tsx'
 import { en } from '../src/client/locales.ts'
 import { DEFAULT_CODEX_SETTINGS } from '../src/client-contract.ts'
 import type { CodexCatalogModel, CodexSettingsView } from '../src/client-contract.ts'
 import { apply, inject } from '../src/client/index.ts'
 import { clearProviderUsageCache } from 'dsh-llm-providers-ui/usage-readers'
-import { CODEX_AUTH_LOGOUT_ENDPOINT, CODEX_SETTINGS_NAMESPACE } from '../src/client-contract.ts'
+import { CODEX_AUTH_LOGOUT_ENDPOINT, CODEX_SAVE_ENDPOINT, CODEX_SETTINGS_ENTRY_ID, CODEX_SETTINGS_NAMESPACE } from '../src/client-contract.ts'
+import { createCodexManagementRpcHandler } from '../src/index.ts'
 
 afterEach(() => { cleanup(); clearProviderUsageCache() })
 
@@ -44,7 +45,7 @@ function props(overrides: Partial<CodexPluginCardProps> = {}): CodexPluginCardPr
     cancelAuth: vi.fn(() => Promise.resolve()),
     readAuthAttemptStatus: vi.fn(() => Promise.resolve({ status: 'pending' })),
     fetchModels: vi.fn(() => Promise.resolve([])),
-    saveConfiguration: vi.fn((next) => Promise.resolve({ settings: next, revision: 2 })),
+    saveConfiguration: vi.fn((next, _sourceRevision) => Promise.resolve({ settings: next, revision: 2 })),
     beginModelPicker: vi.fn((_picked, onAdopt) => { adopt = onAdopt }),
     completeModelPicker: vi.fn((candidates) => { adopt?.(candidates) }),
     failModelPicker: vi.fn(),
@@ -175,6 +176,101 @@ describe('Codex provider directory shared header', () => {
     const face = slots.entries('settings.provider.item')[0]?.inject?.() as { logout: () => Promise<void> }
     await face.logout()
     expect(invalidateUsage).toHaveBeenCalledWith(CODEX_SETTINGS_NAMESPACE)
+    await fiber.dispose()
+    await ctx.fiber.dispose()
+  })
+
+  it('does not let a dirty revision-one card overwrite a concurrent revision-two save', async () => {
+    let savedSettings: CodexSettingsView = {
+      ...settings,
+      models: settings.models.map(model => ({ ...model })),
+    }
+    let revision = 1
+    const serverContext = new Context()
+    serverContext.provide('settings', {
+      describe: () => [{ ns: CODEX_SETTINGS_ENTRY_ID, value: savedSettings, revision }],
+      mutate: async (
+        _ns: string,
+        ops: readonly { op: string, path: readonly string[], value: unknown }[],
+        expectedRevision: number,
+      ) => {
+        if (expectedRevision !== revision) throw new Error('stale settings revision')
+        const next = { ...savedSettings } as Record<string, unknown>
+        for (const op of ops) {
+          if (op.op === 'set') next[op.path[0]!] = structuredClone(op.value)
+        }
+        savedSettings = next as unknown as CodexSettingsView
+        revision += 1
+      },
+    } as never)
+    const handler = createCodexManagementRpcHandler(serverContext, {
+      status: async () => ({ status: 'signed-out' }),
+    } as never)
+    const form = {
+      getSnapshot: () => snapshot({ value: savedSettings, revision }),
+      subscribe: () => () => undefined,
+    }
+
+    class FakeSlots extends Service {
+      private readonly registered: Array<{ options: Record<string, unknown>, inject?: () => unknown }> = []
+      constructor(ctx: Context) { super(ctx, 'slots') }
+      inject(_name: string, register: () => () => void): void { this.ctx.effect(register) }
+      register(options: Record<string, unknown> & { inject?: () => unknown }, _component: unknown): () => void {
+        this.registered.push({ options, inject: options.inject })
+        return () => undefined
+      }
+      entries(name: string): Array<{ options: Record<string, unknown>, inject?: () => unknown }> {
+        return this.registered.filter(entry => entry.options['name'] === name)
+      }
+    }
+
+    const ctx = new Context()
+    await ctx.plugin(FakeSlots).await()
+    const slots = ctx.get('slots') as FakeSlots
+    ctx.provide('providerDirectory', { register: () => () => undefined, update: () => undefined } as never)
+    ctx.provide('locale', { register: () => () => undefined, bind: () => (key: string) => key } as never)
+    ctx.provide('configForms', { get: () => form } as never)
+    const rpc = {
+      call: async (_channel: string, _route: string, request: { endpoint: string, payload: unknown }) =>
+        handler(request.endpoint, request.payload),
+    }
+    ctx.provide('connection', { rpc, isLoopback: false } as never)
+    const fiber = ctx.plugin({ inject: [...inject], apply })
+    await fiber.await()
+    const face = slots.entries('settings.provider.item')[0]?.inject?.() as CodexPluginCardFace
+
+    const staleSnapshot = snapshot({ value: settings, revision: 1 })
+    render(
+      <>
+        <CodexPluginCard {...props({
+          useCodexSettings: selector => selector(staleSnapshot),
+          saveConfiguration: face.saveConfiguration,
+        })} />
+        <CodexPluginCard {...props({
+          useCodexSettings: selector => selector(snapshot({ value: savedSettings, revision })),
+          saveConfiguration: face.saveConfiguration,
+        })} />
+      </>,
+    )
+    const cards = document.querySelectorAll<HTMLElement>('li[data-provider-card]')
+    const tabA = within(cards[0]!)
+    const tabB = within(cards[1]!)
+    fireEvent.click(tabB.getByRole('button', { expanded: false }))
+    fireEvent.click(tabB.getByLabelText(en.enableSearch))
+    fireEvent.click(tabB.getByRole('button', { name: en.save }))
+    await waitFor(() => { expect(savedSettings.enableSearch).toBe(true) })
+    expect(revision).toBe(2)
+    const staleNoop = await handler(CODEX_SAVE_ENDPOINT, { ...savedSettings, expectedRevision: 1 })
+    expect(staleNoop.ok).toBe(false)
+    expect(revision).toBe(2)
+
+    fireEvent.click(tabA.getByRole('button', { expanded: false }))
+    fireEvent.click(tabA.getByLabelText(en.enableImageTool))
+    fireEvent.click(tabA.getByRole('button', { name: en.save }))
+    await waitFor(() => { expect(screen.getByText('Codex settings changed; reload before saving')).toBeTruthy() })
+    expect(savedSettings.enableSearch).toBe(true)
+    expect(savedSettings.enableImageTool).toBe(false)
+    expect(revision).toBe(2)
     await fiber.dispose()
     await ctx.fiber.dispose()
   })

@@ -344,6 +344,9 @@ async function saveConfiguration(ctx: Context, payload: unknown, currentConfig: 
   try {
     const before = settings.describe().find(descriptor => descriptor.ns === CODEX_SETTINGS_ENTRY_ID)
     if (before === undefined) return internalError('Codex settings are unavailable')
+    if (before.revision !== request.expectedRevision) {
+      return failure('settings_conflict', 'Codex settings changed; reload before saving')
+    }
     const current = decodeCodexSettings(before.value)
     if (current === undefined) return internalError('Codex settings are invalid')
     try {

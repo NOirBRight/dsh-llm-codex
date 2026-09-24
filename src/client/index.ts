@@ -176,9 +176,8 @@ export function apply(ctx: ClientContext): void {
     return models ?? officialPickerCatalog()
   }
 
-  const saveConfiguration: CodexPluginCardFace['saveConfiguration'] = async (settings) => {
-    const snapshot = settingsForm.getSnapshot()
-    if (snapshot.revision === undefined) throw new Error(t('requestFailed'))
+  const saveConfiguration: CodexPluginCardFace['saveConfiguration'] = async (settings, sourceRevision) => {
+    if (!Number.isInteger(sourceRevision) || sourceRevision < 0) throw new Error(t('requestFailed'))
     const saved = await callCodex(CODEX_SAVE_ENDPOINT, {
       models: settings.models,
       enableSearch: settings.enableSearch,
@@ -189,7 +188,7 @@ export function apply(ctx: ClientContext): void {
       searchMode: settings.searchMode,
       searchContextSize: settings.searchContextSize,
       searchMaxOutputTokens: settings.searchMaxOutputTokens,
-      expectedRevision: snapshot.revision,
+      expectedRevision: sourceRevision,
     })
     if (!saved.ok) throw new Error(saved.error.message)
     const accepted = decodeCodexSaveResult(saved.value)

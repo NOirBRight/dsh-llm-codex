@@ -58,7 +58,7 @@ export interface CodexPluginCardFace {
   cancelAuth: (attemptId?: string) => Promise<void>
   readAuthAttemptStatus: (attemptId: string) => Promise<{ status: 'pending' | 'succeeded' | 'failed' | 'cancelled' | 'missing' }>
   fetchModels: () => Promise<readonly CodexCatalogModel[]>
-  saveConfiguration: (settings: CodexSettingsView) => Promise<CodexSaveResult>
+  saveConfiguration: (settings: CodexSettingsView, sourceRevision: number) => Promise<CodexSaveResult>
   beginModelPicker: (initiallyPicked: ReadonlySet<string>, onAdopt: (models: readonly CodexCatalogModel[]) => void) => void
   completeModelPicker: (candidates: readonly CodexCatalogModel[]) => void
   failModelPicker: (message: string) => void
@@ -689,6 +689,10 @@ export function CodexPluginCard(props: CodexPluginCardProps): ReactNode {
 
   const save = async (): Promise<void> => {
     if (draft === undefined || settings === undefined || capabilities === undefined || invalid) return
+    if (sourceRevision === undefined) {
+      setFailure(t('requestFailed'))
+      return
+    }
     setBusy(true)
     setFailure(undefined)
     setNotice(undefined)
@@ -697,7 +701,7 @@ export function CodexPluginCard(props: CodexPluginCardProps): ReactNode {
         ...settings,
         ...capabilities,
         models: draft.map(modelSettingsOf),
-      })
+      }, sourceRevision)
       const next = accepted.settings.models.map(modelDraftOf)
       setSource(next)
       setDraft(next)

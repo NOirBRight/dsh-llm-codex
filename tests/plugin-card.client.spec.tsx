@@ -48,7 +48,7 @@ function props(overrides: Partial<CodexPluginCardProps> = {}): CodexPluginCardPr
     cancelAuth: vi.fn(() => Promise.resolve()),
     readAuthAttemptStatus: vi.fn(() => Promise.resolve({ status: 'pending' as const })),
     fetchModels: vi.fn(() => Promise.resolve([])),
-    saveConfiguration: vi.fn(next => Promise.resolve({ settings: next, revision: 2 })),
+    saveConfiguration: vi.fn((next, _sourceRevision) => Promise.resolve({ settings: next, revision: 2 })),
     beginModelPicker: vi.fn((_picked, onAdopt) => { adopt = onAdopt }),
     completeModelPicker: vi.fn(candidates => { adopt?.(candidates) }),
     failModelPicker: vi.fn(),

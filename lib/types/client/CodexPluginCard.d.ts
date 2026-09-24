@@ -26,7 +26,7 @@ export interface CodexPluginCardFace {
         status: 'pending' | 'succeeded' | 'failed' | 'cancelled' | 'missing';
     }>;
     fetchModels: () => Promise<readonly CodexCatalogModel[]>;
-    saveConfiguration: (settings: CodexSettingsView) => Promise<CodexSaveResult>;
+    saveConfiguration: (settings: CodexSettingsView, sourceRevision: number) => Promise<CodexSaveResult>;
     beginModelPicker: (initiallyPicked: ReadonlySet<string>, onAdopt: (models: readonly CodexCatalogModel[]) => void) => void;
     completeModelPicker: (candidates: readonly CodexCatalogModel[]) => void;
     failModelPicker: (message: string) => void;
