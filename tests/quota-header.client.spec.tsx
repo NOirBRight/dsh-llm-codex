@@ -3,7 +3,7 @@
 // the same read, and settled unavailability renders a dash, never a fabricated percent.
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import type { SettingsScopeSnapshot } from '../src/client/settings-scope.ts'
+import type { ConfigFormSnapshot } from '@deepseek-ai/dsh-client-ui-settings/client'
 import { CodexPluginCard } from '../src/client/CodexPluginCard.tsx'
 import type { CodexPluginCardProps } from '../src/client/CodexPluginCard.tsx'
 import { providerUiCss } from '../src/client/provider-chrome.tsx'
@@ -19,7 +19,7 @@ const settings: CodexSettingsView = {
   models: DEFAULT_CODEX_SETTINGS.models.map((model) => ({ ...model })),
 }
 
-function snapshot(): SettingsScopeSnapshot<CodexSettingsView> {
+function snapshot(): ConfigFormSnapshot<Partial<CodexSettingsView>> {
   return {
     status: 'ready',
     value: settings,

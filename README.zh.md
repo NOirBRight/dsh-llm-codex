@@ -8,7 +8,7 @@ DeepSeek Harness 的 ChatGPT Codex 集成。独立提供方路由是 `codex`，�
 
 ## 兼容性
 
-宿主 `@deepseek-ai/dsh-*` 不锁定发行号：peer 为 `*` 且 optional。`devDependencies` 钉编译目标（`0.1.5-rc.1`）。Cordis 保持 `>=4.0.2 <5.0.0`。
+此源码将所有 `@deepseek-ai/dsh-*` peer 与开发依赖固定为 `0.1.7-alpha.2`。Cordis peer 使用 `~4.0.4`。
 
 `package.json#dsh.compatibility.dshReleases` 里的已验证宿主是证据，不是允许列表。未知的新宿主告警一次后仍按正常路径挂载。只有复现过的故障才会加入 blocklist。
 
@@ -30,7 +30,7 @@ dsh web
 
 ## 管理 RPC
 
-设置和认证 RPC 使用 Connection 已认证的 `/codex` 通道。远程访问由 Host 的 trusted-host 与 Origin 策略控制；本插件没有单独的远程管理开关。
+设置和认证管理通过已认证的 `/api/plugin-rpc/codex` fetch 路由。Host 的 `/api` 载体会在分发前执行 Host/Origin 检查、cookie 认证和请求体大小限制；本插件没有单独的远程管理开关。
 
 ## Web 配置
 

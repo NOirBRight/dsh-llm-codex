@@ -1,6 +1,4 @@
-/** Same-origin Web settings routes for Codex OAuth. */
-import type { IncomingMessage } from 'node:http';
-import type { Context } from '@deepseek-ai/cordis';
+/** Shared Codex OAuth orchestration for the authenticated plugin RPC. */
 import type { CodexCredentialStore } from './store.ts';
 import { CODEX_REAUTH_REQUIRED_MESSAGE } from './usage.ts';
 import type { CodexUsage } from './usage.ts';
@@ -65,6 +63,4 @@ export declare class CodexWebAuth {
     private clearChallengeTimer;
     private cancelSignIn;
 }
-export declare function trustedRequest(req: IncomingMessage): boolean;
-export declare function registerCodexAuthRoutes(ctx: Context, store: CodexCredentialStore, sharedAuth?: CodexWebAuth): void;
-//# sourceMappingURL=auth-routes.d.ts.map
+//# sourceMappingURL=codex-web-auth.d.ts.map

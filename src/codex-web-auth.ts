@@ -1,10 +1,7 @@
-/** Same-origin Web settings routes for Codex OAuth. */
+/** Shared Codex OAuth orchestration for the authenticated plugin RPC. */
 
 import { randomUUID } from 'node:crypto'
-import type { IncomingMessage, ServerResponse } from 'node:http'
 import type { AuthEvent, AuthPrompt } from '@earendil-works/pi-ai'
-import type { Context } from '@deepseek-ai/cordis'
-import type {} from '@deepseek-ai/dsh-host-webserver'
 import { loginCodex, logoutCodex, codexAuthStatus } from './auth.ts'
 import type { CodexCredentialStore } from './store.ts'
 import {
@@ -14,11 +11,6 @@ import {
   readCodexRateLimits,
 } from './usage.ts'
 import type { CodexUsage } from './usage.ts'
-import {
-  CODEX_AUTH_LOGIN_PATH,
-  CODEX_AUTH_LOGOUT_PATH,
-  CODEX_AUTH_STATUS_PATH,
-} from './client-contract.ts'
 
 export const CODEX_AUTH_URL_TIMEOUT_MS = 30_000
 
@@ -267,106 +259,4 @@ export class CodexWebAuth {
     this.rejectChallenge(error)
     this.cancellation?.abort(error)
   }
-}
-
-function loopbackHost(rawHost: string): boolean {
-  if (/[\\/@?#]/u.test(rawHost)) return false
-  try {
-    const parsed = new URL(`http://${rawHost}`)
-    if (parsed.username !== '' || parsed.password !== '' || parsed.pathname !== '/' || parsed.search !== '' || parsed.hash !== '') return false
-    const bracketless = parsed.hostname.startsWith('[') && parsed.hostname.endsWith(']')
-      ? parsed.hostname.slice(1, -1)
-      : parsed.hostname
-    const hostname = bracketless.toLowerCase().replace(/\.$/u, '')
-    return hostname === 'localhost'
-      || hostname.endsWith('.localhost')
-      || hostname === '127.0.0.1'
-      || hostname === '::1'
-      || hostname === '::ffff:127.0.0.1'
-  } catch {
-    return false
-  }
-}
-
-function exactOrigin(req: IncomingMessage, rawHost: string, rawOrigin: string): boolean {
-  try {
-    const origin = new URL(rawOrigin)
-    if (origin.username !== '' || origin.password !== '' || origin.pathname !== '/' || origin.search !== '' || origin.hash !== '') return false
-    const encrypted = (req.socket as IncomingMessage['socket'] & { encrypted?: boolean }).encrypted === true
-    return origin.origin === new URL(`${encrypted ? 'https' : 'http'}://${rawHost}`).origin
-  } catch {
-    return false
-  }
-}
-
-export function trustedRequest(req: IncomingMessage): boolean {
-  const remote = req.socket.remoteAddress
-  if (remote !== '127.0.0.1' && remote !== '::1' && remote !== '::ffff:127.0.0.1') return false
-  if (req.headers['sec-fetch-site'] === 'cross-site') return false
-  const host = req.headers.host
-  if (typeof host !== 'string' || !loopbackHost(host)) return false
-  const origin = req.headers.origin
-  if (origin === undefined) return true
-  return typeof origin === 'string' && exactOrigin(req, host, origin)
-}
-
-function json(res: ServerResponse, status: number, value: unknown): void {
-  res.writeHead(status, {
-    'content-type': 'application/json; charset=utf-8',
-    'cache-control': 'no-store',
-    'x-content-type-options': 'nosniff',
-  })
-  res.end(JSON.stringify(value))
-}
-
-export function registerCodexAuthRoutes(ctx: Context, store: CodexCredentialStore, sharedAuth?: CodexWebAuth): void {
-  const auth = sharedAuth ?? new CodexWebAuth(store)
-  ctx.effect(() => {
-    const routes = [
-      ctx.webServer.register({
-        kind: 'exact',
-        path: CODEX_AUTH_STATUS_PATH,
-        handler: async (req, res) => {
-          if (req.method !== 'GET') return json(res, 405, { error: 'method not allowed' })
-          if (!trustedRequest(req)) return json(res, 403, { error: 'forbidden' })
-          try {
-            json(res, 200, await auth.status())
-          } catch (error: unknown) {
-            json(res, 500, { error: safeMessage(error) })
-          }
-        },
-      }),
-      ctx.webServer.register({
-        kind: 'exact',
-        path: CODEX_AUTH_LOGIN_PATH,
-        handler: async (req, res) => {
-          if (req.method !== 'POST') return json(res, 405, { error: 'method not allowed' })
-          if (!trustedRequest(req)) return json(res, 403, { error: 'forbidden' })
-          try {
-            json(res, 200, await auth.signIn())
-          } catch (error: unknown) {
-            json(res, 500, { error: safeMessage(error) })
-          }
-        },
-      }),
-      ctx.webServer.register({
-        kind: 'exact',
-        path: CODEX_AUTH_LOGOUT_PATH,
-        handler: async (req, res) => {
-          if (req.method !== 'POST') return json(res, 405, { error: 'method not allowed' })
-          if (!trustedRequest(req)) return json(res, 403, { error: 'forbidden' })
-          try {
-            await auth.signOut()
-            json(res, 200, { ok: true })
-          } catch (error: unknown) {
-            json(res, 500, { error: safeMessage(error) })
-          }
-        },
-      }),
-    ]
-    return async () => {
-      for (const dispose of routes) dispose()
-      await auth.dispose()
-    }
-  }, 'dsh-llm-codex: Web OAuth routes')
 }

@@ -1,3 +1,5 @@
+import type { VolatileSnapshot } from '@deepseek-ai/cordis'
+
 /**
  * Official Codex catalog plus first-class Fast and 1M rows.
  * Display ids are picker keys; wire ids are what ChatGPT receives.
@@ -352,7 +354,7 @@ export function resolveWireModel(id: string): CodexWireTarget {
 }
 
 /** Merge a user-edited row with official metadata when the id is known. */
-export function hydrateCatalogModel(model: CodexCatalogModel): CodexCatalogModel {
+export function hydrateCatalogModel(model: VolatileSnapshot<CodexCatalogModel>): CodexCatalogModel {
   const parsed = parseCodexPickerId(model.id)
   const official = officialByWireId(parsed.wireId)
   const fast = parsed.fast && (official === undefined || official.fast === true)
@@ -369,7 +371,7 @@ export function hydrateCatalogModel(model: CodexCatalogModel): CodexCatalogModel
       ...model.maxTokens === undefined ? {} : { maxTokens: model.maxTokens },
       ...model.thinking === undefined ? {} : { thinking: model.thinking },
       ...model.defaultEffort === undefined ? {} : { defaultEffort: model.defaultEffort },
-      ...model.efforts === undefined ? {} : { efforts: model.efforts },
+      ...model.efforts === undefined ? {} : { efforts: [...model.efforts] },
       ...model.vision === undefined ? {} : { vision: model.vision },
       ...model.tools === undefined ? {} : { tools: model.tools },
       ...fast ? { fast: true } : {},
@@ -385,7 +387,7 @@ export function hydrateCatalogModel(model: CodexCatalogModel): CodexCatalogModel
     maxTokens: model.maxTokens ?? official.maxTokens,
     ...fast ? { fast: true } : {},
     ...model.defaultEffort === undefined ? {} : { defaultEffort: model.defaultEffort },
-    ...model.efforts === undefined ? {} : { efforts: model.efforts },
+    ...model.efforts === undefined ? {} : { efforts: [...model.efforts] },
     ...model.description === undefined ? {} : { description: model.description },
   }
 }

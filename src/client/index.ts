@@ -1,6 +1,6 @@
 /** Browser half: Codex setup inside Plugin configuration. */
 
-import type { ClientContext, SettingsScopeSnapshot } from './settings-scope.js'
+import type { Context as ClientContext } from '@deepseek-ai/cordis'
 import type { ConnectionHandle } from '@deepseek-ai/dsh-client-connection/client'
 import type {} from '@deepseek-ai/dsh-client-locale/client'
 import type {} from '@deepseek-ai/dsh-client-ui-settings/client'
@@ -41,8 +41,7 @@ function installProviderDirectory(
 }
 
 import {
-  CODEX_RPC_CHANNEL,
-  CODEX_SETTINGS_READ_ENDPOINT,
+  CODEX_RPC_ENDPOINT,
   CODEX_AUTH_STATUS_ENDPOINT,
   CODEX_AUTH_BEGIN_ENDPOINT,
   CODEX_AUTH_CANCEL_ENDPOINT,
@@ -51,14 +50,15 @@ import {
   CODEX_SAVE_ENDPOINT,
   CODEX_MODELS_FETCH_ENDPOINT,
   CODEX_SETTINGS_NAMESPACE,
+  CODEX_SETTINGS_ENTRY_ID,
   decodeCodexAuthLoginReply,
   decodeCodexAuthLogoutReply,
   decodeCodexAuthStatus,
   decodeCodexAuthAttemptStatus,
   decodeCodexSaveResult,
+  decodeCodexSettings,
   decodeCodexModelCatalog,
 } from '../client-contract.ts'
-import type { CodexSettingsView } from '../client-contract.ts'
 import { officialPickerCatalog } from '../catalog.ts'
 import { CodexPluginCard } from './CodexPluginCard.tsx'
 import type { CodexPluginCardFace } from './CodexPluginCard.tsx'
@@ -66,6 +66,7 @@ import { CodexModelPicker, CodexModelPickerController } from './CodexModelPicker
 import type { CodexModelPickerFace } from './CodexModelPicker.tsx'
 import { en, zh } from './locales.ts'
 import type { CodexSettingsKey } from './locales.ts'
+import type { CodexSettingsView } from '../client-contract.ts'
 
 
 declare module '@deepseek-ai/dsh-client-ui-slots' {
@@ -76,7 +77,7 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
 }
 
 export const name = 'dsh-llm-codex-client'
-export const inject = ['slots', 'locale', 'connection']
+export const inject = ['slots', 'locale', 'connection', 'configForms']
 
 
 export function apply(ctx: ClientContext): void {
@@ -89,14 +90,9 @@ export function apply(ctx: ClientContext): void {
   const t = ctx.locale.bind(localeNamespace) as CodexPluginCardFace['t']
   const picker = new CodexModelPickerController()
   const { rpc, isLoopback } = ctx.get('connection') as unknown as ConnectionHandle
-  let currentSnapshot: SettingsScopeSnapshot<CodexSettingsView> = { status: 'loading', value: undefined, base: undefined, user: undefined, revision: undefined, writable: true, mode: 'host' }
-  const listeners = new Set<() => void>()
-  const scope = {
-    getSnapshot: () => currentSnapshot,
-    subscribe: (listener: () => void) => { listeners.add(listener); return () => listeners.delete(listener) },
-    set: async () => { throw new Error('Use Codex management settings/save') },
-    unset: async () => { throw new Error('Use Codex management settings/save') },
-  }
+  const settingsForm = ctx.configForms.get<Partial<CodexSettingsView>>(CODEX_SETTINGS_ENTRY_ID)
+  const callCodex = (endpoint: string, payload: unknown, signal?: AbortSignal) =>
+    rpc.call('/api', CODEX_RPC_ENDPOINT, { endpoint, payload }, signal)
   const account = { state: 'unknown' as 'connected' | 'configured' | 'unconnected' | 'unknown' }
   let closed = false
   const publishAccount = (state: typeof account.state): void => {
@@ -104,21 +100,10 @@ export function apply(ctx: ClientContext): void {
     account.state = state
     try { ctx.get('providerDirectory')?.update(CODEX_SETTINGS_NAMESPACE) } catch { /* providerDirectory is optional in lab */ }
   }
-  // Registered after the snapshot exists so the published count always reads live state.
-  installProviderDirectory(ctx, () => currentSnapshot.value?.models.length, {
+  installProviderDirectory(ctx, () => decodeCodexSettings(settingsForm.getSnapshot().value)?.models.length, {
     catalogId: 'codex',
     account: () => ({ state: account.state }),
   })
-
-  const refreshSettings = async (): Promise<void> => {
-    const result = await rpc.call(CODEX_RPC_CHANNEL, CODEX_SETTINGS_READ_ENDPOINT, {})
-    if (!result.ok) throw new Error(result.error.message)
-    const value = decodeCodexSaveResult(result.value)
-    if (value === undefined) throw new Error('invalid settings/read response')
-    if (closed) return
-    currentSnapshot = { ...currentSnapshot, status: 'ready', value: value.settings, revision: value.revision }
-    listeners.forEach(listener => listener())
-  }
 
   let authGeneration = 0
   /** Purge every bundle copy, even without providerDirectory. Stale reads check currency first. */
@@ -129,7 +114,7 @@ export function apply(ctx: ClientContext): void {
 
   const readAuthStatus: CodexPluginCardFace['readAuthStatus'] = async (signal) => {
     const generation = authGeneration
-    const result = await rpc.call(CODEX_RPC_CHANNEL, CODEX_AUTH_STATUS_ENDPOINT, { refresh: true }, signal)
+    const result = await callCodex(CODEX_AUTH_STATUS_ENDPOINT, { refresh: true }, signal)
     if (!result.ok) throw new Error(result.error.message)
     const decoded = decodeCodexAuthStatus(result.value)
     if (decoded === undefined) throw new Error('invalid auth status')
@@ -144,7 +129,7 @@ export function apply(ctx: ClientContext): void {
     const authWindow = window.open('about:blank', '_blank')
     // Retain the WindowProxy for navigation while preventing reverse-tab access.
     if (authWindow !== null) authWindow.opener = null
-    const result = await rpc.call(CODEX_RPC_CHANNEL, CODEX_AUTH_BEGIN_ENDPOINT, {
+    const result = await callCodex(CODEX_AUTH_BEGIN_ENDPOINT, {
       method: isLoopback ? 'browser' : 'device_code',
     })
     if (!result.ok) throw new Error(result.error.message)
@@ -159,7 +144,7 @@ export function apply(ctx: ClientContext): void {
 
   const readAuthAttemptStatus: CodexPluginCardFace['readAuthAttemptStatus'] = async (attemptId) => {
     const generation = authGeneration
-    const result = await rpc.call(CODEX_RPC_CHANNEL, CODEX_AUTH_ATTEMPT_STATUS_ENDPOINT, { attemptId })
+    const result = await callCodex(CODEX_AUTH_ATTEMPT_STATUS_ENDPOINT, { attemptId })
     if (!result.ok) throw new Error(result.error.message)
     const decoded = decodeCodexAuthAttemptStatus(result.value)
     if (decoded === undefined) throw new Error('invalid auth attempt status')
@@ -173,12 +158,12 @@ export function apply(ctx: ClientContext): void {
   }
 
   const cancelAuth: CodexPluginCardFace['cancelAuth'] = async (attemptId) => {
-    const result = await rpc.call(CODEX_RPC_CHANNEL, CODEX_AUTH_CANCEL_ENDPOINT, { attemptId })
+    const result = await callCodex(CODEX_AUTH_CANCEL_ENDPOINT, { attemptId })
     if (!result.ok) throw new Error(result.error.message)
   }
 
   const logout: CodexPluginCardFace['logout'] = async () => {
-    const result = await rpc.call(CODEX_RPC_CHANNEL, CODEX_AUTH_LOGOUT_ENDPOINT, {})
+    const result = await callCodex(CODEX_AUTH_LOGOUT_ENDPOINT, {})
     if (!result.ok || decodeCodexAuthLogoutReply(result.value) === undefined) throw new Error(result.ok ? 'invalid logout response' : result.error.message)
     authGeneration += 1
     invalidateUsageCache()
@@ -186,15 +171,15 @@ export function apply(ctx: ClientContext): void {
   }
 
   const fetchModels: CodexPluginCardFace['fetchModels'] = async () => {
-    const result = await rpc.call(CODEX_RPC_CHANNEL, CODEX_MODELS_FETCH_ENDPOINT, {})
+    const result = await callCodex(CODEX_MODELS_FETCH_ENDPOINT, {})
     const models = result.ok ? decodeCodexModelCatalog(result.value) : undefined
     return models ?? officialPickerCatalog()
   }
 
   const saveConfiguration: CodexPluginCardFace['saveConfiguration'] = async (settings) => {
-    const snapshot = scope.getSnapshot()
+    const snapshot = settingsForm.getSnapshot()
     if (snapshot.revision === undefined) throw new Error(t('requestFailed'))
-    const saved = await rpc.call(CODEX_RPC_CHANNEL, CODEX_SAVE_ENDPOINT, {
+    const saved = await callCodex(CODEX_SAVE_ENDPOINT, {
       models: settings.models,
       enableSearch: settings.enableSearch,
       enableImageTool: settings.enableImageTool,
@@ -209,18 +194,11 @@ export function apply(ctx: ClientContext): void {
     if (!saved.ok) throw new Error(saved.error.message)
     const accepted = decodeCodexSaveResult(saved.value)
     if (accepted === undefined) throw new Error(t('requestFailed'))
-    currentSnapshot = { ...currentSnapshot, status: 'ready', value: accepted.settings, revision: accepted.revision }
-    listeners.forEach(listener => listener())
     return accepted
   }
 
   ctx.effect(() => {
     const ac = new AbortController()
-    void refreshSettings().catch(() => {
-      if (closed) return
-      currentSnapshot = { ...currentSnapshot, status: 'unavailable' }
-      listeners.forEach(listener => listener())
-    })
     void readAuthStatus(ac.signal).catch(() => { /* overview stays unknown until a later card read */ })
     return () => {
       ac.abort()
@@ -246,7 +224,7 @@ export function apply(ctx: ClientContext): void {
     locale: localeNamespace,
     inject: (): CodexPluginCardFace => ({
       t,
-      hooks: { codexSettings: scope },
+      hooks: { codexSettings: settingsForm },
       startAuth,
       readAuthStatus,
       cancelAuth,

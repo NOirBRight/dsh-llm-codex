@@ -21,6 +21,15 @@ import {
 import type { CodexImageInput, CodexImageOutputFormat } from './image-generation-client.ts'
 import { fetchPublicHttpResource } from './public-http.ts'
 
+declare module '@deepseek-ai/dsh-llm' {
+  interface MessageSourceMap {
+    'llm-codex': {
+      kind: 'llm-codex'
+      tool: 'codex_generate_image' | 'view_image'
+    }
+  }
+}
+
 export const GENERATE_IMAGE_TOOL_NAME = 'codex_generate_image'
 
 export interface GenerateImageToolOptions {
@@ -265,7 +274,7 @@ export function generateImageTool(ctx: Context, options: GenerateImageToolOption
       if (exec.parent !== undefined) {
         exec.deferContext(createUserMessage({
           content: contentOf(value),
-          source: { kind: 'plugin', plugin: 'dsh-llm-codex' },
+          source: { kind: 'llm-codex', tool: 'codex_generate_image' },
         }))
       }
       return value

@@ -1,6 +1,14 @@
 /** Model-invoked `codex_generate_image` tool over ChatGPT Codex OAuth. */
 import type { Context } from '@deepseek-ai/cordis';
 import type { ToolDefinition } from '@deepseek-ai/dsh-tools';
+declare module '@deepseek-ai/dsh-llm' {
+    interface MessageSourceMap {
+        'llm-codex': {
+            kind: 'llm-codex';
+            tool: 'codex_generate_image' | 'view_image';
+        };
+    }
+}
 export declare const GENERATE_IMAGE_TOOL_NAME = "codex_generate_image";
 export interface GenerateImageToolOptions {
     resolveAccessToken: () => Promise<string>;

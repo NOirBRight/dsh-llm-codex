@@ -9,18 +9,18 @@ import { CODEX_USAGE_URL, CodexReauthRequiredError, readCodexRateLimits } from '
 import {
   CODEX_SAVE_ENDPOINT,
   CODEX_MODELS_FETCH_ENDPOINT,
-  CODEX_SETTINGS_NAMESPACE,
+  CODEX_SETTINGS_ENTRY_ID,
   DEFAULT_CODEX_SETTINGS,
   decodeCodexSaveRequest,
   decodeCodexSaveResult,
   decodeCodexModelCatalog,
 } from '../src/client-contract.ts'
-import { createCodexManagementRpcHandler, createCodexRpcHandler } from '../src/index.ts'
+import { createCodexManagementRpcHandler } from '../src/index.ts'
 
-describe('createCodexRpcHandler', () => {
+describe('createCodexManagementRpcHandler', () => {
   it('rejects unknown endpoints', async () => {
-    const handler = createCodexRpcHandler(new Context())
-    const result = await handler('auth/status', {})
+    const handler = createCodexManagementRpcHandler(new Context(), {} as never)
+    const result = await handler('auth/status/unknown', undefined)
     expect(result.ok).toBe(false)
     if (result.ok) throw new Error('expected unknown endpoint to fail')
     expect(result.error.message).toMatch(/unknown Codex endpoint/)
@@ -38,7 +38,7 @@ describe('createCodexRpcHandler', () => {
       ops: readonly { op: string, path: readonly string[], value: unknown }[],
       expected: number,
     ) => {
-      expect(ns).toBe(CODEX_SETTINGS_NAMESPACE)
+      expect(ns).toBe(CODEX_SETTINGS_ENTRY_ID)
       expect(expected).toBe(revision)
       const next = structuredClone(value) as Record<string, unknown>
       for (const op of ops) next[op.path[0] as string] = structuredClone(op.value)
@@ -47,10 +47,10 @@ describe('createCodexRpcHandler', () => {
     })
     const ctx = new Context()
     ctx.provide('settings', {
-      describe: () => [{ ns: CODEX_SETTINGS_NAMESPACE, value, revision }],
+      describe: () => [{ ns: CODEX_SETTINGS_ENTRY_ID, value, revision }],
       mutate,
     } as never)
-    const handler = createCodexRpcHandler(ctx)
+    const handler = createCodexManagementRpcHandler(ctx, {} as never, undefined, () => current)
 
     const result = await handler(CODEX_SAVE_ENDPOINT, {
       models: current.models,
@@ -104,7 +104,7 @@ describe('createCodexRpcHandler', () => {
   })
 
   it('rejects a save payload that tries to send token fields', async () => {
-    const handler = createCodexRpcHandler(new Context())
+    const handler = createCodexManagementRpcHandler(new Context(), {} as never)
     const result = await handler(CODEX_SAVE_ENDPOINT, {
       models: [{ id: 'gpt-5.6-sol' }],
       expectedRevision: 1,

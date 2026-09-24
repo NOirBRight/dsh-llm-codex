@@ -1,5 +1,7 @@
 ## Unreleased
 
+- Migrate the Host and client configuration, and authenticated Codex management transport, to DSH `0.1.7-alpha.2`.
+
 ## v0.3.22
 
 - Discover GPT-6 Sol and Luna from the live account catalog without hard-coded picker rows.

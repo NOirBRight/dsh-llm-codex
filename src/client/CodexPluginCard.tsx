@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { CSSProperties, ReactNode } from 'react'
-import type { SettingsScope, SettingsScopeSnapshot } from './settings-scope.js'
+import type { ConfigForm, ConfigFormSnapshot } from '@deepseek-ai/dsh-client-ui-settings/client'
 import type { InjectFace, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import type {} from '@deepseek-ai/dsh-client-ui-settings-plugins/client'
 import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
@@ -23,7 +23,7 @@ import type {
   CodexSettingsView,
   CodexUsage,
 } from '../client-contract.ts'
-import { CODEX_SETTINGS_NAMESPACE } from '../client-contract.ts'
+import { CODEX_SETTINGS_NAMESPACE, decodeCodexSettings } from '../client-contract.ts'
 import type { CodexSettingsKey } from './locales.ts'
 import { BrandMark } from './BrandMark.tsx'
 import { AuthToolbar, ProviderCardHeader, ProviderQuotaMeter, UsageHeader, UsageSkeleton, UsageUpdatedAt, formatUsageClock, providerUiCss, providerQuotaHeaderProps, resetLabelOf, useProviderQuotaCache } from './provider-chrome.tsx'
@@ -50,7 +50,7 @@ const USAGE_POLL_INTERVAL_MS = 60_000
 export interface CodexPluginCardFace {
   t: (key: CodexSettingsKey) => string
   hooks: {
-    codexSettings: SettingsScope<CodexSettingsView>
+    codexSettings: ConfigForm<Partial<CodexSettingsView>>
   }
   readAuthStatus: (signal?: AbortSignal) => Promise<CodexAccountStatus>
   startAuth: () => Promise<{ url?: string; verificationUri?: string; userCode?: string; expiresAt?: number; attemptId?: string }>
@@ -376,16 +376,17 @@ function UsageLimits({ usage, quotaError, t }: {
 
 export function CodexPluginCard(props: CodexPluginCardProps): ReactNode {
   const { t, readAuthStatus, readAuthAttemptStatus, startAuth, logout, cancelAuth, fetchModels } = props
-  const snapshot = props.useCodexSettings((value: SettingsScopeSnapshot<CodexSettingsView>) => value)
+  const snapshot = props.useCodexSettings((value: ConfigFormSnapshot<Partial<CodexSettingsView>>) => value)
+  const settings = useMemo(() => decodeCodexSettings(snapshot.value), [snapshot.value])
   const [open, setOpen] = useState(false)
   const initial = useMemo(
-    () => snapshot.value === undefined ? undefined : snapshot.value.models.map(modelDraftOf),
-    [snapshot.value],
+    () => settings?.models.map(modelDraftOf),
+    [settings],
   )
   const [source, setSource] = useState<ModelDraft[] | undefined>(initial)
   const [draft, setDraft] = useState<ModelDraft[] | undefined>(initial)
   const [capabilities, setCapabilities] = useState<CapabilityDraft | undefined>(
-    snapshot.value === undefined ? undefined : capabilityOf(snapshot.value),
+    settings === undefined ? undefined : capabilityOf(settings),
   )
   const [sourceRevision, setSourceRevision] = useState<number | undefined>(snapshot.revision)
   const [auth, setAuth] = useState<CodexAccountStatus>({ status: 'loading' })
@@ -410,8 +411,8 @@ export function CodexPluginCard(props: CodexPluginCardProps): ReactNode {
   const signingIn = auth.status === 'signing-in'
   const disabled = snapshot.status !== 'ready' || !snapshot.writable || busy
   const dirtyModels = source !== undefined && draft !== undefined && !sameDraft(source, draft)
-  const dirtyCaps = snapshot.value !== undefined && capabilities !== undefined
-    && JSON.stringify(capabilityOf(snapshot.value)) !== JSON.stringify(capabilities)
+  const dirtyCaps = settings !== undefined && capabilities !== undefined
+    && JSON.stringify(capabilityOf(settings)) !== JSON.stringify(capabilities)
   const dirty = dirtyModels || dirtyCaps
   const invalidModels = draft !== undefined && modelFailure(draft)
   const invalidCaps = capabilities !== undefined && (
@@ -429,15 +430,15 @@ export function CodexPluginCard(props: CodexPluginCardProps): ReactNode {
   }, [])
 
   useEffect(() => {
-    if (snapshot.status !== 'ready' || snapshot.value === undefined) return
+    if (snapshot.status !== 'ready' || settings === undefined) return
     if (snapshot.revision === sourceRevision) return
     if (dirty) return
-    const next = snapshot.value.models.map(modelDraftOf)
+    const next = settings.models.map(modelDraftOf)
     setSource(next)
     setDraft(next)
-    setCapabilities(capabilityOf(snapshot.value))
+    setCapabilities(capabilityOf(settings))
     setSourceRevision(snapshot.revision)
-  }, [dirty, snapshot.revision, snapshot.status, snapshot.value, sourceRevision])
+  }, [dirty, snapshot.revision, snapshot.status, settings, sourceRevision])
 
   useEffect(() => () => { props.closeModelPicker() }, [props.closeModelPicker])
 
@@ -681,19 +682,19 @@ export function CodexPluginCard(props: CodexPluginCardProps): ReactNode {
 
   const discard = (): void => {
     if (source !== undefined) setDraft(source.map(model => ({ ...model })))
-    if (snapshot.value !== undefined) setCapabilities(capabilityOf(snapshot.value))
+    if (settings !== undefined) setCapabilities(capabilityOf(settings))
     setFailure(undefined)
     setNotice(undefined)
   }
 
   const save = async (): Promise<void> => {
-    if (draft === undefined || snapshot.value === undefined || capabilities === undefined || invalid) return
+    if (draft === undefined || settings === undefined || capabilities === undefined || invalid) return
     setBusy(true)
     setFailure(undefined)
     setNotice(undefined)
     try {
       const accepted = await props.saveConfiguration({
-        ...snapshot.value,
+        ...settings,
         ...capabilities,
         models: draft.map(modelSettingsOf),
       })
@@ -721,7 +722,7 @@ export function CodexPluginCard(props: CodexPluginCardProps): ReactNode {
           : auth.status === 'loading'
             ? t('authLoading')
             : t('signedOut')
-  const modelCount = Array.isArray(draft) ? draft.length : snapshot.value?.models?.length
+  const modelCount = Array.isArray(draft) ? draft.length : settings?.models.length
   const headerModels = modelCount === undefined ? '' : t('summaryModels').replace('{count}', String(modelCount))
   // Unknown auth is loading, not signed out: only an authoritative verdict earns On/Off.
   const headerStatus = auth.status === 'signed-in' ? t('summaryOn') : auth.status === 'signed-out' ? t('summaryOff') : auth.status === 'error' ? t('statusFailed') : t('authLoading')

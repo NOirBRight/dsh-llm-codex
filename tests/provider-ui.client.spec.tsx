@@ -2,7 +2,7 @@
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { Context, Service } from '@deepseek-ai/cordis'
-import type { SettingsScopeSnapshot } from '../src/client/settings-scope.ts'
+import type { ConfigFormSnapshot } from '@deepseek-ai/dsh-client-ui-settings/client'
 import { CodexPluginCard } from '../src/client/CodexPluginCard.tsx'
 import type { CodexAccountStatus, CodexPluginCardProps } from '../src/client/CodexPluginCard.tsx'
 import { en } from '../src/client/locales.ts'
@@ -10,7 +10,7 @@ import { DEFAULT_CODEX_SETTINGS } from '../src/client-contract.ts'
 import type { CodexCatalogModel, CodexSettingsView } from '../src/client-contract.ts'
 import { apply, inject } from '../src/client/index.ts'
 import { clearProviderUsageCache } from 'dsh-llm-providers-ui/usage-readers'
-import { CODEX_AUTH_LOGOUT_ENDPOINT, CODEX_SETTINGS_NAMESPACE, CODEX_SETTINGS_READ_ENDPOINT } from '../src/client-contract.ts'
+import { CODEX_AUTH_LOGOUT_ENDPOINT, CODEX_SETTINGS_NAMESPACE } from '../src/client-contract.ts'
 
 afterEach(() => { cleanup(); clearProviderUsageCache() })
 
@@ -19,7 +19,7 @@ const settings: CodexSettingsView = {
   models: DEFAULT_CODEX_SETTINGS.models.map((model) => ({ ...model })),
 }
 
-function snapshot(overrides: Partial<SettingsScopeSnapshot<CodexSettingsView>> = {}): SettingsScopeSnapshot<CodexSettingsView> {
+function snapshot(overrides: Partial<ConfigFormSnapshot<Partial<CodexSettingsView>>> = {}): ConfigFormSnapshot<Partial<CodexSettingsView>> {
   return {
     status: 'ready',
     value: settings,
@@ -51,6 +51,16 @@ function props(overrides: Partial<CodexPluginCardProps> = {}): CodexPluginCardPr
     closeModelPicker: vi.fn(),
     ...overrides,
   } as CodexPluginCardProps
+}
+
+function provideConfigForms(ctx: Context): void {
+  const current = snapshot()
+  ctx.provide('configForms', {
+    get: () => ({
+      getSnapshot: () => current,
+      subscribe: () => () => undefined,
+    }),
+  } as never)
 }
 
 function expand(): void {
@@ -124,9 +134,9 @@ describe('Codex provider directory shared header', () => {
     const register = vi.fn(() => () => undefined)
     ctx.provide('providerDirectory', { register } as never)
     ctx.provide('locale', { register: () => () => undefined, bind: () => (key: string) => key } as never)
-    const rpc = { call: async (_c: string, e: string) => ({ ok: true, value: e === CODEX_SETTINGS_READ_ENDPOINT ? { settings: DEFAULT_CODEX_SETTINGS, revision: 1 } : { status: 'signed-out' } }) }
+    const rpc = { call: async () => ({ ok: true, value: { status: 'signed-out' } }) }
+    provideConfigForms(ctx)
     ctx.provide('connection', { rpc } as never)
-    ctx.provide('webServer', { register: () => () => {} } as never)
     const fiber = ctx.plugin({ inject: [...inject], apply })
     await fiber.await()
     await waitFor(() => { expect(register).toHaveBeenCalled() })
@@ -155,13 +165,11 @@ describe('Codex provider directory shared header', () => {
     const invalidateUsage = vi.fn()
     ctx.provide('providerDirectory', { register, invalidateUsage } as never)
     ctx.provide('locale', { register: () => () => undefined, bind: () => (key: string) => key } as never)
-    const rpc = { call: vi.fn(async (_c: string, e: string) => {
-      if (e === CODEX_SETTINGS_READ_ENDPOINT) return { ok: true, value: { settings: DEFAULT_CODEX_SETTINGS, revision: 1 } }
-      if (e === CODEX_AUTH_LOGOUT_ENDPOINT) return { ok: true, value: { ok: true } }
-      return { ok: true, value: { status: 'signed-out' } }
-    }) }
+    const rpc = { call: vi.fn(async (_c: string, _route: string, wrapped: { endpoint: string }) => wrapped.endpoint === CODEX_AUTH_LOGOUT_ENDPOINT
+      ? { ok: true, value: { ok: true } }
+      : { ok: true, value: { status: 'signed-out' } }) }
+    provideConfigForms(ctx)
     ctx.provide('connection', { rpc } as never)
-    ctx.provide('webServer', { register: () => () => {} } as never)
     const fiber = ctx.plugin({ inject: [...inject], apply })
     await fiber.await()
     const face = slots.entries('settings.provider.item')[0]?.inject?.() as { logout: () => Promise<void> }

@@ -8,7 +8,7 @@ The package root exposes the Cordis plugin contract. The same artifact exports `
 
 ## Compatibility
 
-Host `@deepseek-ai/dsh-*` packages are not version-locked: peers are `*` and optional. `devDependencies` pin the compile target (`0.1.5-rc.1`). Cordis stays `>=4.0.2 <5.0.0`.
+This source pins all `@deepseek-ai/dsh-*` peers and development packages to exact `0.1.7-alpha.2`. Cordis peers use `~4.0.4`.
 
 Verified Hosts in `package.json#dsh.compatibility.dshReleases` are evidence, not an allowlist. Unknown newer Hosts warn once and keep the normal mount path. Only a reproduced failure is blocklisted.
 
@@ -30,7 +30,7 @@ The repository tracks release-ready lib artifacts, so GitHub installation needs 
 
 ## Management RPC
 
-The settings and authentication RPC uses Connection's authenticated `/codex` channel. Host trusted-host and Origin policy controls remote access; this plugin has no separate remote-management switch.
+Settings and authentication management use the authenticated `/api/plugin-rpc/codex` fetch route. The Host `/api` carrier applies its Host/Origin checks, cookie authentication, and body limit before dispatch; this plugin has no separate remote-management switch.
 
 ## Web configuration
 

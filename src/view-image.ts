@@ -141,7 +141,7 @@ export function viewImageTool(ctx: Context): ToolDefinition {
       if (exec.parent !== undefined) {
         exec.deferContext(createUserMessage({
           content: contentOf(value),
-          source: { kind: 'plugin', plugin: 'dsh-llm-codex' },
+          source: { kind: 'llm-codex', tool: 'view_image' },
         }))
       }
       return value

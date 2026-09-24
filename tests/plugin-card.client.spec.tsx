@@ -2,7 +2,7 @@
 
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import type { SettingsScopeSnapshot } from '../src/client/settings-scope.ts'
+import type { ConfigFormSnapshot } from '@deepseek-ai/dsh-client-ui-settings/client'
 import { ProviderDetail, providerDetailCopy } from 'dsh-llm-providers-ui/provider-detail'
 import { CodexPluginCard } from '../src/client/CodexPluginCard.tsx'
 import type { CodexAccountStatus, CodexPluginCardProps } from '../src/client/CodexPluginCard.tsx'
@@ -22,8 +22,8 @@ const settings: CodexSettingsView = {
 }
 
 function snapshot(
-  overrides: Partial<SettingsScopeSnapshot<CodexSettingsView>> = {},
-): SettingsScopeSnapshot<CodexSettingsView> {
+  overrides: Partial<ConfigFormSnapshot<Partial<CodexSettingsView>>> = {},
+): ConfigFormSnapshot<Partial<CodexSettingsView>> {
   return {
     status: 'ready',
     value: settings,

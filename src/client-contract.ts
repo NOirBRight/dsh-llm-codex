@@ -8,16 +8,16 @@ export type { CodexCatalogModel } from './catalog.ts'
 
 /** Settings namespace owned by this plugin. */
 export const CODEX_SETTINGS_NAMESPACE = 'llm-codex'
+/** Loader entry id from this package's cordis.patch.yml. */
+export const CODEX_SETTINGS_ENTRY_ID = 'llm-codex'
 /** Public DSH provider route. Distinct from pi-ai's internal `openai-codex` id. */
 export const CODEX_PROVIDER = 'codex'
 /** Default maximum idle interval while a stream read is outstanding. */
 export const CODEX_DEFAULT_STREAM_IDLE_TIMEOUT_MS = 300_000
-/** Private Connection RPC channel used for catalog save. */
-export const CODEX_RPC_CHANNEL = '/codex'
-/** Atomic settings-save endpoint. */
+/** Shared authenticated Connection fetch endpoint for Codex host operations. */
+export const CODEX_RPC_ENDPOINT = 'plugin-rpc/codex'
+/** Atomic editable-settings save endpoint. */
 export const CODEX_SAVE_ENDPOINT = 'settings/save'
-/** Authoritative settings snapshot endpoint. */
-export const CODEX_SETTINGS_READ_ENDPOINT = 'settings/read'
 /** Authenticated remote model refresh endpoint. */
 export const CODEX_MODELS_FETCH_ENDPOINT = 'models/fetch'
 export const CODEX_AUTH_STATUS_ENDPOINT = 'auth/status'
@@ -25,12 +25,6 @@ export const CODEX_AUTH_BEGIN_ENDPOINT = 'auth/begin'
 export const CODEX_AUTH_CANCEL_ENDPOINT = 'auth/cancel'
 export const CODEX_AUTH_ATTEMPT_STATUS_ENDPOINT = 'auth/attempt-status'
 export const CODEX_AUTH_LOGOUT_ENDPOINT = 'auth/logout'
-/** Plugin-owned status endpoint consumed by its browser half. */
-export const CODEX_AUTH_STATUS_PATH = '/plugins/dsh-llm-codex/auth/status'
-/** Plugin-owned browser-login endpoint consumed by its browser half. */
-export const CODEX_AUTH_LOGIN_PATH = '/plugins/dsh-llm-codex/auth/login'
-/** Plugin-owned logout endpoint consumed by its browser half. */
-export const CODEX_AUTH_LOGOUT_PATH = '/plugins/dsh-llm-codex/auth/logout'
 
 /** Search modes accepted by the Codex standalone search endpoint. */
 export type CodexSearchMode = 'cached' | 'indexed' | 'live'

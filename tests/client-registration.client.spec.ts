@@ -4,7 +4,7 @@ import { Context, Service } from '@deepseek-ai/cordis'
 import { describe, expect, it, vi } from 'vitest'
 import { apply, inject } from '../src/client/index.ts'
 import { clearProviderUsageCache, peekCachedUsage, rememberHeadlineQuota } from 'dsh-llm-providers-ui/usage-readers'
-import { CODEX_AUTH_ATTEMPT_STATUS_ENDPOINT, CODEX_AUTH_LOGOUT_ENDPOINT, CODEX_AUTH_STATUS_ENDPOINT, CODEX_MODELS_FETCH_ENDPOINT, CODEX_SETTINGS_READ_ENDPOINT, DEFAULT_CODEX_SETTINGS } from '../src/client-contract.ts'
+import { CODEX_AUTH_ATTEMPT_STATUS_ENDPOINT, CODEX_AUTH_LOGOUT_ENDPOINT, CODEX_AUTH_STATUS_ENDPOINT, CODEX_MODELS_FETCH_ENDPOINT, CODEX_RPC_ENDPOINT, DEFAULT_CODEX_SETTINGS } from '../src/client-contract.ts'
 
 interface SlotEntry {
   options: Record<string, unknown>
@@ -37,14 +37,34 @@ async function bench(rpc: { call: (...args: unknown[]) => Promise<unknown> } = {
     register: () => () => undefined,
     bind: () => (key: string) => key,
   } as never)
+  ctx.provide('configForms', {
+    get: () => ({
+      getSnapshot: () => ({
+        status: 'ready',
+        value: DEFAULT_CODEX_SETTINGS,
+        base: {},
+        user: {},
+        revision: 1,
+        writable: true,
+        mode: 'host',
+      }),
+      subscribe: () => () => undefined,
+    }),
+  } as never)
   ctx.provide('connection', { rpc } as never)
-  ctx.provide('webServer', { register: () => () => {} } as never)
   return { ctx, slots }
 }
 
+function endpointOfCall(args: readonly unknown[]): string | undefined {
+  const wrapper = args[2]
+  if (typeof wrapper !== 'object' || wrapper === null) return undefined
+  const endpoint = (wrapper as Record<string, unknown>)['endpoint']
+  return typeof endpoint === 'string' ? endpoint : undefined
+}
+
 describe('Codex client plugin registration', () => {
-  it('declares only the client services it consumes', () => {
-    expect(inject).toEqual(['slots', 'locale', 'connection'])
+  it('declares the client services it consumes', () => {
+    expect(inject).toEqual(['slots', 'locale', 'connection', 'configForms'])
   })
 
   it('reserves a real popup without noopener and severs opener before navigation', async () => {
@@ -68,11 +88,9 @@ describe('Codex client plugin registration', () => {
   })
 
   it('requests live quota when the Codex card refreshes status', async () => {
-    const rpc = { call: vi.fn(async (_channel: string, endpoint: string) => ({
+    const rpc = { call: vi.fn(async () => ({
       ok: true,
-      value: endpoint === CODEX_SETTINGS_READ_ENDPOINT
-        ? { settings: DEFAULT_CODEX_SETTINGS, revision: 1 }
-        : { status: 'signed-out' },
+      value: { status: 'signed-out' },
     })) }
     const { ctx, slots } = await bench(rpc)
     const fiber = ctx.plugin({ inject: [...inject], apply })
@@ -80,18 +98,18 @@ describe('Codex client plugin registration', () => {
     const face = slots.entries('settings.provider.item')[0]!.inject!() as { readAuthStatus: () => Promise<unknown> }
 
     await face.readAuthStatus()
-    expect(rpc.call).toHaveBeenCalledWith('/codex', CODEX_AUTH_STATUS_ENDPOINT, { refresh: true }, undefined)
+    expect(rpc.call).toHaveBeenCalledWith('/api', CODEX_RPC_ENDPOINT, { endpoint: CODEX_AUTH_STATUS_ENDPOINT, payload: { refresh: true } }, undefined)
 
     await fiber.dispose()
     await ctx.fiber.dispose()
   })
 
   it('fetches the model catalog through Host RPC', async () => {
-    const rpc = { call: vi.fn(async (_channel: string, endpoint: string) => ({
+    const rpc = { call: vi.fn(async (_channel: string, _method: string, wrapper: { endpoint: string }) => ({
       ok: true,
-      value: endpoint === CODEX_SETTINGS_READ_ENDPOINT
-        ? { settings: DEFAULT_CODEX_SETTINGS, revision: 1 }
-        : [{ id: 'gpt-6-astra' }],
+      value: wrapper.endpoint === CODEX_MODELS_FETCH_ENDPOINT
+        ? [{ id: 'gpt-6-astra' }]
+        : { status: 'signed-out' },
     })) }
     const { ctx, slots } = await bench(rpc)
     const fiber = ctx.plugin({ inject: [...inject], apply })
@@ -99,16 +117,16 @@ describe('Codex client plugin registration', () => {
     const face = slots.entries('settings.provider.item')[0]!.inject!() as { fetchModels: () => Promise<unknown> }
 
     await expect(face.fetchModels()).resolves.toEqual([expect.objectContaining({ id: 'gpt-6-astra' })])
-    expect(rpc.call).toHaveBeenCalledWith('/codex', CODEX_MODELS_FETCH_ENDPOINT, {})
+    expect(rpc.call).toHaveBeenCalledWith('/api', CODEX_RPC_ENDPOINT, { endpoint: CODEX_MODELS_FETCH_ENDPOINT, payload: {} }, undefined)
 
     await fiber.dispose()
     await ctx.fiber.dispose()
   })
 
   it('falls back to the static catalog during a client-first rolling update', async () => {
-    const rpc = { call: vi.fn(async (_channel: string, endpoint: string) => endpoint === CODEX_SETTINGS_READ_ENDPOINT
-      ? { ok: true, value: { settings: DEFAULT_CODEX_SETTINGS, revision: 1 } }
-      : { ok: false, error: { message: 'unknown Codex endpoint: models/fetch' } }) }
+    const rpc = { call: vi.fn(async (...args: unknown[]) => endpointOfCall(args) === CODEX_MODELS_FETCH_ENDPOINT
+      ? { ok: false, error: { message: 'unknown Codex endpoint: models/fetch' } }
+      : { ok: true, value: { status: 'signed-out' } }) }
     const { ctx, slots } = await bench(rpc)
     const fiber = ctx.plugin({ inject: [...inject], apply })
     await fiber.await()
@@ -121,11 +139,11 @@ describe('Codex client plugin registration', () => {
   })
 
   it('keeps the static catalog when Host returns a malformed discovery reply', async () => {
-    const rpc = { call: vi.fn(async (_channel: string, endpoint: string) => ({
+    const rpc = { call: vi.fn(async (_channel: string, _method: string, wrapper: { endpoint: string }) => ({
       ok: true,
-      value: endpoint === CODEX_SETTINGS_READ_ENDPOINT
-        ? { settings: DEFAULT_CODEX_SETTINGS, revision: 1 }
-        : { models: 'malformed' },
+      value: wrapper.endpoint === CODEX_MODELS_FETCH_ENDPOINT
+        ? { models: 'malformed' }
+        : { status: 'signed-out' },
     })) }
     const { ctx, slots } = await bench(rpc)
     const fiber = ctx.plugin({ inject: [...inject], apply })
@@ -162,7 +180,7 @@ describe('Codex client plugin registration', () => {
 
   it('purges persisted quota on logout without a provider directory', async () => {
     rememberHeadlineQuota('llm-codex', 'Codex', { label: 'W', remainingPercent: 72 })
-    const { ctx, slots } = await bench({ call: async (...args: unknown[]) => args[1] === CODEX_AUTH_LOGOUT_ENDPOINT
+    const { ctx, slots } = await bench({ call: async (...args: unknown[]) => endpointOfCall(args) === CODEX_AUTH_LOGOUT_ENDPOINT
       ? { ok: true, value: { ok: true } }
       : { ok: true, value: {} } })
     const fiber = ctx.plugin({ inject: [...inject], apply })
@@ -192,12 +210,12 @@ describe('Codex client plugin registration', () => {
     let resolveOld: ((value: unknown) => void) | undefined
     let statusCalls = 0
     const { ctx, slots } = await bench({ call: async (...args: unknown[]) => {
-      if (args[1] === CODEX_AUTH_STATUS_ENDPOINT) {
+      if (endpointOfCall(args) === CODEX_AUTH_STATUS_ENDPOINT) {
         statusCalls += 1
         if (statusCalls === 2) return new Promise<unknown>(resolve => { resolveOld = resolve })
         return { ok: true, value: { status: 'signed-in' } }
       }
-      if (args[1] === CODEX_AUTH_ATTEMPT_STATUS_ENDPOINT) return { ok: true, value: { status: 'succeeded' } }
+      if (endpointOfCall(args) === CODEX_AUTH_ATTEMPT_STATUS_ENDPOINT) return { ok: true, value: { status: 'succeeded' } }
       return { ok: true, value: {} }
     } })
     const fiber = ctx.plugin({ inject: [...inject], apply })
@@ -218,7 +236,7 @@ describe('Codex client plugin registration', () => {
   })
 
   it('purges persisted quota when a sign-in attempt succeeds', async () => {
-    const { ctx, slots } = await bench({ call: async (...args: unknown[]) => args[1] === CODEX_AUTH_ATTEMPT_STATUS_ENDPOINT
+    const { ctx, slots } = await bench({ call: async (...args: unknown[]) => endpointOfCall(args) === CODEX_AUTH_ATTEMPT_STATUS_ENDPOINT
       ? { ok: true, value: { status: 'succeeded' } }
       : { ok: true, value: {} } })
     const fiber = ctx.plugin({ inject: [...inject], apply })
@@ -237,12 +255,12 @@ describe('Codex client plugin registration', () => {
     let statusCalls = 0
     let account = (): { state: string } => ({ state: 'unknown' })
     const { ctx, slots } = await bench({ call: async (...args: unknown[]) => {
-      if (args[1] === CODEX_AUTH_STATUS_ENDPOINT) {
+      if (endpointOfCall(args) === CODEX_AUTH_STATUS_ENDPOINT) {
         statusCalls += 1
         if (statusCalls === 1) return new Promise<unknown>(resolve => { resolveOld = resolve })
         return { ok: true, value: { status: 'signed-in' } }
       }
-      if (args[1] === CODEX_AUTH_ATTEMPT_STATUS_ENDPOINT) return { ok: true, value: { status: 'succeeded' } }
+      if (endpointOfCall(args) === CODEX_AUTH_ATTEMPT_STATUS_ENDPOINT) return { ok: true, value: { status: 'succeeded' } }
       return { ok: true, value: {} }
     } })
     ctx.provide('providerDirectory', {
@@ -271,9 +289,9 @@ describe('Codex client plugin registration', () => {
     let resolveAttempt: ((value: unknown) => void) | undefined
     let account = (): { state: string } => ({ state: 'unknown' })
     const { ctx, slots } = await bench({ call: async (...args: unknown[]) => {
-      if (args[1] === CODEX_AUTH_ATTEMPT_STATUS_ENDPOINT) return new Promise<unknown>(resolve => { resolveAttempt = resolve })
-      if (args[1] === CODEX_AUTH_LOGOUT_ENDPOINT) return { ok: true, value: { ok: true } }
-      if (args[1] === CODEX_AUTH_STATUS_ENDPOINT) return { ok: true, value: { status: 'signed-out' } }
+      if (endpointOfCall(args) === CODEX_AUTH_ATTEMPT_STATUS_ENDPOINT) return new Promise<unknown>(resolve => { resolveAttempt = resolve })
+      if (endpointOfCall(args) === CODEX_AUTH_LOGOUT_ENDPOINT) return { ok: true, value: { ok: true } }
+      if (endpointOfCall(args) === CODEX_AUTH_STATUS_ENDPOINT) return { ok: true, value: { status: 'signed-out' } }
       return { ok: true, value: {} }
     } })
     ctx.provide('providerDirectory', {
@@ -304,7 +322,7 @@ describe('Codex client plugin registration', () => {
     let resolveStatus: ((value: unknown) => void) | undefined
     let account = (): { state: string } => ({ state: 'unknown' })
     const { ctx } = await bench({ call: async (...args: unknown[]) => {
-      if (args[1] === CODEX_AUTH_STATUS_ENDPOINT) return new Promise<unknown>(resolve => { resolveStatus = resolve })
+      if (endpointOfCall(args) === CODEX_AUTH_STATUS_ENDPOINT) return new Promise<unknown>(resolve => { resolveStatus = resolve })
       return { ok: true, value: {} }
     } })
     ctx.provide('providerDirectory', {

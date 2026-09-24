@@ -1,5 +1,5 @@
 /** Browser half: Codex setup inside Plugin configuration. */
-import type { ClientContext } from './settings-scope.js';
+import type { Context as ClientContext } from '@deepseek-ai/cordis';
 import type { CodexSettingsKey } from './locales.ts';
 declare module '@deepseek-ai/dsh-client-ui-slots' {
     interface LocaleNamespaceMap {

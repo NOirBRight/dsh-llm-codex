@@ -1,6 +1,6 @@
 /** Codex Plugin configuration card: ChatGPT login, usage, and an editable catalog. */
 import type { ReactNode } from 'react';
-import type { SettingsScope } from './settings-scope.js';
+import type { ConfigForm } from '@deepseek-ai/dsh-client-ui-settings/client';
 import type { InjectFace, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots';
 import type { CodexCatalogModel } from '../catalog.ts';
 import type { CodexAccountStatus, CodexSaveResult, CodexSettingsView } from '../client-contract.ts';
@@ -10,7 +10,7 @@ export type { CodexAccountStatus };
 export interface CodexPluginCardFace {
     t: (key: CodexSettingsKey) => string;
     hooks: {
-        codexSettings: SettingsScope<CodexSettingsView>;
+        codexSettings: ConfigForm<Partial<CodexSettingsView>>;
     };
     readAuthStatus: (signal?: AbortSignal) => Promise<CodexAccountStatus>;
     startAuth: () => Promise<{

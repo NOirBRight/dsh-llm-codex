@@ -1,3 +1,4 @@
+import type { VolatileSnapshot } from '@deepseek-ai/cordis';
 /**
  * Official Codex catalog plus first-class Fast and 1M rows.
  * Display ids are picker keys; wire ids are what ChatGPT receives.
@@ -108,5 +109,5 @@ export interface CodexWireTarget {
 /** Map a displayed catalog id onto the ChatGPT request. */
 export declare function resolveWireModel(id: string): CodexWireTarget;
 /** Merge a user-edited row with official metadata when the id is known. */
-export declare function hydrateCatalogModel(model: CodexCatalogModel): CodexCatalogModel;
+export declare function hydrateCatalogModel(model: VolatileSnapshot<CodexCatalogModel>): CodexCatalogModel;
 //# sourceMappingURL=catalog.d.ts.map

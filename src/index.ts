@@ -5,28 +5,29 @@
  */
 
 import { randomUUID } from 'node:crypto'
-import type { Context, Fiber } from '@deepseek-ai/cordis'
+import type { Context, Fiber, Volatile, VolatileSnapshot } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
-import type {} from '@deepseek-ai/dsh-client-connection'
+import { clientRequestSchema } from '@deepseek-ai/dsh-client-connection'
 import type { ConnectionRpcHandler } from '@deepseek-ai/dsh-client-connection'
+import { SettingsConflictError } from '@deepseek-ai/dsh-settings'
 import { INVALID_CREDENTIAL_CODE, LlmError, resolveRetryPolicy, RetryPolicySchema } from '@deepseek-ai/dsh-llm'
 import type { ResolvedRetryPolicy, RetryPolicyConfig } from '@deepseek-ai/dsh-llm'
 import { deepEqualJson } from '@deepseek-ai/dsh-util-values'
 import type { SettingsPathOp } from '@deepseek-ai/dsh-settings'
 import { MAX_TIMER_DELAY_MS } from '@deepseek-ai/dsh-timeout'
+import type {} from '@deepseek-ai/cordis-plugin-loader'
 import { allowDshRuntime } from './compatibility.ts'
 import type {} from '@deepseek-ai/dsh-attachment'
 import type {} from '@deepseek-ai/dsh-agent'
 import type {} from '@deepseek-ai/dsh-session'
 import type {} from '@deepseek-ai/dsh-web'
-import type {} from '@deepseek-ai/dsh-host-webserver'
 import type {} from '@deepseek-ai/dsh-tools'
 import type {} from '@deepseek-ai/dsh-fs'
 import { CodexAdapter, refreshCodexAccessToken, resolveCodexAccessToken } from './adapter.ts'
 import { CODEX_REASONING_EFFORTS, isCodexReasoningEffort } from './catalog.ts'
 import type { CodexReasoningEffort } from './catalog.ts'
 import type { CodexConnectionOptions } from './adapter.ts'
-import { CodexWebAuth, registerCodexAuthRoutes, safeMessage } from './auth-routes.ts'
+import { CodexWebAuth, safeMessage } from './codex-web-auth.ts'
 import { isCodexCredentialFailure } from './usage.ts'
 import { generateImageTool } from './generate-image.ts'
 import { viewImageTool } from './view-image.ts'
@@ -39,9 +40,8 @@ import {
   CODEX_CATALOG,
   CODEX_DEFAULT_STREAM_IDLE_TIMEOUT_MS,
   CODEX_PROVIDER,
-  CODEX_RPC_CHANNEL,
+  CODEX_RPC_ENDPOINT,
   CODEX_SAVE_ENDPOINT,
-  CODEX_SETTINGS_READ_ENDPOINT,
   CODEX_MODELS_FETCH_ENDPOINT,
   CODEX_AUTH_STATUS_ENDPOINT,
   CODEX_AUTH_BEGIN_ENDPOINT,
@@ -49,6 +49,7 @@ import {
   CODEX_AUTH_ATTEMPT_STATUS_ENDPOINT,
   CODEX_AUTH_LOGOUT_ENDPOINT,
   CODEX_SETTINGS_NAMESPACE,
+  CODEX_SETTINGS_ENTRY_ID,
   DEFAULT_CODEX_IMAGE_GENERATION_MODEL,
   DEFAULT_CODEX_SEARCH_CONTEXT_SIZE,
   DEFAULT_CODEX_SEARCH_MAX_OUTPUT_TOKENS,
@@ -76,9 +77,8 @@ export {
   CODEX_CATALOG,
   CODEX_DEFAULT_STREAM_IDLE_TIMEOUT_MS,
   CODEX_PROVIDER,
-  CODEX_RPC_CHANNEL,
+  CODEX_RPC_ENDPOINT,
   CODEX_SAVE_ENDPOINT,
-  CODEX_SETTINGS_READ_ENDPOINT,
   CODEX_MODELS_FETCH_ENDPOINT,
   CODEX_AUTH_STATUS_ENDPOINT,
   CODEX_AUTH_BEGIN_ENDPOINT,
@@ -86,9 +86,7 @@ export {
   CODEX_AUTH_ATTEMPT_STATUS_ENDPOINT,
   CODEX_AUTH_LOGOUT_ENDPOINT,
   CODEX_SETTINGS_NAMESPACE,
-  CODEX_AUTH_STATUS_PATH,
-  CODEX_AUTH_LOGIN_PATH,
-  CODEX_AUTH_LOGOUT_PATH,
+  CODEX_SETTINGS_ENTRY_ID,
   DEFAULT_CODEX_SETTINGS,
   DEFAULT_CODEX_SEARCH_CONTEXT_SIZE,
   DEFAULT_CODEX_SEARCH_MAX_OUTPUT_TOKENS,
@@ -157,16 +155,33 @@ export { VIEW_IMAGE_TOOL_NAME } from './view-image.ts'
 export { installCodexModelSwitchAdapters } from './model-switch-adapter.ts'
 export { GENERATE_IMAGE_TOOL_NAME, generateImageTool } from './generate-image.ts'
 export { createCodexPiAiProfile, CODEX_CHAT_BASE_URL, codexResponsesApi } from './pi-ai-profile.ts'
-export { registerCodexAuthRoutes, trustedRequest, CodexWebAuth } from './auth-routes.ts'
+export { CodexWebAuth } from './codex-web-auth.ts'
 
 export const name = 'llm-codex'
 export const inject = ['llm']
 
 const NS = CODEX_SETTINGS_NAMESPACE
 
+
 export interface Config {
   streamIdleTimeoutMs?: number
-  models?: CodexCatalogModel[]
+  models: Volatile<CodexCatalogModel[] | undefined>
+  enableSearch: Volatile<boolean>
+  enableImageTool: Volatile<boolean>
+  enableImageGeneration: Volatile<boolean>
+  searchModel: Volatile<string>
+  imageGenerationModel: Volatile<string>
+  searchMode: Volatile<CodexSearchMode>
+  searchContextSize: Volatile<CodexSearchContextSize>
+  searchMaxOutputTokens: Volatile<number>
+  retryPolicy?: RetryPolicyConfig
+  /** Set false when Model Switch owns stable tool names, preventing legacy duplicates. */
+  registerLegacyTools?: boolean
+}
+
+interface RuntimeConfig {
+  streamIdleTimeoutMs?: number
+  models?: VolatileSnapshot<CodexCatalogModel[] | undefined>
   enableSearch?: boolean
   enableImageTool?: boolean
   enableImageGeneration?: boolean
@@ -176,8 +191,45 @@ export interface Config {
   searchContextSize?: CodexSearchContextSize
   searchMaxOutputTokens?: number
   retryPolicy?: RetryPolicyConfig
-  /** Set false when Model Switch owns stable tool names, preventing legacy duplicates. */
   registerLegacyTools?: boolean
+}
+type ConfigInput = Omit<RuntimeConfig, 'models'> & { models?: CodexCatalogModel[] }
+
+function isVolatileValue<T>(value: T | Volatile<T> | undefined): value is Volatile<T> {
+  return value !== null && typeof value === 'object' && 'get' in value && typeof value.get === 'function'
+}
+
+function configValue<T>(value: T | Volatile<T> | undefined): T | VolatileSnapshot<T> | undefined {
+  return isVolatileValue(value) ? value.get() : value
+}
+
+function readConfig(config: Config): RuntimeConfig {
+  const streamIdleTimeoutMs = config.streamIdleTimeoutMs
+  const models = configValue(config.models)
+  const enableSearch = configValue(config.enableSearch)
+  const enableImageTool = configValue(config.enableImageTool)
+  const enableImageGeneration = configValue(config.enableImageGeneration)
+  const searchModel = configValue(config.searchModel)
+  const imageGenerationModel = configValue(config.imageGenerationModel)
+  const searchMode = configValue(config.searchMode)
+  const searchContextSize = configValue(config.searchContextSize)
+  const searchMaxOutputTokens = configValue(config.searchMaxOutputTokens)
+  const retryPolicy = config.retryPolicy
+  const registerLegacyTools = config.registerLegacyTools
+  return {
+    ...(streamIdleTimeoutMs === undefined ? {} : { streamIdleTimeoutMs }),
+    ...(models === undefined ? {} : { models }),
+    ...(enableSearch === undefined ? {} : { enableSearch }),
+    ...(enableImageTool === undefined ? {} : { enableImageTool }),
+    ...(enableImageGeneration === undefined ? {} : { enableImageGeneration }),
+    ...(searchModel === undefined ? {} : { searchModel }),
+    ...(imageGenerationModel === undefined ? {} : { imageGenerationModel }),
+    ...(searchMode === undefined ? {} : { searchMode }),
+    ...(searchContextSize === undefined ? {} : { searchContextSize }),
+    ...(searchMaxOutputTokens === undefined ? {} : { searchMaxOutputTokens }),
+    ...(retryPolicy === undefined ? {} : { retryPolicy }),
+    ...(registerLegacyTools === undefined ? {} : { registerLegacyTools }),
+  }
 }
 
 /** Parse the retired on-disk literal without advertising it as a supported effort. */
@@ -190,7 +242,7 @@ const configuredEfforts = z.transform(
   efforts => efforts.filter(effort => effort !== undefined),
 ) as z<CodexReasoningEffort[]>
 
-const catalogModel = z.object({
+const catalogModel: z<CodexCatalogModel> = z.object({
   id: z.string().required(),
   name: z.string(),
   description: z.string(),
@@ -204,24 +256,24 @@ const catalogModel = z.object({
   fast: z.boolean(),
 })
 
-export const Config: z<Config> = z.object({
+export const Config: z<ConfigInput, Config> = z.object({
   streamIdleTimeoutMs: z.number().min(Number.MIN_VALUE).max(MAX_TIMER_DELAY_MS).default(
     CODEX_DEFAULT_STREAM_IDLE_TIMEOUT_MS,
   ),
-  models: z.array(catalogModel),
-  enableSearch: z.boolean().default(false),
-  enableImageTool: z.boolean().default(false),
-  enableImageGeneration: z.boolean().default(false),
-  searchModel: z.string().default(DEFAULT_CODEX_SEARCH_MODEL),
-  imageGenerationModel: z.string().default(DEFAULT_CODEX_IMAGE_GENERATION_MODEL),
-  searchMode: z.union(['cached', 'indexed', 'live'] as const).default(DEFAULT_CODEX_SEARCH_MODE),
-  searchContextSize: z.union(['low', 'medium', 'high'] as const).default(DEFAULT_CODEX_SEARCH_CONTEXT_SIZE),
-  searchMaxOutputTokens: z.number().step(1).min(1).default(DEFAULT_CODEX_SEARCH_MAX_OUTPUT_TOKENS),
+  models: z.transform(z.array(catalogModel), resolveModels, true).volatile(),
+  enableSearch: z.boolean().default(false).volatile(),
+  enableImageTool: z.boolean().default(false).volatile(),
+  enableImageGeneration: z.boolean().default(false).volatile(),
+  searchModel: z.string().default(DEFAULT_CODEX_SEARCH_MODEL).volatile(),
+  imageGenerationModel: z.string().default(DEFAULT_CODEX_IMAGE_GENERATION_MODEL).volatile(),
+  searchMode: z.union(['cached', 'indexed', 'live'] as const).default(DEFAULT_CODEX_SEARCH_MODE).volatile(),
+  searchContextSize: z.union(['low', 'medium', 'high'] as const).default(DEFAULT_CODEX_SEARCH_CONTEXT_SIZE).volatile(),
+  searchMaxOutputTokens: z.number().step(1).min(1).default(DEFAULT_CODEX_SEARCH_MAX_OUTPUT_TOKENS).volatile(),
   retryPolicy: RetryPolicySchema,
   registerLegacyTools: z.boolean().default(true),
 })
 
-function resolveModels(models: readonly CodexCatalogModel[] | undefined): CodexCatalogModel[] {
+function resolveModels(models: VolatileSnapshot<CodexCatalogModel[] | undefined>): CodexCatalogModel[] {
   const seen = new Set<string>()
   return (models ?? CODEX_CATALOG).map((model) => {
     if (model.id.length === 0) throw new Error('llm-codex: catalog model ids must be non-empty')
@@ -234,7 +286,7 @@ function resolveModels(models: readonly CodexCatalogModel[] | undefined): CodexC
   })
 }
 
-export function resolveAdapterOptions(config: Config): CodexConnectionOptions {
+export function resolveAdapterOptions(config: Config | RuntimeConfig): CodexConnectionOptions {
   const streamIdleTimeoutMs = config.streamIdleTimeoutMs ?? CODEX_DEFAULT_STREAM_IDLE_TIMEOUT_MS
   if (!Number.isFinite(streamIdleTimeoutMs)
     || streamIdleTimeoutMs <= 0
@@ -244,7 +296,7 @@ export function resolveAdapterOptions(config: Config): CodexConnectionOptions {
     )
   }
   return {
-    models: resolveModels(config.models),
+    models: resolveModels(configValue(config.models)),
     streamIdleTimeoutMs,
     retryPolicy: withAuthRetries(resolveRetryPolicy(
       config.retryPolicy ?? { mode: 'normal', maxRetries: DEFAULT_MAX_RETRIES },
@@ -284,16 +336,32 @@ function rpcFailure(error: unknown, fallback: string) {
   return internalError(message)
 }
 
-async function saveConfiguration(ctx: Context, payload: unknown) {
+async function saveConfiguration(ctx: Context, payload: unknown, currentConfig: RuntimeConfig) {
   const request = decodeCodexSaveRequest(payload)
   if (request === undefined) return internalError('invalid Codex settings request')
   const settings = ctx.get('settings')
   if (settings === undefined) return internalError('Codex settings are unavailable')
   try {
-    const before = settings.describe().find(descriptor => descriptor.ns === NS)
+    const before = settings.describe().find(descriptor => descriptor.ns === CODEX_SETTINGS_ENTRY_ID)
     if (before === undefined) return internalError('Codex settings are unavailable')
     const current = decodeCodexSettings(before.value)
     if (current === undefined) return internalError('Codex settings are invalid')
+    try {
+      resolveAdapterOptions({
+        ...currentConfig,
+        models: [...request.models],
+        enableSearch: request.enableSearch,
+        enableImageTool: request.enableImageTool,
+        enableImageGeneration: request.enableImageGeneration,
+        searchModel: request.searchModel,
+        imageGenerationModel: request.imageGenerationModel,
+        searchMode: request.searchMode,
+        searchContextSize: request.searchContextSize,
+        searchMaxOutputTokens: request.searchMaxOutputTokens,
+      })
+    } catch (error: unknown) {
+      return failure('invalid_config', error instanceof Error ? safeMessage(error) : 'invalid Codex settings')
+    }
     const ops: SettingsPathOp[] = []
     if (!deepEqualJson(current.models, request.models)) {
       ops.push({ op: 'set', path: ['models'], value: request.models })
@@ -322,32 +390,19 @@ async function saveConfiguration(ctx: Context, payload: unknown) {
     if (current.searchMaxOutputTokens !== request.searchMaxOutputTokens) {
       ops.push({ op: 'set', path: ['searchMaxOutputTokens'], value: request.searchMaxOutputTokens })
     }
-    if (ops.length > 0) await settings.mutate(NS, ops, request.expectedRevision)
-    const accepted = settings.describe().find(descriptor => descriptor.ns === NS)
+    if (ops.length > 0) await settings.mutate(CODEX_SETTINGS_ENTRY_ID, ops, request.expectedRevision)
+    const accepted = settings.describe().find(descriptor => descriptor.ns === CODEX_SETTINGS_ENTRY_ID)
     const acceptedSettings = decodeCodexSettings(accepted?.value)
     if (accepted === undefined || acceptedSettings === undefined) {
       return internalError('Codex settings could not be reloaded')
     }
     return { ok: true as const, value: { settings: acceptedSettings, revision: accepted.revision } }
   } catch (error: unknown) {
+    if (error instanceof SettingsConflictError) return failure(error.code, error.message)
     const message = error instanceof Error && error.message.length > 0
-      ? error.message
+      ? safeMessage(error)
       : 'Codex settings save failed'
     return internalError(message)
-  }
-}
-
-async function readConfiguration(ctx: Context) {
-  const descriptor = ctx.get('settings')?.describe().find(item => item.ns === NS)
-  const settings = decodeCodexSettings(descriptor?.value)
-  return descriptor === undefined || settings === undefined ? internalError('Codex settings are unavailable') : { ok: true as const, value: { settings, revision: descriptor.revision } }
-}
-
-export function createCodexRpcHandler(ctx: Context): ConnectionRpcHandler {
-  return async (endpoint, payload) => {
-    if (endpoint === CODEX_SAVE_ENDPOINT) return saveConfiguration(ctx, payload)
-    if (endpoint === CODEX_SETTINGS_READ_ENDPOINT) return readConfiguration(ctx)
-    return internalError(`unknown Codex endpoint: ${endpoint}`)
   }
 }
 
@@ -355,15 +410,14 @@ export function createCodexManagementRpcHandler(
   ctx: Context,
   auth: CodexWebAuth,
   fetchModels: () => Promise<readonly CodexCatalogModel[]> = async () => CODEX_CATALOG,
+  getConfig: () => RuntimeConfig = () => ({}),
 ): ConnectionRpcHandler {
   return async (endpoint, payload) => {
-    // Every failure is answered as a result: one that escaped this handler would
-    // reach the browser as an opaque gateway error with the code discarded.
+    // Expected failures stay RPC results; unexpected transport failures stay HTTP errors.
     try {
       const request = isRecord(payload) ? payload : undefined
-      if (endpoint === CODEX_SETTINGS_READ_ENDPOINT) return readConfiguration(ctx)
       if (endpoint === CODEX_MODELS_FETCH_ENDPOINT) return { ok: true as const, value: await fetchModels() }
-      if (endpoint === CODEX_SAVE_ENDPOINT) return saveConfiguration(ctx, payload)
+      if (endpoint === CODEX_SAVE_ENDPOINT) return saveConfiguration(ctx, payload, getConfig())
       if (endpoint === CODEX_AUTH_STATUS_ENDPOINT) {
         const refresh = request?.['refresh'] === true
         return { ok: true as const, value: await auth.status(refresh) }
@@ -391,14 +445,64 @@ export function createCodexManagementRpcHandler(
   }
 }
 
+async function handleCodexFetch(
+  request: Request,
+  handler: ConnectionRpcHandler,
+  operator: Parameters<ConnectionRpcHandler>[3],
+): Promise<Response> {
+  const mediaType = request.headers.get('content-type')?.split(';', 1)[0]?.trim().toLowerCase()
+  if (mediaType !== 'application/json') {
+    return Response.json({ error: 'Expected application/json' }, { status: 415 })
+  }
+  let body: unknown
+  try {
+    body = await request.json()
+  } catch {
+    return Response.json({ error: 'Invalid JSON request' }, { status: 400 })
+  }
+  const envelope = clientRequestSchema.safeParse(body)
+  if (!envelope.success || envelope.data.method !== CODEX_RPC_ENDPOINT) {
+    return Response.json({ error: 'Invalid Codex request' }, { status: 400 })
+  }
+  const payload = isRecord(envelope.data.payload) ? envelope.data.payload : undefined
+  if (payload === undefined || typeof payload['endpoint'] !== 'string') {
+    return Response.json({ error: 'Invalid Codex request payload' }, { status: 400 })
+  }
+  try {
+    const result = await handler(payload['endpoint'], payload['payload'], request.signal, operator)
+    if (!result.ok || result.attachments === undefined || result.attachments.length === 0) {
+      return Response.json({
+        type: 'server-response',
+        rpcId: envelope.data.rpcId,
+        result,
+      }, { headers: { 'cache-control': 'no-store' } })
+    }
+    const form = new FormData()
+    const attachments = result.attachments.map((attachment, index) => {
+      const part = `bytes-${index}`
+      form.append(part, new Blob([attachment.bytes as BlobPart]))
+      return { path: attachment.path, codec: 'bytes', part }
+    })
+    form.append('metadata', JSON.stringify({
+      type: 'server-response',
+      rpcId: envelope.data.rpcId,
+      result: { ok: true, value: result.value },
+      attachments,
+    }))
+    return new Response(form, { headers: { 'cache-control': 'no-store' } })
+  } catch {
+    return Response.json({ error: 'Codex request failed' }, { status: 500 })
+  }
+}
+
 export function apply(ctx: Context, config: Config): void {
   if (!allowDshRuntime(ctx.logger, 'dsh-llm-codex', ['@deepseek-ai/dsh-llm'])) return
 
-  let current: () => Config = () => config
-  let lastRaw: Config | undefined
+  let current = readConfig(config)
+  let lastRaw: RuntimeConfig | undefined
   let lastGood: CodexConnectionOptions | undefined
   const options = (): CodexConnectionOptions => {
-    const raw = current()
+    const raw = current
     if (raw === lastRaw && lastGood !== undefined) return lastGood
     try {
       const next = resolveAdapterOptions(raw)
@@ -417,6 +521,7 @@ export function apply(ctx: Context, config: Config): void {
 
   const credentials = new CodexCredentialStore()
   const auth = new CodexWebAuth(credentials)
+  ctx.effect(() => async () => auth.dispose(), 'dsh-llm-codex: OAuth lifecycle')
   const adapter = new CodexAdapter({
     options,
     resolveApiKey: () => resolveCodexAccessToken(credentials),
@@ -436,9 +541,19 @@ export function apply(ctx: Context, config: Config): void {
     registeredPolicy = policy
   }
 
-  ctx.inject(['webServer'], webCtx => registerCodexAuthRoutes(webCtx, credentials, auth))
-  ctx.inject(['connection', 'webServer'], (connectionCtx) => {
-    connectionCtx.effect(() => connectionCtx.connection.rpc.handle(CODEX_RPC_CHANNEL, createCodexManagementRpcHandler(ctx, auth, () => refreshCodexModelCatalog(credentials))), 'dsh-llm-codex: management RPC')
+  ctx.inject(['connection'], (connectionCtx) => {
+    const handler = createCodexManagementRpcHandler(
+      ctx,
+      auth,
+      () => refreshCodexModelCatalog(credentials),
+      () => current,
+    )
+    connectionCtx.effect(() => connectionCtx.connection.fetch.register({
+      path: '/api/plugin-rpc/codex',
+      methods: ['POST'],
+      requestBody: 'buffered',
+      fetch: request => handleCodexFetch(request, handler, connectionCtx.connection.operator),
+    }), 'dsh-llm-codex: authenticated management fetch')
   })
 
   let stopped = false
@@ -451,7 +566,7 @@ export function apply(ctx: Context, config: Config): void {
   let generateTail = Promise.resolve()
 
   const resolvedSettings = (): ReturnType<typeof decodeCodexSettings> => {
-    return decodeCodexSettings({ ...DEFAULT_CODEX_SETTINGS, ...current() })
+    return decodeCodexSettings({ ...DEFAULT_CODEX_SETTINGS, ...current })
   }
 
   installCodexModelSwitchAdapters(ctx, credentials, resolvedSettings)
@@ -460,7 +575,7 @@ export function apply(ctx: Context, config: Config): void {
     if (stopped) return
     const resolved = resolvedSettings()
     if (resolved === undefined) return
-    const nextRegistration = current().registerLegacyTools !== false
+    const nextRegistration = current.registerLegacyTools !== false
       && resolved.enableSearch
       ? {
           model: resolved.searchModel,
@@ -498,7 +613,7 @@ export function apply(ctx: Context, config: Config): void {
   const reconcileImageTool = async (): Promise<void> => {
     if (stopped) return
     const resolved = resolvedSettings()
-    const enabled = current().registerLegacyTools !== false && resolved?.enableImageTool === true
+    const enabled = current.registerLegacyTools !== false && resolved?.enableImageTool === true
     if (enabled === (imageFiber !== undefined)) return
     const previous = imageFiber
     imageFiber = undefined
@@ -519,7 +634,7 @@ export function apply(ctx: Context, config: Config): void {
   const reconcileGenerateImage = async (): Promise<void> => {
     if (stopped) return
     const resolved = resolvedSettings()
-    const enabled = current().registerLegacyTools !== false && resolved?.enableImageGeneration === true
+    const enabled = current.registerLegacyTools !== false && resolved?.enableImageGeneration === true
     if (enabled === (generateFiber !== undefined)) return
     const previous = generateFiber
     generateFiber = undefined
@@ -584,14 +699,17 @@ export function apply(ctx: Context, config: Config): void {
       throw new AggregateError(errors, 'dsh-llm-codex: optional capability cleanup failed')
     }
   }, 'dsh-llm-codex: optional capability lifecycle')
-  ctx.inject(['settings'], (settingsCtx) => {
-    settingsCtx.settings.installSection(ctx, NS, Config, config, {
-      setSource: (source) => {
-        current = source as () => Config
-      },
-      onChange: scheduleCapabilities,
-      validate: value => { resolveAdapterOptions(value) },
-    })
+  ctx.inject(['settings'], settingsCtx => {
+    settingsCtx.effect(
+      () => settingsCtx.settings.configure({ auto: false }, ctx.fiber),
+      'dsh-llm-codex: custom settings page policy',
+    )
+  })
+  ctx.on('loader/volatile-update', paths => {
+    if (paths.length === 0) return
+    current = readConfig(config)
+    lastRaw = undefined
+    scheduleCapabilities()
   })
   scheduleCapabilities()
 }

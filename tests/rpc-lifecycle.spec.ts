@@ -1,13 +1,20 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { Context } from '@deepseek-ai/cordis'
-import { CODEX_RPC_CHANNEL, Config, apply } from '../src/index.ts'
+import { Context, Fiber } from '@deepseek-ai/cordis'
+import { CODEX_RPC_ENDPOINT, Config, apply } from '../src/index.ts'
+
+interface FetchRoute {
+  path: string
+  methods: string[]
+  requestBody: string
+  fetch(request: Request): Promise<Response>
+}
 
 interface Mounted {
   readonly context: Context
-  readonly fiber: ReturnType<Context['plugin']>
-  readonly handle: ReturnType<typeof vi.fn>
-  readonly rpcDispose: ReturnType<typeof vi.fn>
-  readonly routeDisposals: ReturnType<typeof vi.fn>[]
+  readonly fiber: Fiber
+  readonly register: (route: FetchRoute) => () => void
+  readonly disposeRoute: () => void
+  readonly routes: FetchRoute[]
 }
 
 let mounted: Mounted | undefined
@@ -25,26 +32,22 @@ async function mountTransport(): Promise<Mounted> {
     registerAdapter: vi.fn(() => registration),
   } as never)
 
-  const routeDisposals: ReturnType<typeof vi.fn>[] = []
-  context.provide('webServer', {
-    register: vi.fn(() => {
-      const dispose = vi.fn()
-      routeDisposals.push(dispose)
-      return dispose
-    }),
-  } as never)
-
-  const rpcDispose = vi.fn(async () => {})
-  const handle = vi.fn((_channel: string, _handler: unknown) => rpcDispose)
-  context.provide('connection', { rpc: { handle } } as never)
+  const routes: FetchRoute[] = []
+  const disposeRoute = vi.fn()
+  const register = vi.fn((route: FetchRoute) => {
+    routes.push(route)
+    return disposeRoute
+  })
+  context.provide('connection', { fetch: { register }, operator: {} } as never)
+  context.provide('settings', { configure: () => () => undefined } as never)
 
   const fiber = context.plugin({ inject: ['llm'], apply, Config }, {})
   await fiber.await()
-  mounted = { context, fiber, handle, rpcDispose, routeDisposals }
+  mounted = { context, fiber, register, disposeRoute, routes }
   return mounted
 }
 
-describe('llm-codex Connection management lifecycle', () => {
+describe('llm-codex authenticated management fetch lifecycle', () => {
   it('does not expose the removed remote-management setting', () => {
     const schema = Config.toJSON() as { uid: number, refs: Record<string, { dict?: Record<string, unknown> }> }
     const dict = schema.refs[String(schema.uid)]?.dict
@@ -52,20 +55,43 @@ describe('llm-codex Connection management lifecycle', () => {
     expect(dict).not.toHaveProperty('remoteManagement')
   })
 
-  it('registers HostConnectionRpc.handle with exactly its two supported arguments', async () => {
-    const { handle } = await mountTransport()
-    expect(handle).toHaveBeenCalledTimes(1)
-    expect(handle.mock.calls[0]).toHaveLength(2)
-    expect(handle.mock.calls[0]?.[0]).toBe(CODEX_RPC_CHANNEL)
+  it('registers one authenticated fetch route at the Codex API path', async () => {
+    const { register, routes } = await mountTransport()
+    expect(register).toHaveBeenCalledTimes(1)
+    expect(routes).toHaveLength(1)
+    expect(routes[0]).toMatchObject({
+      path: '/api/plugin-rpc/codex',
+      methods: ['POST'],
+      requestBody: 'buffered',
+    })
   })
 
-  it('disposes the RPC registration and web routes with the injection fibers', async () => {
-    const { fiber, rpcDispose, routeDisposals } = await mountTransport()
-    expect(routeDisposals).toHaveLength(3)
+  it('keeps an omitted wrapped payload as undefined for legacy RPC calls', async () => {
+    const { routes } = await mountTransport()
+    const response = await routes[0]!.fetch(new Request('http://localhost/api/plugin-rpc/codex', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        type: 'client-request',
+        rpcId: 'codex-empty-payload',
+        method: CODEX_RPC_ENDPOINT,
+        payload: { endpoint: 'unknown/endpoint' },
+      }),
+    }))
+
+    expect(response.status).toBe(200)
+    expect(await response.json()).toMatchObject({
+      type: 'server-response',
+      rpcId: 'codex-empty-payload',
+      result: { ok: false },
+    })
+  })
+
+  it('disposes its exact fetch registration with the injection fiber', async () => {
+    const { fiber, disposeRoute } = await mountTransport()
 
     await fiber.dispose()
 
-    expect(rpcDispose).toHaveBeenCalledTimes(1)
-    for (const dispose of routeDisposals) expect(dispose).toHaveBeenCalledTimes(1)
+    expect(disposeRoute).toHaveBeenCalledTimes(1)
   })
 })

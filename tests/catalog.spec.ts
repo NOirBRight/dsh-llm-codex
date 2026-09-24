@@ -117,14 +117,22 @@ describe('official Codex catalog', () => {
     } as never)
     const efforts = ['low', 'medium', 'high', 'xhigh', 'max']
 
-    expect(config.models?.[0]).toMatchObject({ efforts, defaultEffort: 'medium' })
+    expect(config.models?.get()?.[0]).toMatchObject({ efforts, defaultEffort: 'medium' })
     expect(resolveAdapterOptions(config).models[0]).toMatchObject({ efforts, defaultEffort: 'medium' })
   })
 
-  it('rejects duplicate catalog ids', () => {
+  it('rejects duplicate catalog ids in settings', () => {
     expect(decodeCodexSettings({
       models: [{ id: 'gpt-5.6-sol' }, { id: 'gpt-5.6-sol' }],
     })).toBeUndefined()
+  })
+
+  it.each([
+    ['duplicate ids', [{ id: 'gpt-5.6-sol' }, { id: 'gpt-5.6-sol' }]],
+    ['empty ids', [{ id: '' }]],
+    ['empty names', [{ id: 'gpt-5.6-sol', name: '' }]],
+  ])('rejects %s in Loader config', (_invariant, models) => {
+    expect(() => Config({ models } as never)).toThrow()
   })
 
   it('peels generic -<n>k context tiers and leaves product -max alone', () => {
