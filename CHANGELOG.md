@@ -1,3 +1,7 @@
+## v0.3.24
+
+- Verify compatibility with official DeepSeek Harness `0.1.7-rc.1` and accept DSH package versions from `0.1.7-alpha.2` onward.
+
 ## v0.3.23
 
 - Migrate the Host and client configuration, and authenticated Codex management transport, to DSH `0.1.7-alpha.2`; build with released Providers UI `0.2.12` and Model Switch `0.4.14`.

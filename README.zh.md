@@ -8,7 +8,7 @@ DeepSeek Harness 的 ChatGPT Codex 集成。独立提供方路由是 `codex`，�
 
 ## 兼容性
 
-此源码将所有 `@deepseek-ai/dsh-*` peer 与开发依赖固定为 `0.1.7-alpha.2`。Cordis peer 使用 `~4.0.4`。
+DSH peer 和开发依赖范围接受 `0.1.7-alpha.2` 及之后的发行版。Cordis peer 接受 `>=4.0.4 <5.0.0`。
 
 `package.json#dsh.compatibility.dshReleases` 里的已验证宿主是证据，不是允许列表。未知的新宿主告警一次后仍按正常路径挂载。只有复现过的故障才会加入 blocklist。
 
@@ -20,9 +20,9 @@ DeepSeek Harness 的 ChatGPT Codex 集成。独立提供方路由是 `codex`，�
 
 ~~~sh
 dsh plugin --profile web add --force \
-  https://github.com/NOirBRight/dsh-llm-providers-ui/releases/download/v0.2.12/dsh-llm-providers-ui-0.2.12.tgz
+  https://github.com/NOirBRight/dsh-llm-providers-ui/releases/download/v0.2.13/dsh-llm-providers-ui-0.2.13.tgz
 dsh plugin --profile web add --force \
-  https://github.com/NOirBRight/dsh-llm-codex/releases/download/v0.3.23/dsh-llm-codex-0.3.23.tgz
+  https://github.com/NOirBRight/dsh-llm-codex/releases/download/v0.3.24/dsh-llm-codex-0.3.24.tgz
 dsh web
 ~~~
 
@@ -122,7 +122,7 @@ MIT
 
 ## 正式版安装（Latest）
 
-ChatGPT Codex login, model catalog, usage, and optional search/image capabilities. 此发行版面向官方 DeepSeek Harness `0.1.7-alpha.2`；发布包只包含构建后的 Host/Client 产物，不包含兄弟仓库源码、本机路径或 link:/workspace: 依赖。
+ChatGPT Codex login, model catalog, usage, and optional search/image capabilities. 此发行版面向官方 DeepSeek Harness `0.1.7-rc.1`；发布包只包含构建后的 Host/Client 产物，不包含兄弟仓库源码、本机路径或 link:/workspace: 依赖。
 
 LLM Providers 页面、导航和共享排序由 dsh-llm-providers-ui 独占；本插件只提供卡片、模型和 Host 路由。Web 必须先装 Owner，headless 只使用 Host 路由时可以不装 Owner。
 
@@ -130,18 +130,18 @@ Latest（Owner + 本插件；Web 必须一起装）：
 
 ~~~sh
 dsh plugin --profile web add --force \
-  https://github.com/NOirBRight/dsh-llm-providers-ui/releases/latest/download/dsh-llm-providers-ui-0.2.12.tgz
+  https://github.com/NOirBRight/dsh-llm-providers-ui/releases/latest/download/dsh-llm-providers-ui-0.2.13.tgz
 dsh plugin --profile web add --force \
-  https://github.com/NOirBRight/dsh-llm-codex/releases/latest/download/dsh-llm-codex-0.3.23.tgz
+  https://github.com/NOirBRight/dsh-llm-codex/releases/latest/download/dsh-llm-codex-0.3.24.tgz
 ~~~
 
 固定版本（可复现）：
 
 ~~~sh
 dsh plugin --profile web add --force \
-  https://github.com/NOirBRight/dsh-llm-providers-ui/releases/download/v0.2.12/dsh-llm-providers-ui-0.2.12.tgz
+  https://github.com/NOirBRight/dsh-llm-providers-ui/releases/download/v0.2.13/dsh-llm-providers-ui-0.2.13.tgz
 dsh plugin --profile web add --force \
-  https://github.com/NOirBRight/dsh-llm-codex/releases/download/v0.3.23/dsh-llm-codex-0.3.23.tgz
+  https://github.com/NOirBRight/dsh-llm-codex/releases/download/v0.3.24/dsh-llm-codex-0.3.24.tgz
 ~~~
 
 更新、卸载与验证：
@@ -149,9 +149,9 @@ dsh plugin --profile web add --force \
 ~~~sh
 # 更新 Owner + 本插件到 Latest
 dsh plugin --profile web add --force \
-  https://github.com/NOirBRight/dsh-llm-providers-ui/releases/latest/download/dsh-llm-providers-ui-0.2.12.tgz
+  https://github.com/NOirBRight/dsh-llm-providers-ui/releases/latest/download/dsh-llm-providers-ui-0.2.13.tgz
 dsh plugin --profile web add --force \
-  https://github.com/NOirBRight/dsh-llm-codex/releases/latest/download/dsh-llm-codex-0.3.23.tgz
+  https://github.com/NOirBRight/dsh-llm-codex/releases/latest/download/dsh-llm-codex-0.3.24.tgz
 # 验证加载与版本
 dsh plugin --profile web list
 dsh plugin --profile web doctor
@@ -163,7 +163,7 @@ dsh plugin --profile web remove dsh-llm-codex
 
 回滚：重新安装上一稳定版 [v0.3.22](https://github.com/NOirBRight/dsh-llm-codex/releases/download/v0.3.22/dsh-llm-codex-0.3.22.tgz)，确认插件列表后只重启一次 Web 服务。失败时查看 journalctl --user -u dsh-web.service 与 dsh plugin --profile web doctor，不要把源码 checkout 写入 production profile。
 
-Release 与完整性：[v0.3.23](https://github.com/NOirBRight/dsh-llm-codex/releases/tag/v0.3.23) · [SHA256SUMS](https://github.com/NOirBRight/dsh-llm-codex/releases/download/v0.3.23/SHA256SUMS)。
+Release 与完整性：[v0.3.24](https://github.com/NOirBRight/dsh-llm-codex/releases/tag/v0.3.24) · [SHA256SUMS](https://github.com/NOirBRight/dsh-llm-codex/releases/download/v0.3.24/SHA256SUMS)。
 
 ## 独立 Model Switch 搜索
 
