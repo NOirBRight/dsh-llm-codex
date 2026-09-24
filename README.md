@@ -124,7 +124,7 @@ MIT
 
 ## Release installation (Latest)
 
-ChatGPT Codex login, model catalog, usage, and optional search/image capabilities. The release artifact targets DeepSeek Harness 0.1.2-alpha.4, 0.1.2-rc.1, 0.1.5-rc.1, and 0.1.5-rc.2 and contains built Host/Client files only; it has no sibling-repository source, workstation path, link:, or workspace: dependency.
+ChatGPT Codex login, model catalog, usage, and optional search/image capabilities. This release targets official DeepSeek Harness `0.1.7-alpha.2` and contains built Host/Client files only; it has no sibling-repository source, workstation path, link:, or workspace: dependency.
 
 The dsh-llm-providers-ui package owns the LLM Providers page, navigation, and shared order store. This package owns only its provider card, models, credentials, and Host route. Install the Owner first for Web; headless Host routing works without the Owner.
 

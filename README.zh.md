@@ -122,7 +122,7 @@ MIT
 
 ## 正式版安装（Latest）
 
-ChatGPT Codex login, model catalog, usage, and optional search/image capabilities. 正式成品按上方兼容性记录运行；发布包只包含构建后的 Host/Client 产物，不包含兄弟仓库源码、本机路径或 link:/workspace: 依赖。
+ChatGPT Codex login, model catalog, usage, and optional search/image capabilities. 此发行版面向官方 DeepSeek Harness `0.1.7-alpha.2`；发布包只包含构建后的 Host/Client 产物，不包含兄弟仓库源码、本机路径或 link:/workspace: 依赖。
 
 LLM Providers 页面、导航和共享排序由 dsh-llm-providers-ui 独占；本插件只提供卡片、模型和 Host 路由。Web 必须先装 Owner，headless 只使用 Host 路由时可以不装 Owner。
 
