@@ -22,7 +22,7 @@ Install directly from GitHub:
 dsh plugin --profile web add --force \
   https://github.com/NOirBRight/dsh-llm-providers-ui/releases/download/v0.2.13/dsh-llm-providers-ui-0.2.13.tgz
 dsh plugin --profile web add --force \
-  https://github.com/NOirBRight/dsh-llm-codex/releases/download/v0.3.24/dsh-llm-codex-0.3.24.tgz
+  https://github.com/NOirBRight/dsh-llm-codex/releases/download/v0.3.25/dsh-llm-codex-0.3.25.tgz
 dsh web
 ~~~
 
@@ -134,7 +134,7 @@ Latest (Owner + this plugin; required together on Web):
 dsh plugin --profile web add --force \
   https://github.com/NOirBRight/dsh-llm-providers-ui/releases/latest/download/dsh-llm-providers-ui-0.2.13.tgz
 dsh plugin --profile web add --force \
-  https://github.com/NOirBRight/dsh-llm-codex/releases/latest/download/dsh-llm-codex-0.3.24.tgz
+  https://github.com/NOirBRight/dsh-llm-codex/releases/latest/download/dsh-llm-codex-0.3.25.tgz
 ~~~
 
 Fixed versions (reproducible):
@@ -143,7 +143,7 @@ Fixed versions (reproducible):
 dsh plugin --profile web add --force \
   https://github.com/NOirBRight/dsh-llm-providers-ui/releases/download/v0.2.13/dsh-llm-providers-ui-0.2.13.tgz
 dsh plugin --profile web add --force \
-  https://github.com/NOirBRight/dsh-llm-codex/releases/download/v0.3.24/dsh-llm-codex-0.3.24.tgz
+  https://github.com/NOirBRight/dsh-llm-codex/releases/download/v0.3.25/dsh-llm-codex-0.3.25.tgz
 ~~~
 
 Update, uninstall, and verify:
@@ -153,7 +153,7 @@ Update, uninstall, and verify:
 dsh plugin --profile web add --force \
   https://github.com/NOirBRight/dsh-llm-providers-ui/releases/latest/download/dsh-llm-providers-ui-0.2.13.tgz
 dsh plugin --profile web add --force \
-  https://github.com/NOirBRight/dsh-llm-codex/releases/latest/download/dsh-llm-codex-0.3.24.tgz
+  https://github.com/NOirBRight/dsh-llm-codex/releases/latest/download/dsh-llm-codex-0.3.25.tgz
 # Verify the loaded version
 dsh plugin --profile web list
 dsh plugin --profile web doctor
@@ -165,12 +165,12 @@ Configuration: use the plugin section in Settings for Web UI plugins, or the pro
 
 Rollback: reinstall the prior stable [v0.3.22](https://github.com/NOirBRight/dsh-llm-codex/releases/download/v0.3.22/dsh-llm-codex-0.3.22.tgz), verify the profile list, then restart the Web service once. Inspect journalctl --user -u dsh-web.service and dsh plugin --profile web doctor; never put a source checkout in the production profile.
 
-Release and integrity: [v0.3.24](https://github.com/NOirBRight/dsh-llm-codex/releases/tag/v0.3.24) · [SHA256SUMS](https://github.com/NOirBRight/dsh-llm-codex/releases/download/v0.3.24/SHA256SUMS).
+Release and integrity: [v0.3.25](https://github.com/NOirBRight/dsh-llm-codex/releases/tag/v0.3.25) · [SHA256SUMS](https://github.com/NOirBRight/dsh-llm-codex/releases/download/v0.3.25/SHA256SUMS).
 
 ## Independent Model Switch search
 
 Since 0.3.14, the Host adapter self-declares its current search model catalog (`tools !== false`) through the existing Model Switch adapter registry: display label `Codex` plus a live serializable `models` list (`{id, name}`) reflecting current provider settings. Search uses the existing ChatGPT credential store and Codex search implementation; no credentials or executable functions are sent to the browser. Unsupported models and missing credentials fail explicitly.
 
-The coordinated search UI that reads this metadata requires Model Switch 0.4.7 (coordinated release, not yet published); the `dsh-model-switch` peer range (`^0.4.5`) is unchanged because older releases ignore the extra fields. Registration does not select global Web routing: explicitly configure `web.searchProvider: model-switch` while preserving the complete existing Web config, then select the adapter/model in Model Switch Settings. `web_fetch` is unchanged. ProviderDirectory role/usage registration remains deferred through `ctx.inject`.
+The coordinated search UI that reads this metadata is available from Model Switch 0.4.7; the optional `dsh-model-switch` peer accepts versions from 0.4.5 onward. Older releases ignore the extra fields. Registration does not select global Web routing: explicitly configure `web.searchProvider: model-switch` while preserving the complete existing Web config, then select the adapter/model in Model Switch Settings. `web_fetch` is unchanged. ProviderDirectory role/usage registration remains deferred through `ctx.inject`.
 
 Validation: `pnpm run check`, `pnpm run build`; live acceptance through 3082 official Web selection succeeded with `gpt-5.6-luna`. See the Model Switch integration audit for exact lab composition and evidence.

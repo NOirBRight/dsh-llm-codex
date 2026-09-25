@@ -40,6 +40,8 @@ try {
     }
   }
 
+  assert.match(packed.peerDependencies?.['dsh-model-switch'] ?? '', /^>=\d+\.\d+\.\d+$/u, 'Model Switch peer must have a verified lower bound without an upper bound')
+
   for (const target of targets(packed.exports ?? {})) {
     if (target.startsWith('./')) assert(names.has('package/' + target.slice(2)), 'missing export ' + target)
   }

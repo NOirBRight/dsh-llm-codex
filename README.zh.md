@@ -22,7 +22,7 @@ DSH peer 和开发依赖范围接受 `0.1.7-alpha.2` 及之后的发行版。Cor
 dsh plugin --profile web add --force \
   https://github.com/NOirBRight/dsh-llm-providers-ui/releases/download/v0.2.13/dsh-llm-providers-ui-0.2.13.tgz
 dsh plugin --profile web add --force \
-  https://github.com/NOirBRight/dsh-llm-codex/releases/download/v0.3.24/dsh-llm-codex-0.3.24.tgz
+  https://github.com/NOirBRight/dsh-llm-codex/releases/download/v0.3.25/dsh-llm-codex-0.3.25.tgz
 dsh web
 ~~~
 
@@ -132,7 +132,7 @@ Latest（Owner + 本插件；Web 必须一起装）：
 dsh plugin --profile web add --force \
   https://github.com/NOirBRight/dsh-llm-providers-ui/releases/latest/download/dsh-llm-providers-ui-0.2.13.tgz
 dsh plugin --profile web add --force \
-  https://github.com/NOirBRight/dsh-llm-codex/releases/latest/download/dsh-llm-codex-0.3.24.tgz
+  https://github.com/NOirBRight/dsh-llm-codex/releases/latest/download/dsh-llm-codex-0.3.25.tgz
 ~~~
 
 固定版本（可复现）：
@@ -141,7 +141,7 @@ dsh plugin --profile web add --force \
 dsh plugin --profile web add --force \
   https://github.com/NOirBRight/dsh-llm-providers-ui/releases/download/v0.2.13/dsh-llm-providers-ui-0.2.13.tgz
 dsh plugin --profile web add --force \
-  https://github.com/NOirBRight/dsh-llm-codex/releases/download/v0.3.24/dsh-llm-codex-0.3.24.tgz
+  https://github.com/NOirBRight/dsh-llm-codex/releases/download/v0.3.25/dsh-llm-codex-0.3.25.tgz
 ~~~
 
 更新、卸载与验证：
@@ -151,7 +151,7 @@ dsh plugin --profile web add --force \
 dsh plugin --profile web add --force \
   https://github.com/NOirBRight/dsh-llm-providers-ui/releases/latest/download/dsh-llm-providers-ui-0.2.13.tgz
 dsh plugin --profile web add --force \
-  https://github.com/NOirBRight/dsh-llm-codex/releases/latest/download/dsh-llm-codex-0.3.24.tgz
+  https://github.com/NOirBRight/dsh-llm-codex/releases/latest/download/dsh-llm-codex-0.3.25.tgz
 # 验证加载与版本
 dsh plugin --profile web list
 dsh plugin --profile web doctor
@@ -163,12 +163,12 @@ dsh plugin --profile web remove dsh-llm-codex
 
 回滚：重新安装上一稳定版 [v0.3.22](https://github.com/NOirBRight/dsh-llm-codex/releases/download/v0.3.22/dsh-llm-codex-0.3.22.tgz)，确认插件列表后只重启一次 Web 服务。失败时查看 journalctl --user -u dsh-web.service 与 dsh plugin --profile web doctor，不要把源码 checkout 写入 production profile。
 
-Release 与完整性：[v0.3.24](https://github.com/NOirBRight/dsh-llm-codex/releases/tag/v0.3.24) · [SHA256SUMS](https://github.com/NOirBRight/dsh-llm-codex/releases/download/v0.3.24/SHA256SUMS)。
+Release 与完整性：[v0.3.25](https://github.com/NOirBRight/dsh-llm-codex/releases/tag/v0.3.25) · [SHA256SUMS](https://github.com/NOirBRight/dsh-llm-codex/releases/download/v0.3.25/SHA256SUMS)。
 
 ## 独立 Model Switch 搜索
 
 0.3.14 起，Host adapter 通过既有 Model Switch adapter registry 自声明当前搜索模型目录（`tools !== false`）：展示名 `Codex` 加实时可序列化 `models` 列表（`{id, name}`），跟随当前 provider 设置。搜索沿用既有 ChatGPT 凭据存储与 Codex 搜索实现；凭据与可执行函数不发送到浏览器。不支持的模型与缺失的凭据会显式失败。
 
-读取该元数据的协同搜索 UI 需要 Model Switch 0.4.7（协同发布，尚未发布）；`dsh-model-switch` peer 范围（`^0.4.5`）不变，旧版本会忽略新增字段。注册不改变全局 Web 路由：保留完整既有 Web 配置并显式设置 `web.searchProvider: model-switch`，再在 Model Switch 设置中选择 adapter/模型。`web_fetch` 不变。ProviderDirectory 角色/用量注册仍通过 `ctx.inject` 延迟注册。
+读取该元数据的协同搜索 UI 从 Model Switch 0.4.7 起可用；可选的 `dsh-model-switch` peer 接受 0.4.5 及后续版本。较旧版本会忽略新增字段。注册不改变全局 Web 路由：保留完整既有 Web 配置并显式设置 `web.searchProvider: model-switch`，再在 Model Switch 设置中选择 adapter/模型。`web_fetch` 不变。ProviderDirectory 角色/用量注册仍通过 `ctx.inject` 延迟注册。
 
 验证：`pnpm run check`、`pnpm run build`；3082 官方 Web 选择 `gpt-5.6-luna` 的 live 验收通过。lab 组成与证据见 Model Switch 集成审计。

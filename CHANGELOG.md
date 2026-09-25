@@ -1,3 +1,7 @@
+## v0.3.25
+
+- Allow future Model Switch releases that retain the public adapter-registry API; keep the tested development artifact pinned.
+
 ## v0.3.24
 
 - Verify compatibility with official DeepSeek Harness `0.1.7-rc.1` and accept DSH package versions from `0.1.7-alpha.2` onward.
